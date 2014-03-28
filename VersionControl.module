@@ -1,0 +1,756 @@
+<?php
+
+/**
+ * Version Control
+ *
+ * This module uses hooks provided by ProcessWire to catch page edits and stores
+ * history data in series of custom database tables so that it can later be used
+ * again.
+ *
+ * @copyright Copyright (c) 2013-2014, Teppo Koivula
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ *
+ * @todo proper cleanup for deleted fields (just like deleted pages at the moment)
+ *
+ * ProcessWire 2.x 
+ * Copyright (C) 2013 by Ryan Cramer 
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ * 
+ * http://processwire.com
+ *
+ */
+class VersionControl extends WireData implements Module, ConfigurableModule {
+
+    /**
+     * Return information about this module (required)
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => 'Version Control',
+            'summary' => 'Basic version control features for page content.',
+            'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
+            'author' => 'Teppo Koivula',
+            'version' => 50,
+            'singular' => true,
+            'autoload' => true,
+            'installs' => array(
+                'ProcessVersionControl',
+                'PageSnapshot',
+                'LazyCron',
+            ),
+        ); 
+    }
+
+    /**
+     * Default configuration for this module
+     *
+     * The point of putting this in it's own function is so that you don't have to specify
+     * these defaults more than once.
+     *
+     * @return array
+     */
+    static public function getDefaultData() {
+        return array(
+            'compatible_fieldtypes' => array(
+                'FieldtypeEmail',
+                'FieldtypeDatetime',
+                'FieldtypeText',
+                'FieldtypeTextLanguage',
+                'FieldtypeTextarea',
+                'FieldtypeTextareaLanguage',
+                'FieldtypePageTitle',
+                'FieldtypePageTitleLanguage',
+                'FieldtypeCheckbox',
+                'FieldtypeInteger',
+                'FieldtypeFloat',
+                'FieldtypeURL',
+                'FieldtypePage',
+                'FieldtypeModule',
+                'FieldtypeFile',
+                'FieldtypeImage',
+            )
+        );
+    }
+    
+    /**
+     * Container for field data
+     *
+     */
+    protected $page_data = array();
+
+    /**
+     * Data fields for installed languages
+     *
+     * @deprecated
+     */
+    protected $data_fields = array();
+
+    /**
+     * Process page path is used as a storage for files under version control
+     *
+     */
+    protected $path;
+
+    /**
+     * Container for hash format filenames within image inputfields
+     *
+     */
+    protected $hash_map = array();
+
+    /**
+     * Names of database tables used by this module
+     *
+     * Data table is used as a storage table for actual revision data (content) while main table provides dates, user
+     * and page id's etc. (metadata.)
+     *
+     */
+    const TABLE_NAME = 'version_control';
+    const DATA_TABLE_NAME = 'version_control__data';
+    const FILES_TABLE_NAME = 'version_control__files';
+    const DATA_FILES_TABLE_NAME = 'version_control__data_files';
+
+    /**
+     * Populate the default config data
+     *
+     * ProcessWire will automatically overwrite it with anything the user has specifically configured.
+     * This is done in construct() rather than init() because ProcessWire populates config data after
+     * construct(), but before init().
+     *
+     */
+    public function __construct() {
+        foreach(self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
+    /**
+     * Module configuration
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    static public function getModuleConfigInputfields(array $data) {
+
+        // this is a container for fields, basically like a fieldset
+        $fields = new InputfieldWrapper();
+
+        // since this is a static function, we can't use $this->modules, so get them from the global wire() function
+        $modules = wire('modules');
+
+        // merge default config settings (custom values overwrite defaults)
+        $defaults = self::getDefaultData();
+        $data = array_merge($defaults, $data);
+
+        // define fieldtypes considered compatible with this module
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "compatible_fieldtypes";
+        $field->label = __("Compatible fieldtypes");
+        $field->description = __("Fieldtypes considered compatible with this module.");
+        $field->collapsed = Inputfield::collapsedYes;
+        $field->icon = 'list-alt';
+        $selectable_fieldtypes = $modules->find('className^=Fieldtype');
+        foreach ($selectable_fieldtypes as $key => $fieldtype) {
+            // remove native fieldtypes known to be incompatible
+            if ($fieldtype == "FieldtypePassword" || strpos($fieldtype->name, "FieldtypeFieldset") === 0) {
+                unset($selectable_fieldtypes[$key]);
+            }
+        }
+        $field->addOptions($selectable_fieldtypes->getArray());
+        $field->notes = __("Please note that selecting any fieldtypes not selected by default may result in various problems.");
+        if (isset($data['compatible_fieldtypes'])) $field->value = $data['compatible_fieldtypes'];
+        $fields->add($field);
+        
+        // for which templates should we track values?
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "enabled_templates";
+        $field->label = __("Enable history for these templates");
+        $field->notes = __("Only non-system templates can be selected.");
+        $field->icon = "file-o";
+        $field->columnWidth = 50;
+        foreach (wire('templates')->getAll() as $key => $template) {
+            // include only non-system templates
+            if (~ $template->flags & Template::flagSystem) {
+                $field->addOption($key, $template);
+            }
+        }
+        if (isset($data['enabled_templates'])) $field->value = $data['enabled_templates'];
+        $fields->add($field);
+        
+        // for which fields should we track values?
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "enabled_fields";
+        $field->label = __("Enable history for these fields");
+        $field->notes = __("Only fields of compatible fieldtypes can be selected.");
+        $field->icon = "file-text-o";
+        $field->columnWidth = 50;
+        $types = implode($data['compatible_fieldtypes'], "|");
+        $field->addOptions(wire('fields')->find("type=$types")->getArray());
+        if (isset($data['enabled_fields'])) $field->value = $data['enabled_fields'];
+        $fields->add($field);
+
+        // for how long should collected data be retained?
+        if ($modules->isInstalled("LazyCron")) {
+            $field = $modules->get("InputfieldSelect");
+            $field->addOption('1 WEEK', __('1 week'));
+            $field->addOption('2 WEEK', __('2 weeks'));
+            $field->addOption('1 MONTH', __('1 month'));
+            $field->addOption('2 MONTH', __('2 months'));
+            $field->addOption('3 MONTH', __('3 months'));
+            $field->addOption('6 MONTH', __('6 months'));
+            $field->addOption('1 YEAR', __('1 year'));
+            $field->notes = __("Leave empty to disable automatic cleanup.");
+            if (isset($data['data_max_age'])) $field->value = $data['data_max_age'];
+        } else {
+            $field = $modules->get("InputfieldMarkup");
+            $field->description = __("Automatic cleanup requires Lazy Cron module.");
+        }
+        $field->label = __("For how long should we retain collected data?");
+        $field->name = "data_max_age";
+        $field->icon = "clock-o";
+        $field->columnWidth = 50;
+        $fields->add($field);
+
+        // should we limit the amount of revisions saved for each field + page combination?
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "data_row_limit";
+        $field->label = __("Revisions retained for each field + page combination");
+        $field->addOptions(array(10 => '10', 20 => '20', 50 => '50', 100 => '100'));
+        $field->notes = __("Leave empty to not limit stored revisions at all.");
+        $field->icon = "random";
+        $field->columnWidth = 50;
+        if (isset($data['data_row_limit'])) $field->value = $data['data_row_limit'];
+        $fields->add($field);
+
+        // notice about additional config options
+        $field = $modules->get("InputfieldMarkup");
+        $field->label = __("Additional config options");
+        $field->icon = "gear";
+        $link_module = "ProcessVersionControl";
+        $link_markup = "<a href='".wire('page')->url."edit?name=$link_module'>$link_module</a>";
+        $field->set('markupText', sprintf(__("You can find additional config options related to this module at %s"), $link_markup));
+        $fields->add($field);
+
+        return $fields;
+
+    }
+
+    /**
+     * Initialization function
+     *
+     * This function attachs required hooks.
+     *
+     */
+    public function init() {
+
+        // init data fields
+        $this->data_fields = array();
+        if ($this->modules->isInstalled('LanguageSupport')) {
+            $language_support = $this->modules->get('LanguageSupport');
+            $default_language = $language_support->defaultLanguagePageID;
+            $this->data_fields = array($default_language => 'data');
+            $language_ids = $language_support->otherLanguagePageIDs;
+            if (count($language_ids)) {
+                foreach ($language_ids as $language_id) {
+                    $this->data_fields[$language_id] = "data$language_id";
+                }
+            }
+        } else {
+            $this->data_fields[] = 'data';
+        }
+
+        // remove expired data rows and orphaned files daily
+        $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+        $this->addHook("LazyCron::everyDay", $this, 'cleanupFiles');
+
+        if (count($this->enabled_templates) && count($this->enabled_fields)) {
+            // add hook that handles restoring files and/or images
+            $this->addHookBefore('Pages::saveReady', $this, 'restoreFiles');
+            // add hooks that gather information and trigger insert
+            $this->addHook('Pages::saveReady', $this, 'gather'); 
+            $this->addHook('Pages::saveField', $this, 'gather');
+            // @todo avoid creating duplicate files by storing them on delete 
+            // (note: this could prove to be difficult as files are apparently
+            // deleted in multiple ways, some of which don't seem hookable..)
+            $this->addHookAfter('Pages::save', $this, 'insert');
+            $this->addHookAfter('Pages::saveField', $this, 'insert');
+            // add hook that clears stored data for deleted pages
+            $this->addHookAfter('Pages::deleted', $this, 'cleanupDeleted');
+            // add hook that injects additional scripts and/or styles
+            $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
+            // add hooks that alter image and file inputfield output
+            $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
+            $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
+            $this->addHookAfter('InputfieldFile::renderList', $this, 'replaceHashes');
+            // add new property versionControlFields to Template object
+            $this->addHookProperty('Template::versionControlFields', $this, 'versionControlFields');
+            // get and init (and install if not yet installed) page snapshot
+            $this->modules->get('PageSnapshot')->init();
+        }
+
+    }
+
+    /**
+     * Delete data older than max age defined in module settings
+     *
+     */
+    public function cleanup() {
+
+        if (!$this->data_max_age) return;
+
+        $t1 = self::TABLE_NAME;
+        $t2 = self::DATA_TABLE_NAME;
+        $interval = $this->db->escape_string($this->data_max_age);
+        $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.timestamp < DATE_SUB(NOW(), INTERVAL $interval) AND $t2.{$t1}_id = $t1.id";
+
+        $this->db->query($sql);
+        $this->cleanupFiles();
+
+    }
+
+    /**
+     * Delete files no longer referenced in any data rows
+     *
+     */
+    public function cleanupFiles() {
+
+        $t1 = self::FILES_TABLE_NAME;
+        $t2 = self::DATA_FILES_TABLE_NAME;
+        $sql = "SELECT * FROM $t1 WHERE id NOT IN (SELECT DISTINCT {$t1}_id from $t2)";
+        $result = $this->db->query($sql);
+        while ($row = mysqli_fetch_assoc($result)) {
+            $file = $this->getPath() . $row['name'];
+            if (is_file($file)) unlink($file);
+            $sql = "DELETE FROM $t1 WHERE id = {$row['id']}";
+            $this->db->query($sql);
+        }
+
+    }
+
+    /**
+     * Delete data that exceeds row limit defined in module settings
+     *
+     * Row limit applies to each unique page + field combination.
+     *
+     * @param int $pages_id
+     * @param int $fields_id
+     */
+    protected function cleanupExcessRows($pages_id, $fields_id) {
+
+        if (!$this->data_row_limit) return;
+
+        $ids = "";
+        $t1 = self::TABLE_NAME;
+        $t2 = self::DATA_TABLE_NAME;
+        $sql = "SELECT COUNT(*) AS count FROM $t1 WHERE pages_id = $pages_id AND fields_id = $fields_id";
+        $result = $this->db->query($sql);
+        $row = mysqli_fetch_assoc($result);
+        if ($row['count'] > $this->data_row_limit) {
+            $limit = $row['count'] - $this->data_row_limit;
+            $sql = "SELECT id FROM $t1 ORDER BY timestamp LIMIT $limit";
+            $result = $this->db->query($sql);
+            while ($row = mysqli_fetch_assoc($result)) {
+                $ids .= ($ids) ? ", " . $row['id'] : $row['id'];
+            }
+            $sql = "DELETE FROM $t1 WHERE id IN ($ids)";
+            $this->db->query($sql);
+            $sql = "DELETE FROM $t2 WHERE {$t1}_id IN ($ids)";
+            $this->db->query($sql);
+            $this->cleanupFiles();
+        }
+
+    }
+
+    /**
+     * Remove previously stored data for deleted page
+     *
+     * @param HookEvent $event
+     */
+    protected function cleanupDeleted(HookEvent $event) {
+
+        $page = $event->arguments[0];
+
+        $t1 = self::TABLE_NAME;
+        $t2 = self::DATA_TABLE_NAME;
+        $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id = $page AND $t2.{$t1}_id = $t1.id";
+
+        $this->db->query($sql);
+        $this->cleanupFiles();
+        
+    }
+
+    /**
+     * Capture hash format filenames from an image inputfield
+     * 
+     * @param HookEvent $event
+     */
+    public function captureHash(HookEvent $event) {
+        $item = $event->arguments[0];
+        if ($item->_basename) {
+            if (!isset($this->hash_map[">$item->basename<"])) {
+                $this->hash_map[">$item->basename<"] = ">$item->_basename<";
+            }
+        }
+    }
+
+    /**
+     * Replace previously captured hash filenames with clean basenames
+     *
+     * @param HookEvent $event
+     */
+    public function replaceHashes(HookEvent $event) {
+        if (count($this->hash_map)) {
+            $event->return = str_replace(
+                array_keys($this->hash_map), 
+                array_values($this->hash_map), 
+                $event->return
+            );
+        }
+    }
+
+    /**
+     * Update file fields if special POST variable 'filedata' was received
+     *
+     * @param HookEvent $event
+     */
+    public function restoreFiles(HookEvent $event) {
+        if ($this->input->post->version_control_filedata) {
+            $page = $event->arguments[0];
+            $filedata = json_decode($this->input->post->version_control_filedata, true);
+            foreach ($filedata as $field => $items) {
+                $page->get($field)->deleteAll();
+                foreach ($items as $item) {
+                    $page->$field = $item['filename'];
+                    $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
+                    $page->$field->last()->description = $item['description'];
+                }
+            }
+        }
+    }
+
+    /**
+     * After page has been edited track changed fields and trigger insert method
+     * to save their values to database or any other applicable storage medium.
+     *
+     * @param HookEvent $event
+     */
+    public function gather(HookEvent $event) {
+
+        $page = $event->arguments[0];
+
+        // if page has no id, it's currently being added
+        $page_id = $page->id ? $page->id : 0;
+
+        // check if tracking values has been enabled for template of current
+        // page or (in case of repeater pages) template of containing page
+        $template_id = $page->template->id;
+        if ($page instanceof RepeaterPage) $template_id = $page->getForPage()->template->id;
+        if (!in_array($template_id, $this->enabled_templates)) return;
+
+        if ($page->isChanged()) {
+            foreach ($page->template->fields as $field) {
+                if ($page->isChanged($field->name) && in_array($field->id, $this->enabled_fields)) {
+                    $data = $page->get($field->name);
+                    // continue only if either the page in question exists (i.e.
+                    // old field was cleared) or page is new and field has value
+                    if ($page->id || !is_null($data) && $data != "") {
+                        if (!isset($this->page_data[$page_id])) $this->page_data[$page_id] = array();
+                        $data_array = array();
+                        if ($data instanceof Pagefiles) {
+                            // note: originally 'sort' value of each item was
+                            // used instead of custom counter, but that's not
+                            // always available (when working over API).
+                            $count = 0;
+                            foreach ($data as $item) {
+                                $data_array[$count.'.data'] = json_encode(array(
+                                    'original_filename' => $item->filename, 
+                                    'filename' => hash_file('sha256', $item->filename) . "." . $item->basename,
+                                    'description' => $item->description,
+                                ));
+                                ++$count;
+                            }
+                        } else if ($data instanceof LanguagesPageFieldValue) {
+                            foreach ($this->languages as $language) {
+                                $language_value = $data->getLanguageValue($language);
+                                $data_array['data' . ($language->isDefault() ? '' : $language)] = $language_value;
+                            }
+                        } else {
+                            $data_array = array('data' => $data);
+                        }
+                        $this->page_data[$page_id][$field->id] = $data_array;
+                    }
+                }
+            }
+        }
+        
+    }
+
+    /**
+     * Insert row into database or other suitable medium (currently only database
+     * is supported, though..)
+     *
+     * @param HookEvent $event
+     * @todo consider adding support for automatically compressing files
+     */
+    public function insert(HookEvent $event) {
+
+        $page = $event->arguments[0];
+
+        // return if current page is repeater parent (for-page-n or for-field-n)
+        if ($page->template == "admin" && strpos($page->name, "for-") === 0) return;
+
+        $users_id = $this->user->id;
+        $username = $this->user->name;
+        if (!isset($this->page_data[$page->id]) && isset($this->page_data[0])) {
+            // handle new pages; '0' is a placeholder required if we want to
+            // store even the initial values of fields under version control
+            $this->page_data[$page->id] = $this->page_data[0];
+            unset($this->page_data[0]);
+        }
+        $page_data = isset($this->page_data[$page->id]) ? $this->page_data[$page->id] : null;
+
+        // return if no data exists
+        if (!$page_data) return;
+
+        foreach ($page_data as $fields_id => $field_data) {
+
+            // insert new row to database table containing history rows
+            $sql_fields = "pages_id, fields_id, users_id, username";
+            $sql_values = "{$page->id}, $fields_id, $users_id, '$username'";
+            $sql = "INSERT INTO " . self::TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
+            $this->db->query($sql);
+
+            // id of inserted database row
+            $insert_id = $this->db->insert_id;
+
+            // insert field data to another table
+            $sql_fields = self::TABLE_NAME . "_id, property, data";
+            foreach ($field_data as $property => $data) {
+                $file_id = null;
+                // dot means that this is multipart property (n.data), which
+                // can *at the moment* be used to identify file/image fields
+                if (strpos($property, ".")) {
+                    // decode JSON data to get proper file information; copy
+                    // original file to storage unless it's already there
+                    $data = json_decode($data, true);
+                    $file = $this->getPath() . $data['filename'];
+                    $file_is_new = false;
+                    if (!is_file($file)) {
+                        copy($data['original_filename'], $file);
+                        $file_is_new = true;
+                    }
+                    // if this is a new file, add row to files table; if not,
+                    // simply fetch file ID from files table for later use
+                    $filename = $this->db->real_escape_string($data['filename']);
+                    if ($file_is_new) {
+                        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                        $mime_type = finfo_file($finfo, $file);
+                        finfo_close($finfo);
+                        $size = filesize($file);
+                        $sql = "INSERT INTO " . self::FILES_TABLE_NAME . " (filename, mime_type, size) VALUES ('$filename', '$mime_type', $size)";
+                        $this->db->query($sql);
+                        $file_id = $this->db->insert_id;
+                    } else {
+                        $sql = "SELECT id FROM " . self::FILES_TABLE_NAME . " WHERE filename='$filename'";
+                        $result = $this->db->query($sql);
+                        $row = mysqli_fetch_assoc($result);
+                        $file_id = $row['id'];
+                    }
+                    unset($data['original_filename']);
+                    // re-encode JSON data
+                    $data = json_encode($data);
+                }
+                $data = $this->db->real_escape_string($data);
+                $property = $this->db->real_escape_string($property);
+                $sql_values = "$insert_id, '$property', '$data'";
+                $sql = "INSERT INTO " . self::DATA_TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
+                $this->db->query($sql);
+                if ($file_id) {
+                    // if data row is related to file, add row to junction table
+                    $row_id = $this->db->insert_id;
+                    $sql = "INSERT INTO " . self::DATA_FILES_TABLE_NAME . " (" . self::DATA_TABLE_NAME . "_id, " . self::FILES_TABLE_NAME . "_id) VALUES ($row_id, $file_id)";
+                    $this->db->query($sql);
+                }
+            }
+
+            // clear page data and enforce row limit setting
+            unset($this->page_data[$page->id]);
+            $this->cleanupExcessRows($page->id, $fields_id);
+
+        }
+        
+    }
+    
+    /**
+     * This function is executed before page markup has been created
+     *
+     * Used for injecting custom scripts, styles and/or markup to admin
+     * page. Purpose of these is to allow viewing and possibly managing
+     * version history.
+     *
+     * @param HookEvent $event
+     */
+    public function inject(HookEvent $event) {
+
+        // this only applies to GET requests
+        if ($_SERVER['REQUEST_METHOD'] !== "GET") return;
+
+        // make sure that value tracking is enabled for template of
+        // the page currently being edited
+        if ($this->input->get->id) $page = $this->pages->get((int) $this->input->get->id);
+        if (!$page || !$page->id || !in_array($page->template->id, $this->enabled_templates)) return;
+
+        // inject scripts and styles
+		$class = $this->className();
+		$info = $this->getModuleInfo();
+		$version = (int) $info['version']; 
+		if (is_file($this->config->paths->$class . "$class.css")) $this->config->styles->add($this->config->urls->$class . "$class.css?v=$version"); 
+		if (is_file($this->config->paths->$class . "$class.js")) $this->config->scripts->add($this->config->urls->$class . "$class.js?v=$version"); 
+
+        // inject settings and translations
+        $process = $this->modules->getModuleID("ProcessVersionControl");
+        $processPage = $this->pages->get("process=$process");
+        $this->config->js('VersionControlForTextFields', array(
+            'i18n' => array(
+                'compareWithCurrent' => __("Compare with current"),
+                'editDisabled' => __("Editing this data is currently disabled. Restore it by saving the page or switch to current version first."),
+            ),
+            'pageID' => $page->id,
+            'processPage' => $processPage->url(),
+        ));
+
+    }
+
+    /**
+     * Find out which fields belonging to current template have version
+     * control enabled. Added as a new property "versionControlFields"
+     * to Template object.
+     *
+     * @param HookEvent $event
+     */
+    public function versionControlFields(HookEvent $event) {
+
+        $fields = new Fieldgroup();
+        $template = $event->object;
+        foreach ($this->enabled_fields as $field) {
+            if ($template->hasField($field)) {
+                $fields->add($this->fields->get($field));
+            }
+        }
+
+        $event->return = $fields;
+
+    }
+
+    /**
+     * Called only when this module is installed
+     *
+     * Creates new database table for storing data.
+     *
+     */
+    public function ___install() {
+        
+        // main table, contains mostly metadata
+        $sql = "
+        CREATE TABLE " . self::TABLE_NAME . " (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            pages_id INT UNSIGNED NOT NULL,
+            fields_id INT UNSIGNED NOT NULL,
+            users_id INT UNSIGNED DEFAULT NULL,
+            username VARCHAR(255) DEFAULT NULL,
+            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY fields_id (fields_id)
+        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
+        ";
+        $this->db->query($sql);
+        $this->message("Created Table: " . self::TABLE_NAME);
+
+        // data table, contains actual content for edited fields
+        // @todo: add other methods for storing data, ie. files,
+        // and make creating and using this table optional.
+        $sql = "
+        CREATE TABLE " . self::DATA_TABLE_NAME . " (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            " . self::TABLE_NAME . "_id INT UNSIGNED NOT NULL,
+            property VARCHAR(255) NOT NULL,
+            data MEDIUMTEXT DEFAULT NULL,
+            KEY " . self::TABLE_NAME . "_id (" . self::TABLE_NAME . "_id)
+        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
+        ";
+        $this->db->query($sql);
+        $this->message("Created Table: " . self::DATA_TABLE_NAME);
+
+        // files table contains one row for each stored file
+        $sql = "
+        CREATE TABLE " . self::FILES_TABLE_NAME . " (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            filename VARCHAR(255) NOT NULL,
+            mime_type VARCHAR(255),
+            size INT UNSIGNED NOT NULL,
+            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
+        ";
+        $this->db->query($sql);
+        $this->message("Created Table: " . self::FILES_TABLE_NAME);
+
+        // data files junction table connects files to data rows
+        $sql = "
+        CREATE TABLE " . self::DATA_FILES_TABLE_NAME . " (
+            " . self::DATA_TABLE_NAME . "_id INT UNSIGNED NOT NULL,
+            " . self::FILES_TABLE_NAME . "_id INT UNSIGNED NOT NULL,
+            PRIMARY KEY (" . self::DATA_TABLE_NAME . "_id, " . self::FILES_TABLE_NAME . "_id)
+        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
+        ";
+        $this->db->query($sql);
+        $this->message("Created Table: " . self::DATA_FILES_TABLE_NAME);
+
+    }
+
+    /**
+     * Called only when this module is uninstalled
+     *
+     * Drops database tables associated with this module.
+     *
+     */
+    public function ___uninstall() {
+        $this->dropTableIfExists(self::TABLE_NAME);
+        $this->dropTableIfExists(self::DATA_TABLE_NAME);
+        $this->dropTableIfExists(self::FILES_TABLE_NAME);
+        $this->dropTableIfExists(self::DATA_FILES_TABLE_NAME);
+    }
+    
+    /**
+     * Helper method for dropping table if it exists
+     * 
+     * @param string $table Table name
+     */
+    protected function dropTableIfExists($table) {
+        $table = $this->db->real_escape_string($table);
+        $sql = "SHOW TABLES LIKE '$table'";
+        $result = $this->db->query($sql);
+        if ($result->num_rows == 1) {
+            $this->db->query("DROP TABLE $table");
+            $this->message("Dropped Table: $table");
+        }
+    }
+
+    /**
+     * Get the files path used by this module
+     *
+     * We're using files directory of our process module as file storage; fetch
+     * and cache locally it's path here. If directory doesn't exist, create it.
+     * 
+     * @return string Path
+     */
+    public function getPath() {
+        if (!$this->path) {
+            $processModuleID = wire('modules')->getModuleID("ProcessVersionControl");
+            $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=" . ProcessVersionControl::PAGE_NAME); 
+            $this->path = PagefilesManager::_path($processPage);
+            if (!is_dir($this->path)) wireMkdir($this->path);
+        }
+        return $this->path;
+    }
+    
+}

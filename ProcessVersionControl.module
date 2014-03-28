@@ -1,0 +1,564 @@
+<?php
+
+/**
+ * Process Version Control
+ *
+ * This module acts as an interface for Version Control module by generating
+ * markup it requires based on various GET params, making itself available
+ * via ProcessWire Admin page.
+ *
+ * See comments of main module for more information.
+ *
+ * @copyright Copyright (c) 2013-2014, Teppo Koivula
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ *
+ * ProcessWire 2.x 
+ * Copyright (C) 2012 by Ryan Cramer 
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ * 
+ * http://processwire.com
+ *
+ */
+class ProcessVersionControl extends Process implements ConfigurableModule {
+    
+    /**
+     * Return information about this module (required)
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => 'Process Version Control',
+            'summary' => 'Provides interface required by Version Control.',
+            'href' => 'http://modules.processwire.com/modules/version-control/',
+            'author' => 'Teppo Koivula',
+            'version' => 50,
+            'singular' => true,
+            'autoload' => false,
+            'permission' => 'version-control',
+            'requires' => 'VersionControl',
+        ); 
+    }
+    
+    /**
+     * Default configuration for this module
+     *
+     * The point of putting this in it's own function is so that you don't have to specify
+     * these defaults more than once.
+     *
+     * @return array
+     */
+    static public function getDefaultData() {
+        return array(
+            'date_format' => 'Y-m-d H:i:s',
+            'diff_timeout' => 1,
+            'diff_efficiency_cleanup_edit_cost' => 4,
+        );
+    }
+    
+    /**
+     * Names of admin page and database tables used by this module
+     * 
+     * Note that table used here is actually created and managed by another module, which is also why
+     * it's name differs from current modules name. Data table is used as a storage table for actual
+     * revision data (content) while main table provides dates, user and page id's etc. (metadata.)
+     *
+     */
+    const PAGE_NAME = 'version-control';
+    const TABLE_NAME = 'version_control';
+    const DATA_TABLE_NAME = 'version_control__data';
+
+    /**
+     * Populate the default config data
+     *
+     * ProcessWire will automatically overwrite it with anything the user has specifically configured.
+     * This is done in construct() rather than init() because ProcessWire populates config data after
+     * construct(), but before init().
+     *
+     */
+    public function __construct() {
+        foreach(self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
+    /**
+     * Module configuration
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    static public function getModuleConfigInputfields(array $data) {
+
+        // this is a container for fields, basically like a fieldset
+        $fields = new InputfieldWrapper();
+
+        // since this is a static function, we can't use $this->modules, so get them from the global wire() function
+        $modules = wire('modules');
+
+        // merge default config settings (custom values overwrite defaults)
+        $defaults = self::getDefaultData();
+        $data = array_merge($defaults, $data);
+
+        // date format used
+        $field = $modules->get("InputfieldText");
+        $field->name = "date_format";
+        $field->label = __("Date Format");
+        $field->description = __("Used when displaying version history data in page edit.");
+        $field->notes = __("See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.");
+        $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
+        $field->icon = "clock-o";
+        $fields->add($field);
+
+        // disable diff feature
+        $fieldset = $modules->get("InputfieldFieldset");
+        $fieldset->label = __("Diff Settings");
+        $fieldset->icon = "files-o";
+
+        $field = $modules->get("InputfieldCheckbox");
+        $field->name = "diff_disabled";
+        $field->label = __("Disable diff");
+        if (isset($data[$field->name]) && $data[$field->name]) $field->checked = "checked";
+        $fieldset->add($field);
+
+        $field = $modules->get("InputfieldInteger");
+        $field->name = "diff_timeout";
+        $field->label = __("Diff Timeout");
+        $field->description = __("If diff computation takes longer than this, best solution to date is returned. While correct, it may not be optimal.");
+        $field->notes = __("A timeout of '0' allows for unlimited computation.");
+        $field->showIf = "diff_disabled=0";
+        $field->value = $data[$field->name];
+        $fieldset->add($field);
+
+        $field = $modules->get("InputfieldRadios");
+        $field->name = "diff_cleanup";
+        $field->label = __("Post-diff Cleanup");
+        $field->description = __("Post-diff cleanup algorithms attempt to filter out irrelevant small commonalities, thus enhancing final output.");
+        $field->notes = __("See [Diff Demo](https://neil.fraser.name/software/diff_match_patch/svn/trunk/demos/demo_diff.html) for examples and detailed descriptions.");
+        $field->addOptions(array(
+                '' => __("No Cleanup"),
+                'semantic' => __("Semantic Cleanup"),
+                'efficiency' => __("Efficiency Cleanup"),
+        ));
+        $field->showIf = "diff_disabled=0";
+        if (isset($data[$field->name])) $field->value = $data[$field->name];
+        $fieldset->add($field);
+
+        $field = $modules->get("InputfieldInteger");
+        $field->name = "diff_efficiency_cleanup_edit_cost";
+        $field->label = __("Efficiency Cleanup Edit Cost");
+        $field->description = __("The larger the edit cost, the more agressive the cleanup.");
+        $field->showIf = "diff_disabled=0,diff_cleanup=efficiency";
+        if (isset($data[$field->name])) $field->value = $data[$field->name];
+        $fieldset->add($field);
+
+        $fields->add($fieldset);
+
+        // notice about additional config options
+        $field = $modules->get("InputfieldMarkup");
+        $field->label = __("Additional config options");
+        $field->icon = "gear";
+        $link_module = "VersionControl";
+        $link_markup = "<a href='".wire('page')->url."edit?name=$link_module'>$link_module</a>";
+        $field->set('markupText', sprintf(__("You can find additional config options related to this module at %s"), $link_markup));
+        $fields->add($field);
+
+        return $fields;
+
+    }
+
+    /**
+     * Initialization function called before any execute functions
+     *
+     */
+    public function init() {
+        parent::init();
+    }
+
+    /**
+     * Executed when a page with this Process assigned is accessed
+     *
+     */
+    public function ___execute() {
+        
+        // should date formatting occur?
+        $defaults = self::getDefaultData();
+        $date_format = ($this->date_format != $defaults['date_format']) ? $this->date_format : null;
+
+        // additional settings
+        $settings = $this->input->get->settings;
+
+        // get page
+        $pages_id = (isset($this->input->get->pages_id)) ? (int) $this->input->get->pages_id : null;
+        if (!$pages_id) throw new WireException("Missing required GET param pages_id");
+        $page = $this->pages->get($pages_id);
+
+        // include repeater pages
+        $repeater_fields = array();
+        if ($this->modules->isInstalled('FieldtypeRepeater')) {
+            $pages_id = array($pages_id);
+            foreach ($page->fields as $field) {
+                if ($field->type instanceof FieldtypeRepeater) {
+                    $subfields = $this->templates->get($field->template_id)->versionControlFields;
+                    if (count($subfields)) {
+                        foreach ($page->$field as $repeater_page) {
+                            $pages_id[] = $repeater_page;
+                            foreach ($subfields as $subfield) {
+                                $repeater_fields[] = $subfield . "_repeater" . $repeater_page;
+                            }
+                        }
+                    }
+                }
+            }
+            $pages_id = implode($pages_id, ",");
+        }
+
+        // find values
+        $sql = "
+        SELECT m.pages_id, f.name AS field_name, m.timestamp, m.users_id, m.username, d.*
+        FROM fields AS f, " . self::TABLE_NAME . " AS m, " . self::DATA_TABLE_NAME . " AS d
+        WHERE m.pages_id IN ($pages_id) AND d." . self::TABLE_NAME . "_id = m.id AND f.id = m.fields_id
+        GROUP BY m.id
+        ORDER BY f.id, d.id DESC
+        ";
+        $result = $this->db->query($sql);
+
+        // parse data
+        $data = array();
+        while ($row = mysqli_fetch_assoc($result)) {
+            $item = array(
+                'users_id' => null,
+                'username' => isset($row['username']) ? $this->sanitizer->name($row['username']) : null,
+                'revision' => isset($row[self::TABLE_NAME.'_id']) ? $row[self::TABLE_NAME.'_id'] : null,
+                'date' => isset($row['timestamp']) ? $row['timestamp'] : null,
+                'data' => isset($row['data']) ? $row['data'] : null
+            );
+            if (isset($row['users_id']) && $user = $this->users->get((int) $row['users_id'])) {
+                $item['users_id'] = $user->id;
+                $item['username'] = $user->name;
+            }
+            if ($date_format && $item['date']) {
+                $item['date'] = date($date_format, strtotime($item['date']));
+            }
+            $field_name = wire('sanitizer')->fieldName($row['field_name']);
+            if ($row['pages_id'] != $page->id) $field_name .= "_repeater" . $row['pages_id'];
+            if (!isset($data[$field_name])) $data[$field_name] = array();
+            $data[$field_name][] = $item;
+        }
+
+        // add empty containers for fields with no data?
+        if (isset($settings['empty']) && $settings['empty']) {
+            $fields = $page->template->versionControlFields;
+            $fields_with_data = array_keys($data);
+            foreach ($fields as $field) {
+                if (!in_array($field->name, $fields_with_data)) {
+                    $data[$field->name] = array();
+                }
+            }
+            foreach ($repeater_fields as $repeater_field) {
+                if (!in_array($repeater_field, $fields_with_data)) {
+                    $data[$repeater_field] = array();
+                }
+            }
+        }
+
+        /*
+        // add field types for later use
+        foreach ($data as $field_name => $value) {
+            $field = wire('fields')->get($field_name);
+            $data["$field_name:$field->type"] = $value;
+            unset($data[$field_name]);
+        }
+        */
+
+        // render method
+        $render = "renderHTML";
+        if (isset($settings['render']) && $settings['render'] != $render) {
+            if (method_exists($this, "render".$settings['render'])) {
+                $render = "render".$settings['render'];
+            }
+        }
+        
+        // exit with output
+        $out = $this->$render($data);
+        exit($out);
+
+    }
+
+    /**
+     * Render diff of two given revisions
+     * 
+     * Revisions are defined by GET param 'revisions', which should contain two
+     * revisions separated by colon ('?revisions=41:42'). Diff is computed with
+     * JavaScript library diff_match_patch and returned as HTML div element, id
+     * attribute set to 'diff', and rudimentary CSS styles.
+     *
+     */
+    public function ___executeDiff() {
+        
+        // should date formatting occur?
+        $defaults = self::getDefaultData();
+        $date_format = ($this->date_format != $defaults['date_format']) ? $this->date_format : null;
+
+        // get revision ids
+        $revisions = (isset($this->input->get->revisions)) ? $this->input->get->revisions : null;
+        if (!$revisions) throw new WireException("Missing required GET param revisions");
+
+        // separate revision ids
+        list($r1, $r2) = explode(":", $revisions);
+        $r1 = (int) $r1;
+        $r2 = (int) $r2;
+        if (!$r1 || !$r2) throw new WireException("Revisions need to be provided in following format: 123:124");
+
+        // find values
+        $sql = "
+        SELECT f.name AS field_name, m.timestamp, m.users_id, m.username, d.*
+        FROM fields AS f, " . self::TABLE_NAME . " AS m, " . self::DATA_TABLE_NAME . " AS d
+        WHERE d." . self::TABLE_NAME . "_id in({$r1}, {$r2}) AND m.id = d." . self::TABLE_NAME . "_id AND f.id = m.fields_id
+        ORDER BY m.id ASC
+        LIMIT 2
+        ";
+        $result = $this->db->query($sql);
+
+        // render output
+        while ($row = mysqli_fetch_assoc($result)) {
+            $id = $row['id'] == $r1 ? "r1" : "r2";
+            echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}''>{$row['data']}</textarea>";
+        }
+        ?>
+        <div id='diff'></div>
+        <style type='text/css'>
+        .revision {
+            display: none !important;
+        }
+        ins {
+            background-color: #c6ffc6;
+            text-decoration: none;
+        }
+        del {
+            background-color: #ffc6c6;
+        }
+        </style>
+        <script src='<?php echo $this->config->urls->{$this->className()}; ?>diff_match_patch_20121119/javascript/diff_match_patch.js' type='text/javascript'></script>
+        <script type='text/javascript'>
+        var dmp = new diff_match_patch();
+        function launch() {
+
+            var r1 = document.getElementById('r1').value;
+            var r2 = document.getElementById('r2').value;
+            dmp.Diff_Timeout = <?php echo (int) $this->diff_timeout; ?>;
+            dmp.Diff_EditCost = <?php echo (int) $this->diff_efficiency_cleanup_edit_cost; ?>;
+
+            var ms_start = (new Date()).getTime();
+            var d = dmp.diff_main(r1, r2);
+            var ms_end = (new Date()).getTime();
+            var s = (ms_end - ms_start) / 1000 + 's';
+
+            <?php if ($this->diff_cleanup) { ?>
+            dmp.diff_cleanup<?php echo ucfirst($this->diff_cleanup); ?>(d);
+            <?php } ?>
+
+            var ds = dmp.diff_prettyHtml(d);
+
+            document.getElementById('diff').innerHTML = ds;
+
+        }
+        launch();
+        </script>
+        <?php
+        exit();
+
+    }
+
+    /**
+     * Render output for specific revision
+     *
+     * Revision is defined by GET param 'id'. Output is either rendered HTML
+     * markup for an inputfield or JSON string.
+     *
+     */
+    public function ___executeGet() {
+
+        // get revision id
+        $id = (isset($this->input->get->id)) ? (int) $this->input->get->id : null;
+        if (!$id) throw new WireException("Missing required GET param id");
+
+        // additional settings
+        $settings = $this->input->get->settings;
+
+        // find values
+        $sql = "
+        SELECT m.fields_id, m.pages_id, d.*
+        FROM " . self::TABLE_NAME . " AS m, " . self::DATA_TABLE_NAME . " AS d
+        WHERE d." . self::TABLE_NAME . "_id = $id AND m.id = $id
+        ";
+        $result = $this->db->query($sql);
+
+        // generate data (associative array)
+        $page = null;
+        $field = null;
+        $data = array();
+        if ($result->num_rows) {
+            while ($row = mysqli_fetch_assoc($result)) {
+                if (!$page) $page = $this->pages->get($row['pages_id']);
+                if (!$field) $field = $this->fields->get($row['fields_id']);
+                if ($field->type == "FieldtypeDatetime") {
+                    $input = $field->getInputfield($page);
+                    $format = "$input->dateInputFormat $input->timeInputFormat";
+                    $row['data'] = date($format, $row['data']);
+                }
+                $data[$row['property']] = $row['data'];
+            }
+        }
+
+        // choose render method and exit with output
+        if (isset($settings['render']) && $settings['render'] == "Input") {
+            $input = $field->getInputfield($page);
+            $input->value = $data['data'];
+            $filedata = array();
+            $files = null;
+            foreach ($data as $key => $value) {
+                if (strpos($key, ".")) {
+                    if (!$files) $files = $field->type->getBlankValue($this->page, $field);
+                    $value = json_decode($value, true);
+                    $file = $files->makeBlankItem();
+                    $file->setFilename($value['filename']);
+                    $file->description = $value['description'];
+                    $file->_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
+                    $files->add($file);
+                    $value['filename'] = $files->path . $value['filename'];
+                    $filedata[$field->name][] = $value;
+                }
+            }
+            if ($files) {
+                $input->value = $files;
+                $filedata = json_encode($filedata);
+                echo "<textarea name='version_control_filedata'>{$filedata}</textarea>";
+            }
+            exit($input->render());
+        } else {
+            exit($this->renderJSON($data));
+        }
+        
+    }
+
+    /**
+     * Render HTML markup based on input array
+     *
+     * @param array $data
+     * @return string|null
+     */
+    protected function renderHTML(array $data) {
+
+        $markup = "";
+        foreach ($data as $field => $field_data) {
+            $diff = " diff";
+            if ($this->diff_disabled) $diff = "";
+            if ($diff && wire('fields')->get($field)->type instanceof FieldtypeFile) $diff = "";
+            $revision = count($field_data) ? " data-revision='{$field_data[0]['revision']}'" : "";
+            $markup .= "<div class='field-revisions$diff' data-field='$field'$revision>";
+            if (count($field_data)) {
+                $markup .= "<ul class='ui-widget-content'>";
+                foreach ($field_data as $row) {
+                    $markup .= "<li><a"
+                             . " data-revision='{$row['revision']}'"
+                             . " data-date='{$row['date']}'"
+                             . " href='#'>"
+                             . "<span>{$row['date']}</span> <em>{$row['username']}</em>"
+                             . "</a></li>";
+                }
+                $markup .= "</ul>";
+            } else {
+                $markup .= htmlspecialchars(__("There are no earlier versions of this field available"));
+            }
+            $markup .= "</div>";
+        }
+
+        $markup = "<div id='text-field-history'>$markup</div>";
+
+        return $markup;
+
+    }
+
+    /**
+     * Render JSON based on input array
+     *
+     * @return string $json
+     */
+    protected function renderJSON(array $data) {
+        header('Content-type: application/json');
+        return json_encode($data);
+    }
+
+    /**
+     * Called only when this module is installed
+     *
+     * Creates new page with this Process module assigned and new database
+     * table for storing history data.
+     *
+     */
+    public function ___install() {
+
+        // create a page for this module
+        $page = new Page();
+        $page->template = 'admin';
+        $page->name = self::PAGE_NAME; 
+        $page->process = $this; 
+
+        // insert page under setup at admin
+        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
+
+        // make page title match module title
+        $info = self::getModuleInfo();
+        $page->title = $info['title'];
+
+        // hide page from menu
+        $page->addStatus(Page::statusHidden);
+
+        // save the page
+        $page->save();
+
+        // tell user that we've created a new page
+        $this->message("Created Page: {$page->path}"); 
+
+        // create version-control permission
+        $permission = $this->permissions->get("version-control");
+        if (!$permission->id) {
+            $permission = new Permission();
+            $permission->name = "version-control";
+            $permission->title = $this->_("Access version control");
+            $permission->save();
+            $this->message("Created Permission: {$permission->name}");
+        }
+
+    }
+
+    /**
+     * Called only when this module is uninstalled
+     *
+     * Removes page associated with this Process module and also drops related table.
+     *
+     */
+    public function ___uninstall() {
+
+        // find the page we installed, locating it by the process field (which has the module ID)
+        // it would probably be sufficient just to locate by name, but this is just to be extra sure.
+        $moduleID = $this->modules->getModuleID($this); 
+        $page = $this->pages->get("template=admin, process=$moduleID, name=" . self::PAGE_NAME); 
+
+        if ($page->id) {
+            // if we found the page, let the user know and delete it
+            $this->message("Deleting Page: {$page->path}"); 
+            $page->delete();
+        }
+
+        // delete version-control permission
+        $permission = $this->permissions->get("version-control");
+        if ($permission->id) {
+            $this->message("Deleting Permission: {$permission->name}");
+            $permission->delete();
+        }
+
+    }
+    
+}
