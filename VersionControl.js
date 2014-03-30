@@ -54,6 +54,7 @@ $(function() {
             var field = $this.parents('.field-revisions:first').data('field');
             $if.find('.field-revisions .ui-state-active').removeClass('ui-state-active');
             $this.addClass('ui-state-active');
+            $('.compare-revisions').remove();
             var $content = $if.find('div.ui-widget-content, .InputfieldContent');
             var $loading = $('<span class="field-revisions-loading"></span>').hide().css({
                 height: $content.innerHeight()+'px',
