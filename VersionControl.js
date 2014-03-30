@@ -84,6 +84,7 @@ $(function() {
                     if ($if.hasClass('InputfieldImage')) {
                         // for image inputs we need to reload InputfieldImage.js
                         // in order to reset Magnific Popup
+                        $if.find('.InputfieldImageListToggle').remove();
                         $.getScript(config.urls.modules+"Inputfield/InputfieldImage/InputfieldImage.js");
                     }
                 } else {
