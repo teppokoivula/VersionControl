@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 50,
+            'version' => 51,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -168,14 +168,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     }
 
     /**
-     * Initialization function called before any execute functions
-     *
-     */
-    public function init() {
-        parent::init();
-    }
-
-    /**
      * Executed when a page with this Process assigned is accessed
      *
      */
@@ -262,15 +254,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             }
         }
 
-        /*
-        // add field types for later use
-        foreach ($data as $field_name => $value) {
-            $field = wire('fields')->get($field_name);
-            $data["$field_name:$field->type"] = $value;
-            unset($data[$field_name]);
-        }
-        */
-
         // render method
         $render = "renderHTML";
         if (isset($settings['render']) && $settings['render'] != $render) {
@@ -298,10 +281,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         
         // should date formatting occur?
         $defaults = self::getDefaultData();
-        $date_format = ($this->date_format != $defaults['date_format']) ? $this->date_format : null;
+        $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
         // get revision ids
-        $revisions = (isset($this->input->get->revisions)) ? $this->input->get->revisions : null;
+        $revisions = isset($this->input->get->revisions) ? $this->input->get->revisions : null;
         if (!$revisions) throw new WireException("Missing required GET param revisions");
 
         // separate revision ids
@@ -312,7 +295,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // find values
         $sql = "
-        SELECT f.name AS field_name, m.timestamp, m.users_id, m.username, d.*
+        SELECT f.name AS field_name, m.timestamp, m.users_id, m.username, d.*, m.id
         FROM fields AS f, " . self::TABLE_NAME . " AS m, " . self::DATA_TABLE_NAME . " AS d
         WHERE d." . self::TABLE_NAME . "_id in({$r1}, {$r2}) AND m.id = d." . self::TABLE_NAME . "_id AND f.id = m.fields_id
         ORDER BY m.id ASC
@@ -323,7 +306,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // render output
         while ($row = mysqli_fetch_assoc($result)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
-            echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}''>{$row['data']}</textarea>";
+            echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
         }
         ?>
         <div id='diff'></div>
