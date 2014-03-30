@@ -21,9 +21,10 @@ $(function() {
             var $if = $('.Inputfield_'+$(this).data('field'));
             $if.find('> label')
                 .addClass('with-history')
-                .before($(this)); 
-            cache[$(this).data('revision')] = $if.find('div.ui-widget-content, .InputfieldContent').clone(true, true);
+                .before($(this));
             $(this).find('a:first').addClass('ui-state-active');
+            if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
+            cache[$(this).data('revision')] = $if.find('div.ui-widget-content, .InputfieldContent').clone(true, true);
         });
         
         // iterate through history-enabled fields to add a revision toggle
@@ -47,7 +48,7 @@ $(function() {
         // things are presented, loading animation etc.)
         $('.field-revisions a').bind('click', function() {
             if ($(this).hasClass('ui-state-active')) return false;
-            var settings = {};
+            var settings = { render: 'Input' };
             var $this = $(this);
             var $if = $this.parents('.Inputfield:first');
             var field = $this.parents('.field-revisions:first').data('field');
@@ -64,14 +65,14 @@ $(function() {
                 // (ProcessWire commit 2298dc0035751ad940cac48fd2a1129585c9581f
                 // removes said tag, but older versions still need this fix)
                 $content.find('input:first').parent('p').css('margin-top', 0);
-            } else if ($if.hasClass('InputfieldPage') || $if.hasClass('InputfieldSelect') || $if.hasClass('InputfieldImage') || $if.hasClass('InputfieldFile')) {
-                // for some inputfield types we need to get pre-rendered markup
-                // (HTML) instead of raw data as JSON
-                settings = { render: 'Input' };
+            } else if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) {
+                // for some inputfield types we need to get raw data as JSON
+                // instead of pre-rendered inputfield markup (HTML)
+                settings = { render: 'JSON' };
             }
             var revision = $(this).data('revision');
             if (cache[revision]) {
-                if (revision == $this.parents('.field-revisions:first').data('revision')) {
+                if (settings.render != "JSON" && revision == $this.parents('.field-revisions:first').data('revision')) {
                     // current (latest) revision is the only one we've stored
                     // inputfield content as a jQuery object in our cache
                     $content.replaceWith(cache[revision].clone(true, true));
@@ -86,13 +87,14 @@ $(function() {
                         $.getScript(config.urls.modules+"Inputfield/InputfieldImage/InputfieldImage.js");
                     }
                 } else {
-                    update($if, $content, settings, cache[revision]);
+                    update($if, $content, settings, field, cache[revision]);
                 }
             } else {
                 $content.css('position', 'relative').prepend($loading.fadeIn(250));
                 $.get(moduleConfig.processPage+'get', { id: $this.data('revision'), settings: settings }, function(data) {
+                    // @todo if data is JSON, store as JSON object (fix "has no .replace method" issue)
                     cache[revision] = data;
-                    update($if, $content, settings, cache[revision]);
+                    update($if, $content, settings, field, cache[revision]);
                     $loading.fadeOut(350, function() {
                         $(this).remove();
                     });
@@ -103,7 +105,7 @@ $(function() {
 
         // this function updates inputfield content based on inputfield and
         // content objects, settings (render mode etc.) and data (HTML or JSON)
-        var update = function($if, $content, settings, data) {
+        var update = function($if, $content, settings, field, data) {
             if (settings.render == "Input") {
                 // format of returned data is HTML
                 var before = $content.children('p.description:first');
@@ -141,17 +143,6 @@ $(function() {
                     } else if (typeof CKEDITOR != "undefined" && CKEDITOR.instances['Inputfield_'+field+language]) {
                         // CKEditor inputfield
                         CKEDITOR.instances['Inputfield_'+field+language].setData(value);
-                    } else if ($if.find('textarea').length) {
-                        // Textarea inputfield (or any other inputfield using
-                        // <textarea> HTML element)
-                        $if.find('textarea[name='+field+language+']').html(value);
-                    } else {
-                        // Text inputfield (or any other inputfield using
-                        // <input> HTML element)
-                        var $input = $if.find('input[name='+field+language+']');
-                        if ($input.hasClass('hasDatepicker')) $input.datepicker("setDate", new Date(value));
-                        else if ($if.hasClass('InputfieldCheckbox')) $input.prop("checked", value == $input.val() ? true : false);
-                        else $input.val(value);
                     }
                 });
             }
