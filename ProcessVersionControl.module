@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 60,
+            'version' => 70,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -392,7 +392,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // choose render method and exit with output
         if (isset($settings['render']) && $settings['render'] == "Input") {
             $input = $field->getInputfield($page);
-            $input->value = $data['data'];
+            if (isset($data['data'])) $input->value = $data['data'];
             $filedata = array();
             $files = null;
             foreach ($data as $key => $value) {
@@ -417,6 +417,41 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         } else {
             exit($this->renderJSON($data));
         }
+        
+    }
+
+    /**
+     * Return specific page to specific revision
+     *
+     * Revision is defined with GET param 'revision', page with GET param
+     * 'page'. Afterwards redirect user to page edit.
+     *
+     * @todo add proper security checks
+     */
+    public function ___executeRestore() {
+
+        // get page and revision
+        $page_id = (int) $this->input->get->page;
+        if (!$page_id) throw new WireException("Missing required GET param page");
+        $revision_id = (int) $this->input->get->revision;
+        if (!$revision_id) throw new WireException("Missing required GET param revision");
+
+        // check page and revision
+        $page = $this->pages->get($page_id);
+        if (!$page->id) throw new WireException("Page doesn't exist: $page_id");
+        $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
+        $result = $this->db->query($sql);
+        $revision = mysqli_fetch_assoc($result);
+        if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+
+        // fetch snapshot of page at the time of given revision
+        $page->snapshot($revision['timestamp']);
+        $page->of(false);
+        $page->save();
+
+        // redirect to page edit
+        $this->session->message(sprintf(__("Page returned to revision #%d"), $revision_id));
+        $this->session->redirect($this->config->urls->admin . "page/edit/?id=" . $page_id, false);
         
     }
 

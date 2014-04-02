@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 60,
+            'version' => 70,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -279,6 +279,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->addHookAfter('Pages::deleted', $this, 'cleanupDeleted');
             // add hook that injects additional scripts and/or styles
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
+            // add hook that inserts new 'history' tab to Page Edit form
+            $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
             // add hooks that alter image and file inputfield output
             $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
             $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
@@ -413,6 +415,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * Update file fields if special POST variable 'filedata' was received
      *
      * @param HookEvent $event
+     * @todo multipart version_control_filedata (multiple fields being restored)
      */
     public function restoreFiles(HookEvent $event) {
         if ($this->input->post->version_control_filedata) {
@@ -551,6 +554,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $mime_type = finfo_file($finfo, $file);
                         finfo_close($finfo);
                         $size = filesize($file);
+                        if (!isset($size)) $size = 0;
                         $sql = "INSERT INTO " . self::FILES_TABLE_NAME . " (filename, mime_type, size) VALUES ('$filename', '$mime_type', $size)";
                         $this->db->query($sql);
                         $file_id = $this->db->insert_id;
@@ -622,6 +626,67 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'pageID' => $page->id,
             'processPage' => $processPage->url(),
         ));
+
+    }
+
+    /**
+     * Build the 'history' tab on the Page Edit form
+     *
+     * @param HookEvent $event
+     */
+    public function buildFormHistory(HookEvent $event) {
+
+        $form = $event->return;
+        $page = $this->pages->get($form->id->value);
+
+        // should date formatting occur?
+        $defaults = ProcessVersionControl::getDefaultData();
+        $processModule = $this->modules->get('ProcessVersionControl');
+        $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
+
+        $wrapper = new InputfieldWrapper;
+        $wrapper->attr('id', $this->className() . 'History');
+        $wrapper->attr('title', __('History')); // Tab Label: History
+
+        $table = $this->modules->get('MarkupAdminDataTable');
+        $table->headerRow(array(
+            __('Revision'),
+            __('Timestamp'),
+            __('Author'),
+            '', // placeholder
+        ));
+        $sql = "
+        SELECT id, timestamp, username
+        FROM " . self::REVISIONS_TABLE_NAME . "
+        WHERE pages_id = {$page->id}
+        ORDER BY timestamp DESC
+        ";
+        $result = $this->db->query($sql);
+        $counter = 0;
+        while ($row = mysqli_fetch_assoc($result)) {
+            ++$counter;
+            $timestamp = $date_format ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'];
+            $table_row = array(
+                $row['id'], 
+                $timestamp,
+                $row['username'],
+            );
+            if ($counter > 1) {
+                $table_row[__('Restore')] = $this->config->urls->admin . "setup/" . ProcessVersionControl::PAGE_NAME . "/restore/?page=" . $page->id . "&revision=" . $row['id'];
+            } else {
+                $table_row[] = '';
+            }
+            $table->row($table_row);
+        }
+        $field = $this->modules->get("InputfieldMarkup");
+        $field->value = $table->render();
+        $wrapper->append($field);
+        
+        $view = $form->children('id=ProcessPageEditView');
+        if (count($view)) $form->insertBefore($wrapper, $view->first());
+        else $form->append($wrapper);
+
+        $event->return = $form;
 
     }
 
