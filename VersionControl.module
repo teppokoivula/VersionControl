@@ -10,7 +10,7 @@
  * @copyright Copyright (c) 2013-2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
- * @todo proper cleanup for deleted fields (just like deleted pages at the moment)
+ * @todo cleanup for deleted fields (just like deleted pages at the moment)
  *
  * ProcessWire 2.x 
  * Copyright (C) 2013 by Ryan Cramer 
@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 53,
+            'version' => 60,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -106,7 +106,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * and page id's etc. (metadata.)
      *
      */
-    const TABLE_NAME = 'version_control';
+    const REVISIONS_TABLE_NAME = 'version_control__revisions';
     const DATA_TABLE_NAME = 'version_control__data';
     const FILES_TABLE_NAME = 'version_control__files';
     const DATA_FILES_TABLE_NAME = 'version_control__data_files';
@@ -299,10 +299,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         if (!$this->data_max_age) return;
 
-        $t1 = self::TABLE_NAME;
+        $t1 = self::REVISIONS_TABLE_NAME;
         $t2 = self::DATA_TABLE_NAME;
         $interval = $this->db->escape_string($this->data_max_age);
-        $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.timestamp < DATE_SUB(NOW(), INTERVAL $interval) AND $t2.{$t1}_id = $t1.id";
+        $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.timestamp < DATE_SUB(NOW(), INTERVAL $interval) AND $t2.revisions_id = $t1.id";
 
         $this->db->query($sql);
         $this->cleanupFiles();
@@ -317,7 +317,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         $t1 = self::FILES_TABLE_NAME;
         $t2 = self::DATA_FILES_TABLE_NAME;
-        $sql = "SELECT * FROM $t1 WHERE id NOT IN (SELECT DISTINCT {$t1}_id from $t2)";
+        $sql = "SELECT * FROM $t1 WHERE id NOT IN (SELECT DISTINCT files_id from $t2)";
         $result = $this->db->query($sql);
         while ($row = mysqli_fetch_assoc($result)) {
             $file = $this->getPath() . $row['name'];
@@ -341,9 +341,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!$this->data_row_limit) return;
 
         $ids = "";
-        $t1 = self::TABLE_NAME;
+        $t1 = self::REVISIONS_TABLE_NAME;
         $t2 = self::DATA_TABLE_NAME;
-        $sql = "SELECT COUNT(*) AS count FROM $t1 WHERE pages_id = $pages_id AND fields_id = $fields_id";
+        $sql = "SELECT COUNT(*) AS count FROM $t1, $t2 WHERE $t1.pages_id = $pages_id AND $t2.fields_id = $fields_id AND $t2.revisions_id = $t1.id";
         $result = $this->db->query($sql);
         $row = mysqli_fetch_assoc($result);
         if ($row['count'] > $this->data_row_limit) {
@@ -355,7 +355,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
             $sql = "DELETE FROM $t1 WHERE id IN ($ids)";
             $this->db->query($sql);
-            $sql = "DELETE FROM $t2 WHERE {$t1}_id IN ($ids)";
+            $sql = "DELETE FROM $t2 WHERE revisions_id IN ($ids)";
             $this->db->query($sql);
             $this->cleanupFiles();
         }
@@ -371,9 +371,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         $page = $event->arguments[0];
 
-        $t1 = self::TABLE_NAME;
+        $t1 = self::REVISIONS_TABLE_NAME;
         $t2 = self::DATA_TABLE_NAME;
-        $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id = $page AND $t2.{$t1}_id = $t1.id";
+        $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id = $page AND $t2.revisions_id = $t1.id";
 
         $this->db->query($sql);
         $this->cleanupFiles();
@@ -513,19 +513,22 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // return if no data exists
         if (!$page_data) return;
 
+        // revision ID placeholder
+        $revisions_id = 0;
+
         foreach ($page_data as $fields_id => $field_data) {
 
-            // insert new row to database table containing history rows
-            $sql_fields = "pages_id, fields_id, users_id, username";
-            $sql_values = "{$page->id}, $fields_id, $users_id, '$username'";
-            $sql = "INSERT INTO " . self::TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
-            $this->db->query($sql);
-
-            // id of inserted database row
-            $insert_id = $this->db->insert_id;
+            // if revision isn't assigned yet, get next available revision ID
+            if (!$revisions_id) {
+                $sql_fields = "pages_id, users_id, username";
+                $sql_values = "{$page->id}, $users_id, '$username'";
+                $sql = "INSERT INTO " . self::REVISIONS_TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
+                $this->db->query($sql);
+                $revisions_id = $this->db->insert_id;
+            }
 
             // insert field data to another table
-            $sql_fields = self::TABLE_NAME . "_id, property, data";
+            $sql_fields = "revisions_id, fields_id, property, data";
             foreach ($field_data as $property => $data) {
                 $file_id = null;
                 // dot means that this is multipart property (n.data), which
@@ -563,13 +566,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
                 $data = $this->db->real_escape_string($data);
                 $property = $this->db->real_escape_string($property);
-                $sql_values = "$insert_id, '$property', '$data'";
+                $sql_values = "$revisions_id, $fields_id, '$property', '$data'";
                 $sql = "INSERT INTO " . self::DATA_TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
                 $this->db->query($sql);
                 if ($file_id) {
                     // if data row is related to file, add row to junction table
-                    $row_id = $this->db->insert_id;
-                    $sql = "INSERT INTO " . self::DATA_FILES_TABLE_NAME . " (" . self::DATA_TABLE_NAME . "_id, " . self::FILES_TABLE_NAME . "_id) VALUES ($row_id, $file_id)";
+                    $data_id = $this->db->insert_id;
+                    $sql = "INSERT INTO " . self::DATA_FILES_TABLE_NAME . " (data_id, files_id) VALUES ($data_id, $file_id)";
                     $this->db->query($sql);
                 }
             }
@@ -648,62 +651,45 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * Creates new database table for storing data.
      *
+     * @todo suggest import if VersionControlForTextFields tables are found
      */
     public function ___install() {
         
-        // main table, contains mostly metadata
-        $sql = "
-        CREATE TABLE " . self::TABLE_NAME . " (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            pages_id INT UNSIGNED NOT NULL,
-            fields_id INT UNSIGNED NOT NULL,
-            users_id INT UNSIGNED DEFAULT NULL,
-            username VARCHAR(255) DEFAULT NULL,
-            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            KEY fields_id (fields_id)
-        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
-        ";
-        $this->db->query($sql);
-        $this->message("Created Table: " . self::TABLE_NAME);
+        // revisions table bundles individual data rows into site-wide revisions
+        $this->createTable(self::REVISIONS_TABLE_NAME, array(
+            'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
+            'pages_id INT UNSIGNED NOT NULL',
+            'users_id INT UNSIGNED DEFAULT NULL',
+            'username VARCHAR(255) DEFAULT NULL',
+            'timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+            'KEY pages_id (pages_id)',
+        ));
 
         // data table, contains actual content for edited fields
-        // @todo: add other methods for storing data, ie. files,
-        // and make creating and using this table optional.
-        $sql = "
-        CREATE TABLE " . self::DATA_TABLE_NAME . " (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            " . self::TABLE_NAME . "_id INT UNSIGNED NOT NULL,
-            property VARCHAR(255) NOT NULL,
-            data MEDIUMTEXT DEFAULT NULL,
-            KEY " . self::TABLE_NAME . "_id (" . self::TABLE_NAME . "_id)
-        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
-        ";
-        $this->db->query($sql);
-        $this->message("Created Table: " . self::DATA_TABLE_NAME);
+        $this->createTable(self::DATA_TABLE_NAME, array(
+            'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
+            'revisions_id INT UNSIGNED NOT NULL',
+            'fields_id INT UNSIGNED NOT NULL',
+            'property VARCHAR(255) NOT NULL',
+            'data MEDIUMTEXT DEFAULT NULL',
+            'KEY revisions_id (revisions_id)',
+            'KEY fields_id (fields_id)',
+        ));
 
         // files table contains one row for each stored file
-        $sql = "
-        CREATE TABLE " . self::FILES_TABLE_NAME . " (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            filename VARCHAR(255) NOT NULL,
-            mime_type VARCHAR(255),
-            size INT UNSIGNED NOT NULL,
-            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
-        ";
-        $this->db->query($sql);
-        $this->message("Created Table: " . self::FILES_TABLE_NAME);
+        $this->createTable(self::FILES_TABLE_NAME, array(
+            'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
+            'filename VARCHAR(255) NOT NULL',
+            'mime_type VARCHAR(255)',
+            'size INT UNSIGNED NOT NULL',
+        ));
 
-        // data files junction table connects files to data rows
-        $sql = "
-        CREATE TABLE " . self::DATA_FILES_TABLE_NAME . " (
-            " . self::DATA_TABLE_NAME . "_id INT UNSIGNED NOT NULL,
-            " . self::FILES_TABLE_NAME . "_id INT UNSIGNED NOT NULL,
-            PRIMARY KEY (" . self::DATA_TABLE_NAME . "_id, " . self::FILES_TABLE_NAME . "_id)
-        ) ENGINE = MYISAM DEFAULT CHARSET=utf8;
-        ";
-        $this->db->query($sql);
-        $this->message("Created Table: " . self::DATA_FILES_TABLE_NAME);
+        // junction table: connects files to data rows
+        $this->createTable(self::DATA_FILES_TABLE_NAME, array(
+            'data_id INT UNSIGNED NOT NULL',
+            'files_id INT UNSIGNED NOT NULL',
+            'PRIMARY KEY (data_id, files_id)',
+        ));
 
     }
 
@@ -714,18 +700,18 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      */
     public function ___uninstall() {
-        $this->dropTableIfExists(self::TABLE_NAME);
-        $this->dropTableIfExists(self::DATA_TABLE_NAME);
-        $this->dropTableIfExists(self::FILES_TABLE_NAME);
-        $this->dropTableIfExists(self::DATA_FILES_TABLE_NAME);
+        $this->dropTable(self::REVISIONS_TABLE_NAME);
+        $this->dropTable(self::DATA_TABLE_NAME);
+        $this->dropTable(self::FILES_TABLE_NAME);
+        $this->dropTable(self::DATA_FILES_TABLE_NAME);
     }
     
     /**
-     * Helper method for dropping table if it exists
+     * Helper method for dropping tables
      * 
      * @param string $table Table name
      */
-    protected function dropTableIfExists($table) {
+    protected function dropTable($table) {
         $table = $this->db->real_escape_string($table);
         $sql = "SHOW TABLES LIKE '$table'";
         $result = $this->db->query($sql);
@@ -733,6 +719,26 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->db->query("DROP TABLE $table");
             $this->message("Dropped Table: $table");
         }
+    }
+
+    /**
+     * Helper method for creating tables
+     *
+     * @param string $table Table name
+     * @param array $schema Table schema
+     */
+    protected function createTable($table, $schema) {
+        $table = $this->db->real_escape_string($table);
+        $sql = "SHOW TABLES LIKE '$table'";
+        $result = $this->db->query($sql);
+        if ($result->num_rows == 1) {
+            throw new WireDatabaseException("Table $table already exists");
+        }
+        $sql = "CREATE TABLE $table (";
+        $sql .= implode(', ', $schema);
+        $sql .= ") ENGINE = MYISAM DEFAULT CHARSET=utf8";
+        $this->db->query($sql);
+        $this->message("Created Table: $table");
     }
 
     /**

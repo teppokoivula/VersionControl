@@ -18,13 +18,15 @@ $(function() {
         // contents to that fields header (.ui-widget-header) only if they
         // contain at least one revision other than what's currently used
         $('#text-field-history > div').each(function() {
-            var $if = $('.Inputfield_'+$(this).data('field'));
-            $if.find('> label')
-                .addClass('with-history')
-                .before($(this));
-            $(this).find('a:first').addClass('ui-state-active');
-            if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
-            cache[$(this).data('revision')] = $if.find('div.ui-widget-content, .InputfieldContent').clone(true, true);
+            if ($(this).data('revision')) {
+                var $if = $('.Inputfield_'+$(this).data('field'));
+                $if.find('> label')
+                    .addClass('with-history')
+                    .before($(this));
+                $(this).find('a:first').addClass('ui-state-active');
+                if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
+                cache[$(this).data('field')+"."+$(this).data('revision')] = $if.find('div.ui-widget-content, .InputfieldContent').clone(true, true);
+            }
         });
         
         // iterate through history-enabled fields to add a revision toggle
@@ -72,11 +74,11 @@ $(function() {
                 settings = { render: 'JSON' };
             }
             var revision = $(this).data('revision');
-            if (cache[revision]) {
+            if (cache[field+"."+revision]) {
                 if (settings.render != "JSON" && revision == $this.parents('.field-revisions:first').data('revision')) {
-                    // current (latest) revision is the only one we've stored
-                    // inputfield content as a jQuery object in our cache
-                    $content.replaceWith(cache[revision].clone(true, true));
+                    // current (latest) revision is the only one we've got
+                    // inputfield content cached as a jQuery object
+                    $content.replaceWith(cache[field+"."+revision].clone(true, true));
                     if ($if.find('.InputfieldFileList').length) {
                         // for file inputs we need to reload InputfieldFile.js
                         // in order to reset the HTML5 AJAX file upload
@@ -89,14 +91,13 @@ $(function() {
                         $.getScript(config.urls.modules+"Inputfield/InputfieldImage/InputfieldImage.js");
                     }
                 } else {
-                    update($if, $content, settings, field, cache[revision]);
+                    update($if, $content, settings, field, cache[field+"."+revision]);
                 }
             } else {
                 $content.css('position', 'relative').prepend($loading.fadeIn(250));
-                $.get(moduleConfig.processPage+'get', { id: $this.data('revision'), settings: settings }, function(data) {
-                    // @todo if data is JSON, store as JSON object (fix "has no .replace method" issue)
-                    cache[revision] = data;
-                    update($if, $content, settings, field, cache[revision]);
+                $.get(moduleConfig.processPage+'get', { revision: $this.data('revision'), field: field, settings: settings }, function(data) {
+                    cache[field+"."+revision] = data;
+                    update($if, $content, settings, field, cache[field+"."+revision]);
                     $loading.fadeOut(350, function() {
                         $(this).remove();
                     });

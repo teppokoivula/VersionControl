@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 51,
+            'version' => 60,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -57,16 +57,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     }
     
     /**
-     * Names of admin page and database tables used by this module
+     * Name of admin page created and used by this module
      * 
-     * Note that table used here is actually created and managed by another module, which is also why
-     * it's name differs from current modules name. Data table is used as a storage table for actual
-     * revision data (content) while main table provides dates, user and page id's etc. (metadata.)
-     *
      */
     const PAGE_NAME = 'version-control';
-    const TABLE_NAME = 'version_control';
-    const DATA_TABLE_NAME = 'version_control__data';
 
     /**
      * Populate the default config data
@@ -175,13 +169,13 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         
         // should date formatting occur?
         $defaults = self::getDefaultData();
-        $date_format = ($this->date_format != $defaults['date_format']) ? $this->date_format : null;
+        $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
         // additional settings
         $settings = $this->input->get->settings;
 
         // get page
-        $pages_id = (isset($this->input->get->pages_id)) ? (int) $this->input->get->pages_id : null;
+        $pages_id = isset($this->input->get->pages_id) ? (int) $this->input->get->pages_id : null;
         if (!$pages_id) throw new WireException("Missing required GET param pages_id");
         $page = $this->pages->get($pages_id);
 
@@ -207,10 +201,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // find values
         $sql = "
-        SELECT m.pages_id, f.name AS field_name, m.timestamp, m.users_id, m.username, d.*
-        FROM fields AS f, " . self::TABLE_NAME . " AS m, " . self::DATA_TABLE_NAME . " AS d
-        WHERE m.pages_id IN ($pages_id) AND d." . self::TABLE_NAME . "_id = m.id AND f.id = m.fields_id
-        GROUP BY m.id
+        SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, d.property, d.data
+        FROM fields AS f, " . VersionControl::REVISIONS_TABLE_NAME . " AS r, " . VersionControl::DATA_TABLE_NAME . " AS d
+        WHERE r.pages_id IN ($pages_id) AND d.revisions_id = r.id AND f.id = d.fields_id
         ORDER BY f.id, d.id DESC
         ";
         $result = $this->db->query($sql);
@@ -221,7 +214,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             $item = array(
                 'users_id' => null,
                 'username' => isset($row['username']) ? $this->sanitizer->name($row['username']) : null,
-                'revision' => isset($row[self::TABLE_NAME.'_id']) ? $row[self::TABLE_NAME.'_id'] : null,
+                'revision' => isset($row['revisions_id']) ? $row['revisions_id'] : null,
                 'date' => isset($row['timestamp']) ? $row['timestamp'] : null,
                 'data' => isset($row['data']) ? $row['data'] : null
             );
@@ -295,10 +288,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // find values
         $sql = "
-        SELECT f.name AS field_name, m.timestamp, m.users_id, m.username, d.*, m.id
-        FROM fields AS f, " . self::TABLE_NAME . " AS m, " . self::DATA_TABLE_NAME . " AS d
-        WHERE d." . self::TABLE_NAME . "_id in({$r1}, {$r2}) AND m.id = d." . self::TABLE_NAME . "_id AND f.id = m.fields_id
-        ORDER BY m.id ASC
+        SELECT f.name AS field_name, r.timestamp, r.users_id, r.username, d.*, r.id
+        FROM fields AS f, " . VersionControl::REVISIONS_TABLE_NAME . " AS r, " . VersionControl::DATA_TABLE_NAME . " AS d
+        WHERE d.revisions_id IN({$r1}, {$r2}) AND r.id = d.revisions_id AND f.id = d.fields_id
+        ORDER BY r.id ASC
         LIMIT 2
         ";
         $result = $this->db->query($sql);
@@ -354,26 +347,28 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     }
 
     /**
-     * Render output for specific revision
+     * Render output for specific field in specific revision
      *
-     * Revision is defined by GET param 'id'. Output is either rendered HTML
-     * markup for an inputfield or JSON string.
+     * Revision is defined with GET param 'revision', field with GET param
+     * 'field'. Output is either rendered inputfield (HTML) or JSON string.
      *
      */
     public function ___executeGet() {
 
-        // get revision id
-        $id = (isset($this->input->get->id)) ? (int) $this->input->get->id : null;
-        if (!$id) throw new WireException("Missing required GET param id");
+        // get field and revision
+        $revision_id = (int) $this->input->get->revision;
+        if (!$revision_id) throw new WireException("Missing required GET param revision");
+        $field_name = $this->sanitizer->fieldName($this->input->get->field);
+        if (!$field_name) throw new WireException("Missing required GET param field");
 
         // additional settings
         $settings = $this->input->get->settings;
 
         // find values
         $sql = "
-        SELECT m.fields_id, m.pages_id, d.*
-        FROM " . self::TABLE_NAME . " AS m, " . self::DATA_TABLE_NAME . " AS d
-        WHERE d." . self::TABLE_NAME . "_id = $id AND m.id = $id
+        SELECT r.pages_id, d.fields_id, d.property, d.data
+        FROM fields AS f, " . VersionControl::REVISIONS_TABLE_NAME . " AS r, " . VersionControl::DATA_TABLE_NAME . " AS d
+        WHERE f.name = '$field_name' AND r.id = $revision_id AND d.revisions_id = r.id AND d.fields_id = f.id
         ";
         $result = $this->db->query($sql);
 
@@ -487,18 +482,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $page->template = 'admin';
         $page->name = self::PAGE_NAME; 
         $page->process = $this; 
-
-        // insert page under setup at admin
         $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
-
-        // make page title match module title
         $info = self::getModuleInfo();
         $page->title = $info['title'];
-
-        // hide page from menu
         $page->addStatus(Page::statusHidden);
-
-        // save the page
         $page->save();
 
         // tell user that we've created a new page
@@ -524,13 +511,12 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      */
     public function ___uninstall() {
 
-        // find the page we installed, locating it by the process field (which has the module ID)
-        // it would probably be sufficient just to locate by name, but this is just to be extra sure.
+        // find and delete the page we installed
         $moduleID = $this->modules->getModuleID($this); 
         $page = $this->pages->get("template=admin, process=$moduleID, name=" . self::PAGE_NAME); 
 
+        // delete page
         if ($page->id) {
-            // if we found the page, let the user know and delete it
             $this->message("Deleting Page: {$page->path}"); 
             $page->delete();
         }
