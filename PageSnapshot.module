@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 100,
+            'version' => 110,
             'singular' => true,
             'autoload' => false,
             'requires' => array(
@@ -64,6 +64,8 @@ class PageSnapshot extends WireData implements Module {
         if (!$data) return false;
 
         $page->of(false);
+        $files_path = "";
+        $filedata = array();
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 foreach ($value as $subkey => $subvalue) {
@@ -75,11 +77,34 @@ class PageSnapshot extends WireData implements Module {
                     }
                 }
             } else {
-                list($field, $property) = explode(".", $key);
-                $language = str_replace("data", "", $property);
-                if (!$language) $page->$field = $value;
-                else if ($language = $this->languages->get((int) $language)) {
-                    $page->$field->setLanguageValue($language, $value);
+                list($field, $count, $property) = array_pad(explode(".", $key), 3, 0);
+                if ($property) {
+                    // multipart property (n.data), i.e. file or image field
+                    if (!$files_path) $files_path = $this->modules->VersionControl->getPath();
+                    if (!isset($filedata[$field])) $filedata[$field] = array();
+                    $value = json_decode($value, true);
+                    $value['filename'] = $files_path . $value['filename'];
+                    $filedata[$field][$count] = $value;
+                } else {
+                    // "regular" property (data, data1001 etc.)
+                    $property = $count;
+                    $language = str_replace("data", "", $property);
+                    if (!$language) $page->$field = $value;
+                    else if ($language = $this->languages->get((int) $language)) {
+                        $page->$field->setLanguageValue($language, $value);
+                    }
+                }
+            }
+        }
+        if (count($filedata)) {
+            // filedata comes in chunks and needs to be processed in two steps
+            foreach ($filedata as $field => $items) {
+                ksort($items);
+                $page->get($field)->deleteAll();
+                foreach ($items as $item) {
+                    $page->$field = $item['filename'];
+                    $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
+                    $page->$field->last()->description = $item['description'];
                 }
             }
         }
@@ -117,18 +142,18 @@ class PageSnapshot extends WireData implements Module {
         }
 
         // find values
-        $t1 = VersionControl::TABLE_NAME;
+        $t1 = VersionControl::REVISIONS_TABLE_NAME;
         $t2 = VersionControl::DATA_TABLE_NAME;
         $sql = "
-        SELECT t1.pages_id, t1.fields_id, t2.property, t2.data
+        SELECT t1.pages_id, t2.fields_id, t2.property, t2.data
         FROM (
-            SELECT MAX(id) id, pages_id, fields_id
-            FROM $t1
-            WHERE pages_id IN ($pages_id) AND timestamp <= FROM_UNIXTIME($time)
-            GROUP BY pages_id, fields_id
+            SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
+            FROM $t1 AS t1, $t2 AS t2
+            WHERE t1.pages_id IN ($pages_id) AND t1.timestamp <= FROM_UNIXTIME($time) AND t2.revisions_id = t1.id
+            GROUP BY t1.pages_id, t2.fields_id
         ) AS t1
         INNER JOIN $t2 AS t2
-        ON t2.{$t1}_id = t1.id
+        ON t2.revisions_id = t1.id
         ";
         $result = $this->db->query($sql);
 
