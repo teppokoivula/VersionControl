@@ -3,7 +3,7 @@ $(function() {
     // configuration: "run-time" settings are defined here, "constant" settings
     // (translations, interface URL etc.) in VersionControlForTextFields.module
     var settings = { empty: true, render: 'HTML' };
-    var moduleConfig = config.VersionControlForTextFields;
+    var moduleConfig = config.VersionControl;
 
     // field data is cached to reduce need for redundant AJAX requests
     var cache = {};

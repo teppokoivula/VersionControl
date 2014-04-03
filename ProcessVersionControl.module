@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 70,
+            'version' => 71,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -453,6 +453,35 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $this->session->message(sprintf(__("Page returned to revision #%d"), $revision_id));
         $this->session->redirect($this->config->urls->admin . "page/edit/?id=" . $page_id, false);
         
+    }
+    
+    /**
+     * Set revision comment text
+     *
+     * @return null|string Comment text or null
+     */
+    public function ___executeComment() {
+        
+        // this only applies to POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== "POST") return;
+
+        // get and check revision
+        $revision_id = (int) $this->input->post->revision;
+        $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
+        $result = $this->db->query($sql);
+        $revision = mysqli_fetch_assoc($result);
+        if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+
+        // sanitize and store comment text
+        $comment = $this->input->post->comment;
+        if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
+        $comment_clean = $this->db->real_escape_string($comment);
+        $sql = "UPDATE " . VersionControl::REVISIONS_TABLE_NAME . " SET comment = '$comment_clean' WHERE id = $revision_id";
+        $this->db->query($sql);
+        
+        // return comment text
+        return $comment;
+
     }
 
     /**

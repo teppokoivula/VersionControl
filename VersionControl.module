@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 70,
+            'version' => 71,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -609,19 +609,20 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!$page || !$page->id || !in_array($page->template->id, $this->enabled_templates)) return;
 
         // inject scripts and styles
-		$class = $this->className();
-		$info = $this->getModuleInfo();
-		$version = (int) $info['version']; 
-		if (is_file($this->config->paths->$class . "$class.css")) $this->config->styles->add($this->config->urls->$class . "$class.css?v=$version"); 
-		if (is_file($this->config->paths->$class . "$class.js")) $this->config->scripts->add($this->config->urls->$class . "$class.js?v=$version"); 
+        $class = $this->className();
+        $info = $this->getModuleInfo();
+        $version = (int) $info['version']; 
+        if (is_file($this->config->paths->$class . "$class.css")) $this->config->styles->add($this->config->urls->$class . "$class.css?v=$version"); 
+        if (is_file($this->config->paths->$class . "$class.js")) $this->config->scripts->add($this->config->urls->$class . "$class.js?v=$version"); 
 
         // inject settings and translations
         $process = $this->modules->getModuleID("ProcessVersionControl");
         $processPage = $this->pages->get("process=$process");
-        $this->config->js('VersionControlForTextFields', array(
+        $this->config->js($class, array(
             'i18n' => array(
                 'compareWithCurrent' => __("Compare with current"),
                 'editDisabled' => __("Editing this data is currently disabled. Restore it by saving the page or switch to current version first."),
+                'commentPrompt' => __("Type in comment text for this revision (max 255 characters)"),
             ),
             'pageID' => $page->id,
             'processPage' => $processPage->url(),
@@ -644,44 +645,60 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $processModule = $this->modules->get('ProcessVersionControl');
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
+        // wrapper element (history tab)
         $wrapper = new InputfieldWrapper;
         $wrapper->attr('id', $this->className() . 'History');
         $wrapper->attr('title', __('History')); // Tab Label: History
 
+        // history datatable
         $table = $this->modules->get('MarkupAdminDataTable');
+        $table->setEncodeEntities(false);
         $table->headerRow(array(
             __('Revision'),
-            __('Timestamp'),
             __('Author'),
+            __('Timestamp'),
+            __('Comment'),
             '', // placeholder
         ));
         $sql = "
-        SELECT id, timestamp, username
+        SELECT id, users_id, username, timestamp, comment
         FROM " . self::REVISIONS_TABLE_NAME . "
         WHERE pages_id = {$page->id}
         ORDER BY timestamp DESC
         ";
         $result = $this->db->query($sql);
-        $counter = 0;
+        $count = 0;
+        $process_id = wire('modules')->getModuleID("ProcessVersionControl");
+        $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
+        $edit_comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "' /></a>";
+        $restore = "{$process_page}restore/?page={$page->id}&revision=%d";
         while ($row = mysqli_fetch_assoc($result)) {
-            ++$counter;
+            $username = $row['username'];
+            $user = $this->users->get((int) $row['users_id']);
+            if ($user->id) $username = $user->name;
             $timestamp = $date_format ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'];
             $table_row = array(
                 $row['id'], 
+                $username,
                 $timestamp,
-                $row['username'],
+                "<span>" . $row['comment'] . "</span>" . sprintf($edit_comment, $row['id']),
             );
-            if ($counter > 1) {
-                $table_row[__('Restore')] = $this->config->urls->admin . "setup/" . ProcessVersionControl::PAGE_NAME . "/restore/?page=" . $page->id . "&revision=" . $row['id'];
-            } else {
-                $table_row[] = '';
-            }
+            if ($count) $table_row[__('Restore')] = sprintf($restore, $row['id']);
+            else $table_row[] = '';
             $table->row($table_row);
+            ++$count;
         }
         $field = $this->modules->get("InputfieldMarkup");
         $field->value = $table->render();
+        $field->label = __("History");
         $wrapper->append($field);
         
+        // scripts
+        $class = $this->className();
+        $info = $this->getModuleInfo();
+        $version = (int) $info['version']; 
+        $this->config->scripts->add($this->config->urls->$class . "HistoryTab.js?v=$version"); 
+
         $view = $form->children('id=ProcessPageEditView');
         if (count($view)) $form->insertBefore($wrapper, $view->first());
         else $form->append($wrapper);
@@ -727,6 +744,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'users_id INT UNSIGNED DEFAULT NULL',
             'username VARCHAR(255) DEFAULT NULL',
             'timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+            'comment VARCHAR(255) DEFAULT NULL',
             'KEY pages_id (pages_id)',
         ));
 
