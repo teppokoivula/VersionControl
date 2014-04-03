@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 71,
+            'version' => 72,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -649,6 +649,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $wrapper = new InputfieldWrapper;
         $wrapper->attr('id', $this->className() . 'History');
         $wrapper->attr('title', __('History')); // Tab Label: History
+        if (isset($this->input->get->users_id)) $wrapper->attr('data-active', true);
 
         // history datatable
         $table = $this->modules->get('MarkupAdminDataTable');
@@ -660,10 +661,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             __('Comment'),
             '', // placeholder
         ));
+        $where = array();
+        $where[] = "pages_id = " . $page->id;
+        if ($users_id = (int) $this->input->get->users_id) {
+            $where[] = "users_id = " . $users_id;
+        }
         $sql = "
         SELECT id, users_id, username, timestamp, comment
         FROM " . self::REVISIONS_TABLE_NAME . "
-        WHERE pages_id = {$page->id}
+        WHERE " . implode($where, " AND ") . "
         ORDER BY timestamp DESC
         ";
         $result = $this->db->query($sql);
@@ -693,6 +699,49 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field->label = __("History");
         $wrapper->append($field);
         
+        // filters
+        if ($count > 1) {
+
+            $fieldset = $this->modules->get("InputfieldFieldset");
+            $fieldset->attr('id+name', 'history_filters');
+            $fieldset->label = __("Filters");
+            $fieldset->icon = "filter";
+            if (!$this->input->get->users_id) $fieldset->collapsed = Inputfield::collapsedYes;
+            $wrapper->prepend($fieldset);
+
+            $field = $this->modules->get("InputfieldHidden");
+            $field->name = 'id';
+            $field->value = $page->id;
+            $fieldset->add($field);
+            
+            $sql = "SELECT DISTINCT users_id FROM " . self::REVISIONS_TABLE_NAME . " WHERE pages_id = {$page->id}";
+            $result = $this->db->query($sql);
+            $users = array();
+            while ($row = mysqli_fetch_assoc($result)) {
+                $user = wire('users')->get($row['users_id']);
+                if ($user->id) {
+                    $users[$user->name] = $user->id;
+                } else {
+                    $sql = "SELECT username FROM " . self::REVISIONS_TABLE_NAME . " WHERE users_id = {$users_id} LIMIT 1";
+                    $user = mysqli_fetch_assoc($this->db->query($sql));
+                    $users[$user['username']] = $row['users_id'];
+                }
+            }
+            ksort($users);
+            $users = array_flip($users);
+
+            $field = $this->modules->get("InputfieldSelect");
+            $field->attr('id+name', 'users_id');
+            $field->addOption('', __('All'));
+            $field->addOptions($users);
+            $field->value = $this->input->get->users_id;
+            $field->label = __('Filter by Author');
+            $field->description = __('When selected, only revisions authored by specific user will be shown.');
+            if (!$this->input->get->users_id) $field->collapsed = Inputfield::collapsedYes;
+            $fieldset->add($field);
+
+        }
+
         // scripts
         $class = $this->className();
         $info = $this->getModuleInfo();
