@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 72,
+            'version' => 73,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -645,24 +645,31 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $processModule = $this->modules->get('ProcessVersionControl');
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
+        // cache usernames for later use
+        $sql = "SELECT DISTINCT users_id FROM " . self::REVISIONS_TABLE_NAME . " WHERE pages_id = {$page->id}";
+        $result = $this->db->query($sql);
+        $users = array();
+        while ($row = mysqli_fetch_assoc($result)) {
+            $user = wire('users')->get($row['users_id']);
+            if ($user->id) {
+                $users[$user->name] = $user->id;
+            } else {
+                $sql = "SELECT username FROM " . self::REVISIONS_TABLE_NAME . " WHERE users_id = $users_id LIMIT 1";
+                $user = mysqli_fetch_assoc($this->db->query($sql));
+                $users[$user['username']] = $row['users_id'];
+            }
+        }
+        ksort($users);
+        $users = array_flip($users);
+
         // wrapper element (history tab)
         $wrapper = new InputfieldWrapper;
         $wrapper->attr('id', $this->className() . 'History');
         $wrapper->attr('title', __('History')); // Tab Label: History
         if (isset($this->input->get->users_id)) $wrapper->attr('data-active', true);
 
-        // history datatable
-        $table = $this->modules->get('MarkupAdminDataTable');
-        $table->setEncodeEntities(false);
-        $table->headerRow(array(
-            __('Revision'),
-            __('Author'),
-            __('Timestamp'),
-            __('Comment'),
-            '', // placeholder
-        ));
-        $where = array();
-        $where[] = "pages_id = " . $page->id;
+        // fetch and parse history rows
+        $where = array('pages_id' => $page->id);
         if ($users_id = (int) $this->input->get->users_id) {
             $where[] = "users_id = " . $users_id;
         }
@@ -673,34 +680,39 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ORDER BY timestamp DESC
         ";
         $result = $this->db->query($sql);
-        $count = 0;
+        $rows = array();
         $process_id = wire('modules')->getModuleID("ProcessVersionControl");
         $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
-        $edit_comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "' /></a>";
-        $restore = "{$process_page}restore/?page={$page->id}&revision=%d";
+        $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "' /></a>";
+        $restore = "<a href='{$process_page}restore/?page={$page->id}&revision=%d'>" . __("Restore") . "</a>";
         while ($row = mysqli_fetch_assoc($result)) {
-            $username = $row['username'];
-            $user = $this->users->get((int) $row['users_id']);
-            if ($user->id) $username = $user->name;
-            $timestamp = $date_format ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'];
-            $table_row = array(
+            $rows[] = array(
                 $row['id'], 
-                $username,
-                $timestamp,
-                "<span>" . $row['comment'] . "</span>" . sprintf($edit_comment, $row['id']),
+                $users[$row['users_id']],
+                $date_format ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'],
+                "<span>" . $row['comment'] . "</span>" . sprintf($comment, $row['id']),
+                count($rows) ? sprintf($restore, $row['id']) : '',
             );
-            if ($count) $table_row[__('Restore')] = sprintf($restore, $row['id']);
-            else $table_row[] = '';
-            $table->row($table_row);
-            ++$count;
         }
+
+        // setup datatable and append it to history tab
+        $table = $this->modules->get("MarkupAdminDataTable");
+        $table->setEncodeEntities(false);
+        $table->headerRow(array(
+            __('Revision'),
+            __('Author'),
+            __('Timestamp'),
+            __('Comment'),
+            '', // placeholder
+        ));
+        foreach ($rows as $row) $table->row($row);
         $field = $this->modules->get("InputfieldMarkup");
         $field->value = $table->render();
         $field->label = __("History");
         $wrapper->append($field);
-        
+
         // filters
-        if ($count > 1) {
+        if (count($rows) > 1) {
 
             $fieldset = $this->modules->get("InputfieldFieldset");
             $fieldset->attr('id+name', 'history_filters');
@@ -714,22 +726,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $field->value = $page->id;
             $fieldset->add($field);
             
-            $sql = "SELECT DISTINCT users_id FROM " . self::REVISIONS_TABLE_NAME . " WHERE pages_id = {$page->id}";
-            $result = $this->db->query($sql);
-            $users = array();
-            while ($row = mysqli_fetch_assoc($result)) {
-                $user = wire('users')->get($row['users_id']);
-                if ($user->id) {
-                    $users[$user->name] = $user->id;
-                } else {
-                    $sql = "SELECT username FROM " . self::REVISIONS_TABLE_NAME . " WHERE users_id = {$users_id} LIMIT 1";
-                    $user = mysqli_fetch_assoc($this->db->query($sql));
-                    $users[$user['username']] = $row['users_id'];
-                }
-            }
-            ksort($users);
-            $users = array_flip($users);
-
             $field = $this->modules->get("InputfieldSelect");
             $field->attr('id+name', 'users_id');
             $field->addOption('', __('All'));
@@ -748,10 +744,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $version = (int) $info['version']; 
         $this->config->scripts->add($this->config->urls->$class . "HistoryTab.js?v=$version"); 
 
+        // insert new tab to Page Edit form
         $view = $form->children('id=ProcessPageEditView');
         if (count($view)) $form->insertBefore($wrapper, $view->first());
         else $form->append($wrapper);
-
         $event->return = $form;
 
     }
