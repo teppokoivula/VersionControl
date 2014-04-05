@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 73,
+            'version' => 74,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -666,18 +666,46 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $wrapper = new InputfieldWrapper;
         $wrapper->attr('id', $this->className() . 'History');
         $wrapper->attr('title', __('History')); // Tab Label: History
-        if (isset($this->input->get->users_id)) $wrapper->attr('data-active', true);
+        if (isset($this->input->get->users_id) || isset($this->input->get->page)) {
+            $wrapper->attr('data-active', true);
+        }
 
-        // fetch and parse history rows
+        // gather WHERE rules (page, filters)
         $where = array('pages_id' => $page->id);
         if ($users_id = (int) $this->input->get->users_id) {
             $where[] = "users_id = " . $users_id;
         }
+        $where = "WHERE " . implode(" AND ", $where);
+
+        // total count of rows in database table
+        $sql = "SELECT COUNT(*) FROM " . self::REVISIONS_TABLE_NAME . " $where";
+        $row = $this->db->query($sql)->fetch_row();
+        $total = reset($row);
+
+        // put together LIMIT clause
+        $start = 0;
+        $limit = 25;
+        if ($total > $limit) {
+            if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
+            if ($start > $total) $start = $total-$limit;
+        }
+
+        // pager markup
+        $pager = "";
+        if ($total > $limit) {
+            $pager_links = 20;
+            $pager_page = (int) $start/$limit+1;
+            $pager_pages = ceil($total/$limit);
+            $pager = $this->renderPager($pager_links, $pager_page, $pager_pages);
+        }
+
+        // fetch and parse history rows
         $sql = "
         SELECT id, users_id, username, timestamp, comment
         FROM " . self::REVISIONS_TABLE_NAME . "
-        WHERE " . implode($where, " AND ") . "
+        $where
         ORDER BY timestamp DESC
+        LIMIT $start, $limit
         ";
         $result = $this->db->query($sql);
         $rows = array();
@@ -707,7 +735,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ));
         foreach ($rows as $row) $table->row($row);
         $field = $this->modules->get("InputfieldMarkup");
-        $field->value = $table->render();
+        $field->value = $table->render() . $pager;
         $field->label = __("History");
         $wrapper->append($field);
 
@@ -867,6 +895,65 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $sql .= ") ENGINE = MYISAM DEFAULT CHARSET=utf8";
         $this->db->query($sql);
         $this->message("Created Table: $table");
+    }
+
+    /**
+     * Render markup for pager
+     *
+     * @param int $links Number of pager links visible at once
+     * @param int $page Identifies currently active pager item
+     * @param int $pages Number of total pager items available
+     * @return string
+     */
+    protected function renderPager($links, $page, $pages) {
+
+        if ($pages < 2) return;
+
+        // convert GET params to string
+        $get = "";
+        foreach ($this->input->get as $key => $value) {
+            if ($key != "page" && $value != "") {
+                $get .= "&amp;".urlencode($key)."=".urlencode($value);
+            }
+        }
+
+        // calculate start and end points
+        $start = 1;
+        $end = $pages;
+        if ($end > $links) {
+            $start = (int) $page-$links/2;
+            if ($start < 1) $start=1;
+            $end = $start+($links-1);
+            if ($end > $pages) $end = $pages;
+            if ($end-$page < (int) $links/2-1) { 
+                $start -= ((int) $links/2)-($end-$page);
+                if ($start < 1) $start=1;
+            }
+        }
+
+        // generate markup
+        $out = "<ul class='MarkupPagerNav MarkupPagerNavCustom'>";
+        if ($start > 1) {
+            $out .= "<li><a href='./?page=1$get'><span>1</span></a></li>";
+            if ($start > 2) {
+                $out .= "<li class='MarkupPagerNavSeparator'>&hellip;</li>";
+            }
+        }
+        for ($i = $start; $i<=$pages; ++$i) {
+            $here = ($page == $i) ? " class='MarkupPagerNavOn'" : "";
+            $out .= "<li$here><a href='./?page=$i$get'><span>$i</span></a></li>";
+            if ($pages > $links && $i == $end && $i < $pages) {
+                if ($pages-$i > 1) {
+                    $out .= "<li class='MarkupPagerNavSeparator'>&hellip;</li>";
+                }
+                $i = $pages-1;
+                if ($i < $end) $i = $end+1;
+            }
+        }
+        $out .= "</ul>";
+        
+        return $out;
+
     }
 
     /**
