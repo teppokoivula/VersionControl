@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 74,
+            'version' => 75,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -711,15 +711,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $rows = array();
         $process_id = wire('modules')->getModuleID("ProcessVersionControl");
         $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
-        $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "' /></a>";
-        $restore = "<a href='{$process_page}restore/?page={$page->id}&revision=%d'>" . __("Restore") . "</a>";
+        $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "'></i></a>";
+        $restore = "<a href='{$process_page}restore/?page={$page->id}&revision=%d'><i class='fa fa-undo' title='" . __("Restore revision") . "'></i></a>";
         while ($row = mysqli_fetch_assoc($result)) {
             $rows[] = array(
                 $row['id'], 
                 $users[$row['users_id']],
                 $date_format ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'],
-                "<span>" . $row['comment'] . "</span>" . sprintf($comment, $row['id']),
-                count($rows) ? sprintf($restore, $row['id']) : '',
+                $row['comment'],
+                sprintf($comment, $row['id']) . ($start || count($rows) ? sprintf($restore, $row['id']) : '<span></span>'),
             );
         }
 

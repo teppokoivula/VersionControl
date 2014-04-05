@@ -5,15 +5,12 @@ $(function() {
 
     // edit comment feature
     $('.edit-comment').bind('click', function() {
-        var $editLink = $(this);
+        var $container = $(this).parent('td').prev('td');
         var revision = $(this).data('revision');
-        var comment = prompt(moduleConfig.i18n.commentPrompt, $(this).prev('span').text());
+        var comment = prompt(moduleConfig.i18n.commentPrompt, $container.text());
         if (comment !== null) {
             $.post(moduleConfig.processPage+'comment', { revision: revision, comment: comment }, function(data) {
-                $editLink
-                    .prev('span')
-                        .text(data)
-                        .effect("highlight", {}, 500);
+                $container.text(data).effect("highlight", {}, 500);
             });
         }
         return false;
