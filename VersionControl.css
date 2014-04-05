@@ -129,3 +129,8 @@ body.template-admin .field-revisions .ui-state-active {
     text-align: center;
     width: 4em;
 }
+
+.InputfieldWrapper#VersionControlHistory ul.MarkupPagerNavCustom li.MarkupPagerNavSeparator,
+.InputfieldWrapper#VersionControlHistory ul.MarkupPagerNavCustom li a {
+    margin-right: 3px;
+}
