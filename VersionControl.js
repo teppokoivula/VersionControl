@@ -206,9 +206,10 @@ $(function() {
             if (!$(this).hasClass('ui-state-active')) {
                 // in this case r1 refers to current revision, r2 to selected
                 // revision. diff is fetched as HTML from revision interface.
+                var field = $(this).parents('.field-revisions:first').data('field');
                 var r1 = $(this).parents('.field-revisions:first').find('.ui-state-active').data('revision');
                 var r2 = $(this).data('revision');
-                var href = moduleConfig.processPage+'diff/?revisions='+r1+':'+r2;
+                var href = moduleConfig.processPage+'diff/?revisions='+r1+':'+r2+'&field='+field;
                 var label = moduleConfig.i18n.compareWithCurrent;
                 $(this).before('<div class="compare-revisions"><a class="diff-trigger" href="'+href+'">'+label+'</a></div>');
                 // note: following (and some other actions in this file) could

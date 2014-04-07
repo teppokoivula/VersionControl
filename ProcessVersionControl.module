@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 71,
+            'version' => 80,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -255,9 +255,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             }
         }
         
-        // exit with output
-        $out = $this->$render($data);
-        exit($out);
+        // return output
+        return $this->$render($data);
 
     }
 
@@ -265,9 +264,11 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * Render diff of two given revisions
      * 
      * Revisions are defined by GET param 'revisions', which should contain two
-     * revisions separated by colon ('?revisions=41:42'). Diff is computed with
-     * JavaScript library diff_match_patch and returned as HTML div element, id
-     * attribute set to 'diff', and rudimentary CSS styles.
+     * revisions separated by colon ('?revisions=41:42'). Field is also defined
+     * with GET param ('field').
+     *
+     * Diff is computed with JavaScript library diff_match_patch and returned as
+     * HTML div element, id attribute set to 'diff', and rudimentary CSS styles.
      *
      */
     public function ___executeDiff() {
@@ -276,7 +277,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $defaults = self::getDefaultData();
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
-        // get revision ids
+        // get field and revision ids
+        $field_name = $this->sanitizer->fieldName($this->input->get->field);
+        if (!$field_name) throw new WireException("Missing required GET param field");
         $revisions = isset($this->input->get->revisions) ? $this->input->get->revisions : null;
         if (!$revisions) throw new WireException("Missing required GET param revisions");
 
@@ -288,9 +291,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // find values
         $sql = "
-        SELECT f.name AS field_name, r.timestamp, r.users_id, r.username, d.*, r.id
+        SELECT r.id, d.data
         FROM fields AS f, " . VersionControl::REVISIONS_TABLE_NAME . " AS r, " . VersionControl::DATA_TABLE_NAME . " AS d
-        WHERE d.revisions_id IN({$r1}, {$r2}) AND r.id = d.revisions_id AND f.id = d.fields_id
+        WHERE r.id IN({$r1}, {$r2}) AND d.revisions_id = r.id AND f.name = '{$field_name}' AND d.fields_id = f.id
         ORDER BY r.id ASC
         LIMIT 2
         ";
@@ -342,7 +345,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         launch();
         </script>
         <?php
-        exit();
 
     }
 
@@ -421,40 +423,37 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     }
 
     /**
-     * Return specific page to specific revision
+     * Return specific page to given revision
      *
      * Revision is defined with GET param 'revision', page with GET param
-     * 'page'. Afterwards redirect user to page edit.
+     * 'pages_id'. Afterwards redirect user to page edit.
      *
-     * @todo add proper security checks
      */
     public function ___executeRestore() {
 
-        // get page and revision
-        $page_id = (int) $this->input->get->page;
-        if (!$page_id) throw new WireException("Missing required GET param page");
-        $revision_id = (int) $this->input->get->revision;
-        if (!$revision_id) throw new WireException("Missing required GET param revision");
-
-        // check page and revision
-        $page = $this->pages->get($page_id);
-        if (!$page->id) throw new WireException("Page doesn't exist: $page_id");
-        $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
-        $result = $this->db->query($sql);
-        $revision = mysqli_fetch_assoc($result);
-        if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
-
-        // fetch snapshot of page at the time of given revision
-        $page->snapshot($revision['timestamp']);
+        // replace current page content with that from given revision
+        $page = $this->getPageRevision();
         $page->of(false);
         $page->save();
 
         // redirect to page edit
+        $revision_id = (int) $this->input->get->revision;
         $this->session->message(sprintf(__("Page returned to revision #%d"), $revision_id));
-        $this->session->redirect($this->config->urls->admin . "page/edit/?id=" . $page_id, false);
+        $this->session->redirect($this->config->urls->admin . "page/edit/?id=" . $page->id, false);
         
     }
     
+    /**
+     * Preview specific page in given revision
+     *
+     * Revision is defined with GET param 'revision', page with GET param
+     * 'pages_id'. Afterwards redirect user to page edit.
+     *
+     */
+    public function ___executePreview() {
+        exit($this->getPageRevision()->render());
+    }
+
     /**
      * Set revision comment text
      *
@@ -532,6 +531,37 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         return json_encode($data);
     }
 
+    /**
+     * Return page as it was in given revision
+     *
+     * Used internally by preview and restore methods.
+     *
+     * @return Page
+     */
+    protected function getPageRevision() {
+
+        // get page and revision
+        $pages_id = (int) $this->input->get->pages_id;
+        if (!$pages_id) throw new WireException("Missing required GET param pages_id");
+        $revision_id = (int) $this->input->get->revision;
+        if (!$revision_id) throw new WireException("Missing required GET param revision");
+
+        // check page and revision
+        $page = $this->pages->get($pages_id);
+        if (!$page->id) throw new WireException("Page doesn't exist: $pages_id");
+        if (!$page->viewable()) throw new WireException("Permission denied");
+        $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
+        $result = $this->db->query($sql);
+        $revision = mysqli_fetch_assoc($result);
+        if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+
+        // fetch snapshot of page at the time of given revision
+        $page->snapshot($revision['timestamp']);
+
+        return $page;
+
+    }
+    
     /**
      * Called only when this module is installed
      *

@@ -127,7 +127,7 @@ body.template-admin .field-revisions .ui-state-active {
 
 .InputfieldWrapper#VersionControlHistory .AdminDataTable tr td:last-child {
     text-align: center;
-    width: 4em;
+    width: 6em;
 }
 
 .InputfieldWrapper#VersionControlHistory ul.MarkupPagerNavCustom li.MarkupPagerNavSeparator,

@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 76,
+            'version' => 80,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -671,7 +671,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
 
         // gather WHERE rules (page, filters)
-        $where = array('pages_id' => $page->id);
+        $where = array("pages_id = " . $page->id);
         if ($users_id = (int) $this->input->get->users_id) {
             $where[] = "users_id = " . $users_id;
         }
@@ -712,14 +712,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $process_id = wire('modules')->getModuleID("ProcessVersionControl");
         $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
         $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "'></i></a>";
-        $restore = "<a href='{$process_page}restore/?page={$page->id}&revision=%d'><i class='fa fa-undo' title='" . __("Restore revision") . "'></i></a>";
+        $restore = "<a href='{$process_page}restore/?pages_id={$page->id}&revision=%d'><i class='fa fa-undo' title='" . __("Restore revision") . "'></i></a>";
+        $preview = "<a target='_blank' href='{$process_page}preview/?pages_id={$page->id}&revision=%d'><i class='fa fa-eye' title='" . __("Preview revision") . "'></i></a>";
         while ($row = mysqli_fetch_assoc($result)) {
             $rows[] = array(
                 $row['id'], 
                 $users[$row['users_id']],
                 $date_format ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'],
                 $row['comment'],
-                sprintf($comment, $row['id']) . ($start || count($rows) ? sprintf($restore, $row['id']) : '<span></span>'),
+                sprintf($comment, $row['id']) . ($start || count($rows) ? sprintf($preview, $row['id']) . sprintf($restore, $row['id']) : '<span></span><span></span>'),
             );
         }
 
