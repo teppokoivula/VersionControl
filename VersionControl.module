@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 80,
+            'version' => 81,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -623,6 +623,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'compareWithCurrent' => __("Compare with current"),
                 'editDisabled' => __("Editing this data is currently disabled. Restore it by saving the page or switch to current version first."),
                 'commentPrompt' => __("Type in comment text for this revision (max 255 characters)"),
+                'closePreview' => __("This is the page as it appeared on %s. Click here to close the preview."),
             ),
             'pageID' => $page->id,
             'processPage' => $processPage->url(),
@@ -713,14 +714,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
         $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "'></i></a>";
         $restore = "<a href='{$process_page}restore/?pages_id={$page->id}&revision=%d'><i class='fa fa-undo' title='" . __("Restore revision") . "'></i></a>";
-        $preview = "<a target='_blank' href='{$process_page}preview/?pages_id={$page->id}&revision=%d'><i class='fa fa-eye' title='" . __("Preview revision") . "'></i></a>";
+        $preview = "<a class='preview' target='_blank' data-date='%s' href='{$process_page}preview/?pages_id={$page->id}&revision=%d'><i class='fa fa-eye' title='" . __("Preview revision") . "'></i></a>";
         while ($row = mysqli_fetch_assoc($result)) {
+            if ($date_format) $row['timestamp'] = date($date_format, strtotime($row['timestamp']));
             $rows[] = array(
                 $row['id'], 
                 $users[$row['users_id']],
-                $date_format ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'],
+                $row['timestamp'],
                 $row['comment'],
-                sprintf($comment, $row['id']) . ($start || count($rows) ? sprintf($preview, $row['id']) . sprintf($restore, $row['id']) : '<span></span><span></span>'),
+                sprintf($comment, $row['id']) . ($start || count($rows) ? sprintf($preview, $row['timestamp'], $row['id']) . sprintf($restore, $row['id']) : '<span></span><span></span>'),
             );
         }
 
