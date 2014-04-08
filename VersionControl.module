@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 81,
+            'version' => 82,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -182,7 +182,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "enabled_fields";
         $field->label = __("Enable history for these fields");
-        $field->notes = __("Only fields of compatible fieldtypes can be selected.");
+        $field->notes = __("Only fields of compatible fieldtypes can be selected. If no fields are selected, all fields of compatible fieldtypes are considered enabled.");
         $field->icon = "file-text-o";
         $field->columnWidth = 50;
         $types = implode($data['compatible_fieldtypes'], "|");
@@ -264,7 +264,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
         $this->addHook("LazyCron::everyDay", $this, 'cleanupFiles');
 
-        if (count($this->enabled_templates) && count($this->enabled_fields)) {
+        if (count($this->enabled_templates)) {
             // add hook that handles restoring files and/or images
             $this->addHookBefore('Pages::saveReady', $this, 'restoreFiles');
             // add hooks that gather information and trigger insert
@@ -453,36 +453,37 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         if ($page->isChanged()) {
             foreach ($page->template->fields as $field) {
-                if ($page->isChanged($field->name) && in_array($field->id, $this->enabled_fields)) {
-                    $data = $page->get($field->name);
-                    // continue only if either the page in question exists (i.e.
-                    // old field was cleared) or page is new and field has value
-                    if ($page->id || !is_null($data) && $data != "") {
-                        if (!isset($this->page_data[$page_id])) $this->page_data[$page_id] = array();
-                        $data_array = array();
-                        if ($data instanceof Pagefiles) {
-                            // note: originally 'sort' value of each item was
-                            // used instead of custom counter, but that's not
-                            // always available (when working over API).
-                            $count = 0;
-                            foreach ($data as $item) {
-                                $data_array[$count.'.data'] = json_encode(array(
-                                    'original_filename' => $item->filename, 
-                                    'filename' => hash_file('sha256', $item->filename) . "." . $item->basename,
-                                    'description' => $item->description,
-                                ));
-                                ++$count;
-                            }
-                        } else if ($data instanceof LanguagesPageFieldValue) {
-                            foreach ($this->languages as $language) {
-                                $language_value = $data->getLanguageValue($language);
-                                $data_array['data' . ($language->isDefault() ? '' : $language)] = $language_value;
-                            }
-                        } else {
-                            $data_array = array('data' => $data);
+                if (!$page->isChanged($field->name)) continue;
+                if (!in_array($field->type, $this->compatible_fieldtypes)) continue;
+                if (count($this->enabled_fields) && !in_array($field->id, $this->enabled_fields)) continue;
+                $data = $page->get($field->name);
+                // continue only if either the page in question exists (i.e.
+                // old field was cleared) or page is new and field has value
+                if ($page->id || !is_null($data) && $data != "") {
+                    if (!isset($this->page_data[$page_id])) $this->page_data[$page_id] = array();
+                    $data_array = array();
+                    if ($data instanceof Pagefiles) {
+                        // note: originally 'sort' value of each item was
+                        // used instead of custom counter, but that's not
+                        // always available (when working over API).
+                        $count = 0;
+                        foreach ($data as $item) {
+                            $data_array[$count.'.data'] = json_encode(array(
+                                'original_filename' => $item->filename, 
+                                'filename' => hash_file('sha256', $item->filename) . "." . $item->basename,
+                                'description' => $item->description,
+                            ));
+                            ++$count;
                         }
-                        $this->page_data[$page_id][$field->id] = $data_array;
+                    } else if ($data instanceof LanguagesPageFieldValue) {
+                        foreach ($this->languages as $language) {
+                            $language_value = $data->getLanguageValue($language);
+                            $data_array['data' . ($language->isDefault() ? '' : $language)] = $language_value;
+                        }
+                    } else {
+                        $data_array = array('data' => $data);
                     }
+                    $this->page_data[$page_id][$field->id] = $data_array;
                 }
             }
         }
@@ -792,8 +793,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     public function versionControlFields(HookEvent $event) {
 
-        $fields = new Fieldgroup();
         $template = $event->object;
+        if (!count($this->enabled_fields)) return $template->fields;
+        $fields = new Fieldgroup();
         foreach ($this->enabled_fields as $field) {
             if ($template->hasField($field)) {
                 $fields->add($this->fields->get($field));
@@ -805,9 +807,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Called only when this module is installed
-     *
-     * Creates new database table for storing data.
+     * When module is installed, create database tables for storing data
      *
      * @todo suggest import if VersionControlForTextFields tables are found
      */
@@ -853,9 +853,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Called only when this module is uninstalled
-     *
-     * Drops database tables associated with this module.
+     * When module is uninstalled, drop database tables created during install
      *
      */
     public function ___uninstall() {
