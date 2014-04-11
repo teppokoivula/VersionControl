@@ -137,32 +137,32 @@ body.template-admin .field-revisions .ui-state-active {
 
 body.preview {
     overflow: hidden;
-    padding-top: 2em;
 }
 
 #close-preview {
     top: 0;
     left: 0;
     width: 100%;
-    height: 2em;
+    height: 42px;
     color: #fff;
     z-index: 99;
     display: none;
     padding: 0 1em;
     position: fixed;
-    line-height: 2em;
+    line-height: 42px;
+    font-size: 0.9em;
     background: #FF008F;
-    border-radius: 0 4px 4px 0;
-    box-shadow: inset 0 0 1px 1px rgba(0,0,0,0.1), 1px 1px 3px rgba(0,0,0,0.25);
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.25);
 }
 
 #close-preview i {
-    margin-right: 0.5em;
+    margin-right: 0.75em;
 }
 
 #preview {
-    top: 0;
     left: 0;
+    top: 42px;
+    border: 0;
     z-index: 99;
     width: 100%;
     height: 100%;

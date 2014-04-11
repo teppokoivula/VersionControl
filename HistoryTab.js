@@ -43,9 +43,12 @@ $(function() {
         $('body')
             .addClass('preview')
             .data('top', $('body').scrollTop())
-            .after('<a id="close-preview" href="#"><i class="fa fa-times-circle"></i>' + moduleConfig.i18n.closePreview.replace('%s', $a.data('date')) + '</a>')
-            .after('<iframe id="preview" seamless src="' + $a.attr('href') + '"></iframe>');
-        $('#close-preview, #preview').fadeIn();
+            .append('<iframe id="preview" seamless></iframe>')
+            .append('<a id="close-preview" href="#"><i class="fa fa-times-circle"></i>' + moduleConfig.i18n.closePreview.replace('%s', $a.data('date')) + '</a>');
+        $('#preview').fadeIn(function() {
+            $(this).attr('src', $a.attr('href'));
+            $('#close-preview').fadeIn();
+        });
         $(document).on('keyup.preview', function(e) {
             if (e.keyCode == 27) $('#close-preview').trigger('click');
         });
