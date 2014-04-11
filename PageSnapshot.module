@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 110,
+            'version' => 111,
             'singular' => true,
             'autoload' => false,
             'requires' => array(
@@ -153,7 +153,7 @@ class PageSnapshot extends WireData implements Module {
             GROUP BY t1.pages_id, t2.fields_id
         ) AS t1
         INNER JOIN $t2 AS t2
-        ON t2.revisions_id = t1.id
+        ON t2.revisions_id = t1.id AND t2.fields_id = t1.fields_id
         ";
         $result = $this->db->query($sql);
 
