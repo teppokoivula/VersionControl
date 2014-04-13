@@ -32,13 +32,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 83,
+            'version' => 84,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
-                'ProcessVersionControl',
-                'PageSnapshot',
                 'LazyCron',
+                'PageSnapshot',
+                'ProcessVersionControl',
             ),
         ); 
     }
@@ -88,10 +88,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected $data_fields = array();
 
     /**
-     * Process page path is used as a storage for files under version control
+     * Array for storing local variables
      *
      */
-    protected $path;
+    protected $data = array();
 
     /**
      * Container for hash format filenames within image inputfields
@@ -287,8 +287,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->addHookAfter('InputfieldFile::renderList', $this, 'replaceHashes');
             // add new property versionControlFields to Template object
             $this->addHookProperty('Template::versionControlFields', $this, 'versionControlFields');
-            // get and init (and install if not yet installed) page snapshot
-            $this->modules->get('PageSnapshot')->init();
         }
 
     }
@@ -322,7 +320,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $sql = "SELECT * FROM $t1 WHERE id NOT IN (SELECT DISTINCT files_id from $t2)";
         $result = $this->db->query($sql);
         while ($row = mysqli_fetch_assoc($result)) {
-            $file = $this->getPath() . $row['name'];
+            $file = $this->path . $row['name'];
             if (is_file($file)) unlink($file);
             $sql = "DELETE FROM $t1 WHERE id = {$row['id']}";
             $this->db->query($sql);
@@ -422,11 +420,25 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $page = $event->arguments[0];
             $filedata = json_decode($this->input->post->version_control_filedata, true);
             foreach ($filedata as $field => $items) {
-                $page->get($field)->deleteAll();
+                // remove old files from disk and then from field itself
+                foreach ($page->$field as $file) @unlink($file->filename);
+                $page->$field->deleteAll();
+                // insert new files into field (field copies files to correct
+                // location itself, but we'll have to rename them to original
+                // filename by removing hash prefixes added for storage)
                 foreach ($items as $item) {
                     $page->$field = $item['filename'];
                     $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
                     $page->$field->last()->description = $item['description'];
+                    $page->$field->last()->modified = $item['modified'];
+                    $page->$field->last()->created = $item['created'];
+                    if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
+                }
+                // remove hook responsible for native unlink behaviour
+                foreach ($page->filesManager->getHooks() as $hook) {
+                    if (isset($hook['toObject']) && $hook['toObject'] instanceof Pageimages && $hook['toObject']->field->name == $field) {
+                        $page->filesManager->removeHook($hook['id']);
+                    }
                 }
             }
         }
@@ -468,11 +480,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         // always available (when working over API).
                         $count = 0;
                         foreach ($data as $item) {
-                            $data_array[$count.'.data'] = json_encode(array(
+                            $data_item = array(
                                 'original_filename' => $item->filename, 
                                 'filename' => hash_file('sha256', $item->filename) . "." . $item->basename,
                                 'description' => $item->description,
-                            ));
+                                'modified' => $item->modified,
+                                'created' => $item->created,
+                            );
+                            if ($field->useTags) $data_item['tags'] = $item->tags;
+                            $data_array[$count.'.data'] = json_encode($data_item);
                             ++$count;
                         }
                     } else if ($data instanceof LanguagesPageFieldValue) {
@@ -541,7 +557,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     // decode JSON data to get proper file information; copy
                     // original file to storage unless it's already there
                     $data = json_decode($data, true);
-                    $file = $this->getPath() . $data['filename'];
+                    $file = $this->path . $data['filename'];
                     $file_is_new = false;
                     if (!is_file($file)) {
                         copy($data['original_filename'], $file);
@@ -555,7 +571,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $mime_type = finfo_file($finfo, $file);
                         finfo_close($finfo);
                         $size = filesize($file);
-                        if (!isset($size)) $size = 0;
+                        if (!$size) $size = 0;
                         $sql = "INSERT INTO " . self::FILES_TABLE_NAME . " (filename, mime_type, size) VALUES ('$filename', '$mime_type', $size)";
                         $this->db->query($sql);
                         $file_id = $this->db->insert_id;
@@ -794,7 +810,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     public function versionControlFields(HookEvent $event) {
 
         $template = $event->object;
-        if (!count($this->enabled_fields)) return $template->fields;
+        if (!count($this->enabled_fields)) return $event->return = $template->fields;
         $fields = new Fieldgroup();
         foreach ($this->enabled_fields as $field) {
             if ($template->hasField($field)) {
@@ -854,6 +870,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * When module is uninstalled, drop database tables created during install
+     * and uninstall related Process module.
      *
      */
     public function ___uninstall() {
@@ -958,21 +975,28 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Get the files path used by this module
+     * Custom getter mainly for path and url variables
      *
      * We're using files directory of our process module as file storage; fetch
-     * and cache locally it's path here. If directory doesn't exist, create it.
+     * and cache locally it's path and URL. If directory doesn't exist, create.
+     * If key is unrecognized, pass the request to parent class.
      * 
-     * @return string Path
+     * @param string $key
+     * @return mixed
      */
-    public function getPath() {
-        if (!$this->path) {
-            $processModuleID = wire('modules')->getModuleID("ProcessVersionControl");
-            $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=" . ProcessVersionControl::PAGE_NAME); 
-            $this->path = PagefilesManager::_path($processPage);
-            if (!is_dir($this->path)) wireMkdir($this->path);
+    public function __get($key) {
+        if ($key == "path" || $key == "url") {
+            if (!array_key_exists($key, $this->data)) {
+                $processModuleID = wire('modules')->getModuleID("ProcessVersionControl");
+                $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=" . ProcessVersionControl::PAGE_NAME); 
+                $pagefilesManager = new PagefilesManager($processPage);
+                $this->data['path'] = $pagefilesManager->path();
+                $this->data['url'] = $pagefilesManager->url();
+                if (!is_dir($this->data['path'])) wireMkdir($this->data['path']);
+            }
+            return $this->data[$key];
         }
-        return $this->path;
+        return parent::__get($key);
     }
     
 }
