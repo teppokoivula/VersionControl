@@ -870,7 +870,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * When module is uninstalled, drop database tables created during install
-     * and uninstall related Process module.
      *
      */
     public function ___uninstall() {
