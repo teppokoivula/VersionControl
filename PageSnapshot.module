@@ -29,9 +29,9 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 111,
+            'version' => 112,
             'singular' => true,
-            'autoload' => false,
+            'autoload' => true,
             'requires' => array(
                 'VersionControl',
             ),
@@ -64,7 +64,6 @@ class PageSnapshot extends WireData implements Module {
         if (!$data) return false;
 
         $page->of(false);
-        $files_path = "";
         $filedata = array();
         foreach ($data as $key => $value) {
             if (is_array($value)) {
@@ -80,10 +79,9 @@ class PageSnapshot extends WireData implements Module {
                 list($field, $count, $property) = array_pad(explode(".", $key), 3, 0);
                 if ($property) {
                     // multipart property (n.data), i.e. file or image field
-                    if (!$files_path) $files_path = $this->modules->VersionControl->getPath();
                     if (!isset($filedata[$field])) $filedata[$field] = array();
                     $value = json_decode($value, true);
-                    $value['filename'] = $files_path . $value['filename'];
+                    $value['filename'] = $this->modules->VersionControl->path . $value['filename'];
                     $filedata[$field][$count] = $value;
                 } else {
                     // "regular" property (data, data1001 etc.)
@@ -98,18 +96,57 @@ class PageSnapshot extends WireData implements Module {
         }
         if (count($filedata)) {
             // filedata comes in chunks and needs to be processed in two steps
+            $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
+            $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
+            $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
             foreach ($filedata as $field => $items) {
+                // @todo handle changed template (not the only place that needs this though..)
                 ksort($items);
                 $page->get($field)->deleteAll();
                 foreach ($items as $item) {
                     $page->$field = $item['filename'];
-                    $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
                     $page->$field->last()->description = $item['description'];
+                    $page->$field->last()->modified = $item['modified'];
+                    $page->$field->last()->created = $item['created'];
+                    if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
+                    $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $page->$field->last()->basename;
+                    $page->$field->last()->_custom_filename = $item['filename'];
+                    $size = $page->$field->last()->filesize;
                 }
             }
         }
         $page->of(true);
         
+    }
+
+    /**
+     * Prevent installing Pagefile if path is that of ProcessVersionControl
+     *
+     * @param HookEvent $event
+     */
+    public function hookPagefileInstall(HookEvent $event) {
+        if (strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
+            $event->object->basename = $event->arguments[0];
+            $event->replace = true;
+        }
+    }
+
+    /**
+     * Override Pageimage / Pagefile URL with custom one
+     *
+     * @param HookEvent $event
+     */
+    public function hookPagefileUrl(HookEvent $event) {
+        if ($event->object->_custom_url) $event->return = $event->object->_custom_url;
+    }
+
+    /**
+     * Override Pageimage / Pagefile filename with custom one
+     *
+     * @param HookEvent $event
+     */
+    public function hookPagefileFilename(HookEvent $event) {
+        if ($event->object->_custom_filename) $event->return = $event->object->_custom_filename;
     }
 
     /**
