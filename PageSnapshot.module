@@ -29,11 +29,12 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 112,
+            'version' => 113,
             'singular' => true,
             'autoload' => true,
             'requires' => array(
                 'VersionControl',
+                'ProcessWire>=2.4.1',
             ),
         ); 
     }
