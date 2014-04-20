@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 84,
+            'version' => 85,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -657,6 +657,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         $form = $event->return;
         $page = $this->pages->get($form->id->value);
+        if (!in_array($page->template->id, $this->enabled_templates)) return;
 
         // should date formatting occur?
         $defaults = ProcessVersionControl::getDefaultData();
