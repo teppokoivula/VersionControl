@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 86,
+            'version' => 87,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -285,6 +285,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
             $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
             $this->addHookAfter('InputfieldFile::renderList', $this, 'replaceHashes');
+            // add hook that removes hashes within text content of pages
+            $this->addHookAfter('Page::render', $this, 'replaceTextHashes');
             // add new property versionControlFields to Template object
             $this->addHookProperty('Template::versionControlFields', $this, 'versionControlFields');
         }
@@ -406,6 +408,17 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 array_values($this->hash_map), 
                 $event->return
             );
+        }
+    }
+
+    /**
+     * Attempt to replace hashes within text content of rendered page output
+     *
+     * @param HookEvent $event
+     */
+    public function replaceTextHashes(HookEvent $event) {
+        if ($this->input->get->revision) {
+            $event->return = preg_replace("#[a-z0-9]{64}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
         }
     }
 
