@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => 85,
+            'version' => 86,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -723,7 +723,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         SELECT id, users_id, username, timestamp, comment
         FROM " . self::REVISIONS_TABLE_NAME . "
         $where
-        ORDER BY timestamp DESC
+        ORDER BY timestamp DESC, id DESC
         LIMIT $start, $limit
         ";
         $result = $this->db->query($sql);
