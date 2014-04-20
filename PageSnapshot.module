@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 113,
+            'version' => 114,
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -60,8 +60,9 @@ class PageSnapshot extends WireData implements Module {
 
         $page = $event->object;
         $time = isset($event->arguments[0]) ? $event->arguments[0] : null;
+        $revision_id = isset($event->arguments[1]) ? $event->arguments[1] : null;
 
-        $data = $this->snapshot($page, $time);
+        $data = $this->snapshot($page, $time, $revision_id);
         if (!$data) return false;
 
         $page->of(false);
@@ -151,16 +152,28 @@ class PageSnapshot extends WireData implements Module {
     }
 
     /**
-     * Return array of contents of given page at specific time
+     * Return array of contents of given page at specific time or revision
      * 
      * @param Page $page
      * @param mixed $time
+     * @param null|int $revision_id
      * @return array
      */
-    public function snapshot(Page $page, $time = null) {   
+    public function snapshot(Page $page, $time = null, $revision_id = null) {   
 
         if (!is_integer($time)) $time = strtotime($time);
-        if (empty($time)) $time = time();
+
+        // revision info
+        if ($revision_id) {
+            if (!is_integer($revision_id)) throw new WireException("Revision ID must be an integer");
+            $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
+            $result = $this->db->query($sql);
+            $revision = mysqli_fetch_assoc($result);
+            if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+        }
+
+        // default value for time
+        if (empty($time)) $time = $revision_id ? strtotime($revision['timestamp']) : time();
         
         // include repeater pages
         $pages_id = $page->id;
@@ -182,12 +195,13 @@ class PageSnapshot extends WireData implements Module {
         // find values
         $t1 = VersionControl::REVISIONS_TABLE_NAME;
         $t2 = VersionControl::DATA_TABLE_NAME;
+        $where = $revision_id ? "t1.id = $revision_id AND " : "";
         $sql = "
         SELECT t1.pages_id, t2.fields_id, t2.property, t2.data
         FROM (
             SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
             FROM $t1 AS t1, $t2 AS t2
-            WHERE t1.pages_id IN ($pages_id) AND t1.timestamp <= FROM_UNIXTIME($time) AND t2.revisions_id = t1.id
+            WHERE {$where}t1.pages_id IN ($pages_id) AND t1.timestamp <= FROM_UNIXTIME($time) AND t2.revisions_id = t1.id
             GROUP BY t1.pages_id, t2.fields_id
         ) AS t1
         INNER JOIN $t2 AS t2
