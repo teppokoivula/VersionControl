@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 82,
+            'version' => 83,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -162,10 +162,25 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     }
 
     /**
-     * Executed when a page with this Process assigned is accessed
-     *
+     * Placeholder for when a page with this Process assigned is accessed
+     * 
+     * Currently only displays 404 error, but could potentially be used for
+     * something more useful later.
+     * 
      */
     public function ___execute() {
+        throw new Wire404Exception("Unrecognized path");
+    }
+
+    /**
+     * Return revision data for specific page
+     *
+     * Page is defined by GET param 'pages_id' and additional settings with get
+     * param 'settings'. Supported settings are 'empty' (to render placeholders
+     * for fields with no stored data) and 'render' (selecting render method).
+     * 
+     */
+    public function ___executePage() {
         
         // should date formatting occur?
         $defaults = self::getDefaultData();
@@ -356,7 +371,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * 'field'. Output is either rendered inputfield (HTML) or JSON string.
      *
      */
-    public function ___executeGet() {
+    public function ___executeField() {
 
         // get field and revision
         $revision_id = (int) $this->input->get->revision;

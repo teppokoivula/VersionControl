@@ -9,7 +9,7 @@ $(function() {
     var cache = {};
 
     // fetch revision data for this page as HTML markup
-    $.get(moduleConfig.processPage, { pages_id: moduleConfig.pageID, settings: settings }, function(data) {
+    $.get(moduleConfig.processPage+'page', { pages_id: moduleConfig.pageID, settings: settings }, function(data) {
         
         // prepend data (#text-field-history) to body
         $('body').prepend(data);
@@ -95,7 +95,7 @@ $(function() {
                 }
             } else {
                 $content.css('position', 'relative').prepend($loading.fadeIn(250));
-                $.get(moduleConfig.processPage+'get', { revision: $this.data('revision'), field: field, settings: settings }, function(data) {
+                $.get(moduleConfig.processPage+'field', { revision: $this.data('revision'), field: field, settings: settings }, function(data) {
                     cache[field+"."+revision] = data;
                     update($if, $content, settings, field, cache[field+"."+revision]);
                     $loading.fadeOut(350, function() {
