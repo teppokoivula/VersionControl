@@ -40,7 +40,10 @@ $(function() {
     // preview feature
     $('a.preview').on('click', function() {
         var $a = $(this);
-        $('body').append('<div id="preview"><iframe src="' + $a.attr('href') + '" seamless></iframe></div>');
+        $('body')
+            .append('<div id="preview-overlay"></div>')
+            .append('<div id="preview"><iframe src="' + $a.attr('href') + '" seamless></iframe></div>');
+        $('#preview-overlay').fadeIn();
         $('#preview')
             .show()
             .animate({ right: 0 }, 500, function() {
@@ -62,6 +65,9 @@ $(function() {
         $(window).off('blur.preview');
         $(document).off('keyup.preview');
         $('body').removeClass('preview');
+        $('#preview-overlay').fadeOut(function() {
+            $(this).remove();
+        });
         $('#preview').animate({ right: '-80%' }, 500, function() {
             $(this).remove();
         });
