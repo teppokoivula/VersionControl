@@ -40,33 +40,33 @@ $(function() {
     // preview feature
     $('a.preview').on('click', function() {
         var $a = $(this);
-        $('body')
-            .addClass('preview')
-            .data('top', $('body').scrollTop())
-            .append('<iframe id="preview" seamless></iframe>')
-            .append('<a id="close-preview" href="#"><i class="fa fa-times-circle"></i>' + moduleConfig.i18n.closePreview.replace('%s', $a.data('date')) + '</a>');
-        $('#preview').fadeIn(function() {
-            $(this).attr('src', $a.attr('href'));
-            $('#close-preview').fadeIn();
-        });
-        $(document).on('keyup.preview', function(e) {
-            if (e.keyCode == 27) $('#close-preview').trigger('click');
-        });
-        $('#close-preview').on('click', function() {
-            $('body')
-                .removeClass('preview')
-                .animate({ scrollTop: $('body').data('top') }, 'fast', function() {
-                    $a.parents('tr:first').effect("highlight", {}, 1500);
-                });
-            $('#close-preview').fadeOut(function() {
-                $(this).remove();
+        $('body').append('<div id="preview"><iframe src="' + $a.attr('href') + '" seamless></iframe></div>');
+        $('#preview')
+            .show()
+            .animate({ right: 0 }, 500, function() {
+                $('body').addClass('preview');
             });
-            $('#preview').fadeOut(function() {
-                $(this).remove();
-            });
-            $(document).unbind('keyup.preview');
+        $('*').on('click.preview', function() {
+            closePreview($a);
+        });
+        $(window).on('blur.preview', function() {
+            closePreview($a);
+        });
+        $(document).on('keyup.preview', function() {
+            closePreview($a);
         });
         return false;
     });
+    var closePreview = function($a) {
+        $('*').off('click.preview');
+        $(window).off('blur.preview');
+        $(document).off('keyup.preview');
+        $('body').removeClass('preview');
+        $('#preview').animate({ right: '-80%' }, 500, function() {
+            $(this).remove();
+        });
+        $a.parents('tr:first').effect("highlight", {}, 1500);
+        return false;
+    }
 
 });
