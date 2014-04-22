@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.10',
+            'version' => '0.8.11',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -434,7 +434,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $filedata = json_decode($this->input->post->version_control_filedata, true);
             foreach ($filedata as $field => $items) {
                 // remove old files from disk and then from field itself
-                foreach ($page->$field as $file) @unlink($file->filename);
+                foreach ($page->$field as $file) $file->unlink();
                 $page->$field->deleteAll();
                 // insert new files into field (field copies files to correct
                 // location itself, but we'll have to rename them to original
@@ -449,7 +449,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
                 // remove hook responsible for native unlink behaviour
                 foreach ($page->filesManager->getHooks() as $hook) {
-                    if (isset($hook['toObject']) && $hook['toObject'] instanceof Pageimages && $hook['toObject']->field->name == $field) {
+                    if (isset($hook['toObject']) && $hook['toObject'] instanceof Pagefiles && $hook['toObject']->field->name == $field) {
                         $page->filesManager->removeHook($hook['id']);
                     }
                 }
