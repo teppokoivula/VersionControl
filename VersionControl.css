@@ -1,5 +1,5 @@
 #text-field-history,
-textarea[name=version_control_filedata] {
+textarea.version_control_filedata {
     display: none;
 }
 

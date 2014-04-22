@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 83,
+            'version' => 84,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -430,7 +430,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             if ($files) {
                 $input->value = $files;
                 $filedata = json_encode($filedata);
-                echo "<textarea name='version_control_filedata'>{$filedata}</textarea>";
+                echo "<textarea class='version_control_filedata' name='version_control_filedata[]'>{$filedata}</textarea>";
             }
             exit($input->render());
         } else {

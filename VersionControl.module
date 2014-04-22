@@ -32,7 +32,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.11',
+            'version' => '0.8.12',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -426,31 +426,32 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * Update file fields if special POST variable 'filedata' was received
      *
      * @param HookEvent $event
-     * @todo multipart version_control_filedata (multiple fields being restored)
      */
     public function restoreFiles(HookEvent $event) {
         if ($this->input->post->version_control_filedata) {
             $page = $event->arguments[0];
-            $filedata = json_decode($this->input->post->version_control_filedata, true);
-            foreach ($filedata as $field => $items) {
-                // remove old files from disk and then from field itself
-                foreach ($page->$field as $file) $file->unlink();
-                $page->$field->deleteAll();
-                // insert new files into field (field copies files to correct
-                // location itself, but we'll have to rename them to original
-                // filename by removing hash prefixes added for storage)
-                foreach ($items as $item) {
-                    $page->$field = $item['filename'];
-                    $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
-                    $page->$field->last()->description = $item['description'];
-                    $page->$field->last()->modified = $item['modified'];
-                    $page->$field->last()->created = $item['created'];
-                    if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
-                }
-                // remove hook responsible for native unlink behaviour
-                foreach ($page->filesManager->getHooks() as $hook) {
-                    if (isset($hook['toObject']) && $hook['toObject'] instanceof Pagefiles && $hook['toObject']->field->name == $field) {
-                        $page->filesManager->removeHook($hook['id']);
+            foreach ($this->input->post->version_control_filedata as $filedata) {
+                $filedata = json_decode($filedata, true);
+                foreach ($filedata as $field => $items) {
+                    // remove old files from disk and then from field itself
+                    foreach ($page->$field as $file) $file->unlink();
+                    $page->$field->deleteAll();
+                    // insert new files into field (field copies files to correct
+                    // location itself, but we'll have to rename them to original
+                    // filename by removing hash prefixes added for storage)
+                    foreach ($items as $item) {
+                        $page->$field = $item['filename'];
+                        $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
+                        $page->$field->last()->description = $item['description'];
+                        $page->$field->last()->modified = $item['modified'];
+                        $page->$field->last()->created = $item['created'];
+                        if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
+                    }
+                    // remove hook responsible for native unlink behaviour
+                    foreach ($page->filesManager->getHooks() as $hook) {
+                        if (isset($hook['toObject']) && $hook['toObject'] instanceof Pagefiles && $hook['toObject']->field->name == $field) {
+                            $page->filesManager->removeHook($hook['id']);
+                        }
                     }
                 }
             }
