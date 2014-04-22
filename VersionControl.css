@@ -167,6 +167,6 @@ body.preview {
     height: 100%;
     display: none;
     opacity: 0.25;
+    position: fixed;
     background: #000;
-    position: absolute;
 }
