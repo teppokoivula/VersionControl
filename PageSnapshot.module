@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 114,
+            'version' => 115,
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -113,7 +113,6 @@ class PageSnapshot extends WireData implements Module {
                     if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
                     $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $page->$field->last()->basename;
                     $page->$field->last()->_custom_filename = $item['filename'];
-                    $size = $page->$field->last()->filesize;
                 }
             }
         }
