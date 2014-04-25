@@ -102,7 +102,6 @@ class PageSnapshot extends WireData implements Module {
             $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
             $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
             foreach ($filedata as $field => $items) {
-                // @todo handle changed template (not the only place that needs this though..)
                 ksort($items);
                 $page->get($field)->deleteAll();
                 foreach ($items as $item) {
