@@ -10,8 +10,6 @@
  * @copyright Copyright (c) 2013-2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
- * @todo handle empty filedata (no rows in data table at the moment; store null)
- *
  * ProcessWire 2.x 
  * Copyright (C) 2013 by Ryan Cramer 
  * Licensed under GNU/GPL v2, see LICENSE.TXT
@@ -30,9 +28,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'Version Control',
             'summary' => 'Basic version control features for page content.',
-            'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
+            'href' => '',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.14',
+            'version' => '0.8.15',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -493,13 +491,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     // insert new files into field (field copies files to correct
                     // location itself, but we'll have to rename them to original
                     // filename by removing hash prefixes added for storage)
-                    foreach ($items as $item) {
-                        $page->$field = $item['filename'];
-                        $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
-                        $page->$field->last()->description = $item['description'];
-                        $page->$field->last()->modified = $item['modified'];
-                        $page->$field->last()->created = $item['created'];
-                        if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
+                    if (is_array($items)) {
+                        foreach ($items as $item) {
+                            $page->$field = $item['filename'];
+                            $page->$field->last()->rename(substr($item['filename'], strpos($item['filename'], ".")+1));
+                            $page->$field->last()->description = $item['description'];
+                            $page->$field->last()->modified = $item['modified'];
+                            $page->$field->last()->created = $item['created'];
+                            if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
+                        }
                     }
                     // remove hook responsible for native unlink behaviour
                     foreach ($page->filesManager->getHooks() as $hook) {
@@ -541,7 +541,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 // old field was cleared) or page is new and field has value
                 if ($page->id || !is_null($data) && $data != "") {
                     if (!isset($this->page_data[$page_id])) $this->page_data[$page_id] = array();
-                    $data_array = array();
+                    $data_array = array('0.data' => null);
                     if ($data instanceof Pagefiles) {
                         // note: originally 'sort' value of each item was
                         // used instead of custom counter, but that's not
@@ -621,7 +621,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $file_id = null;
                 // dot means that this is multipart property (n.data), which
                 // can *at the moment* be used to identify file/image fields
-                if (strpos($property, ".")) {
+                if (strpos($property, ".") && !is_null($data)) {
                     // decode JSON data to get proper file information; copy
                     // original file to storage unless it's already there
                     $data = json_decode($data, true);
@@ -653,9 +653,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     // re-encode JSON data
                     $data = json_encode($data);
                 }
-                $data = $this->db->real_escape_string($data);
+                if (is_null($data)) $data = "NULL";
+                else $data = "'" . $this->db->real_escape_string($data) . "'";
                 $property = $this->db->real_escape_string($property);
-                $sql_values = "$revisions_id, $fields_id, '$property', '$data'";
+                $sql_values = "$revisions_id, $fields_id, '$property', $data";
                 $sql = "INSERT INTO " . self::DATA_TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
                 $this->db->query($sql);
                 if ($file_id) {

@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 84,
+            'version' => 85,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -415,20 +415,24 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             $files = null;
             foreach ($data as $key => $value) {
                 if (strpos($key, ".")) {
-                    if (!$files) $files = $field->type->getBlankValue($this->page, $field);
-                    $value = json_decode($value, true);
-                    $file = $files->makeBlankItem();
-                    $file->setFilename($value['filename']);
-                    $file->description = $value['description'];
-                    if (isset($value['tags']) && $field->useTags) $file->tags = $value['tags'];
-                    $file->_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
-                    $files->add($file);
-                    $value['filename'] = $files->path . $value['filename'];
-                    $filedata[$field->name][] = $value;
+                    if (is_null($value)) {
+                        $filedata[$field->name] = null;
+                    } else if ($value) {
+                        if (!$files) $files = $field->type->getBlankValue($this->page, $field);
+                        $value = json_decode($value, true);
+                        $file = $files->makeBlankItem();
+                        $file->setFilename($value['filename']);
+                        $file->description = $value['description'];
+                        if (isset($value['tags']) && $field->useTags) $file->tags = $value['tags'];
+                        $file->_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
+                        $files->add($file);
+                        $value['filename'] = $files->path . $value['filename'];
+                        $filedata[$field->name][] = $value;
+                    }
                 }
             }
-            if ($files) {
-                $input->value = $files;
+            if ($files) $input->value = $files;
+            if ($filedata) {
                 $filedata = json_encode($filedata);
                 echo "<textarea class='version_control_filedata' name='version_control_filedata[]'>{$filedata}</textarea>";
             }
