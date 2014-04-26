@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 115,
+            'version' => 116,
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -81,10 +81,14 @@ class PageSnapshot extends WireData implements Module {
                 list($field, $count, $property) = array_pad(explode(".", $key), 3, 0);
                 if ($property) {
                     // multipart property (n.data), i.e. file or image field
-                    if (!isset($filedata[$field])) $filedata[$field] = array();
-                    $value = json_decode($value, true);
-                    $value['filename'] = $this->modules->VersionControl->path . $value['filename'];
-                    $filedata[$field][$count] = $value;
+                    if (is_null($value)) {
+                        $filedata[$field] = null;
+                    } else if ($value) {
+                        if (!isset($filedata[$field])) $filedata[$field] = array();
+                        $value = json_decode($value, true);
+                        $value['filename'] = $this->modules->VersionControl->path . $value['filename'];
+                        $filedata[$field][$count] = $value;
+                    }
                 } else {
                     // "regular" property (data, data1001 etc.)
                     $property = $count;
@@ -102,16 +106,18 @@ class PageSnapshot extends WireData implements Module {
             $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
             $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
             foreach ($filedata as $field => $items) {
-                ksort($items);
                 $page->get($field)->deleteAll();
-                foreach ($items as $item) {
-                    $page->$field = $item['filename'];
-                    $page->$field->last()->description = $item['description'];
-                    $page->$field->last()->modified = $item['modified'];
-                    $page->$field->last()->created = $item['created'];
-                    if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
-                    $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $page->$field->last()->basename;
-                    $page->$field->last()->_custom_filename = $item['filename'];
+                if (is_array($items)) {
+                    ksort($items);
+                    foreach ($items as $item) {
+                        $page->$field = $item['filename'];
+                        $page->$field->last()->description = $item['description'];
+                        $page->$field->last()->modified = $item['modified'];
+                        $page->$field->last()->created = $item['created'];
+                        if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
+                        $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $page->$field->last()->basename;
+                        $page->$field->last()->_custom_filename = $item['filename'];
+                    }
                 }
             }
         }
