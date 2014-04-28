@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 116,
+            'version' => 117,
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -170,7 +170,7 @@ class PageSnapshot extends WireData implements Module {
         // revision info
         if ($revision_id) {
             if (!is_integer($revision_id)) throw new WireException("Revision ID must be an integer");
-            $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
+            $sql = "SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = $revision_id";
             $result = $this->db->query($sql);
             $revision = mysqli_fetch_assoc($result);
             if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
@@ -197,8 +197,8 @@ class PageSnapshot extends WireData implements Module {
         }
 
         // find values
-        $t1 = VersionControl::REVISIONS_TABLE_NAME;
-        $t2 = VersionControl::DATA_TABLE_NAME;
+        $t1 = VersionControl::TABLE_REVISIONS;
+        $t2 = VersionControl::TABLE_DATA;
         $where = $revision_id ? "t1.id = $revision_id AND " : "";
         $sql = "
         SELECT t1.pages_id, t2.fields_id, t2.property, t2.data

@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 85,
+            'version' => 86,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -217,7 +217,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // find values
         $sql = "
         SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, d.property, d.data
-        FROM fields AS f, " . VersionControl::REVISIONS_TABLE_NAME . " AS r, " . VersionControl::DATA_TABLE_NAME . " AS d
+        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
         WHERE r.pages_id IN ($pages_id) AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id
         ORDER BY f.id, d.id DESC
@@ -308,7 +308,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // find values
         $sql = "
         SELECT r.id, d.data
-        FROM fields AS f, " . VersionControl::REVISIONS_TABLE_NAME . " AS r, " . VersionControl::DATA_TABLE_NAME . " AS d
+        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
         WHERE r.id IN({$r1}, {$r2}) AND d.revisions_id = r.id AND f.name = '{$field_name}' AND d.fields_id = f.id
         ORDER BY r.id ASC
         LIMIT 2
@@ -385,7 +385,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // find values
         $sql = "
         SELECT r.pages_id, d.fields_id, d.property, d.data
-        FROM fields AS f, " . VersionControl::REVISIONS_TABLE_NAME . " AS r, " . VersionControl::DATA_TABLE_NAME . " AS d
+        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
         WHERE f.name = '$field_name' AND r.id = $revision_id AND d.revisions_id = r.id AND d.fields_id = f.id
         ";
         $result = $this->db->query($sql);
@@ -487,7 +487,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // get and check revision
         $revision_id = (int) $this->input->post->revision;
-        $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
+        $sql = "SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = $revision_id";
         $result = $this->db->query($sql);
         $revision = mysqli_fetch_assoc($result);
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
@@ -496,7 +496,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $comment = $this->input->post->comment;
         if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
         $comment_clean = $this->db->real_escape_string($comment);
-        $sql = "UPDATE " . VersionControl::REVISIONS_TABLE_NAME . " SET comment = '$comment_clean' WHERE id = $revision_id";
+        $sql = "UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = '$comment_clean' WHERE id = $revision_id";
         $this->db->query($sql);
         
         // return comment text
@@ -571,7 +571,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $page = $this->pages->get($pages_id);
         if (!$page->id) throw new WireException("Page doesn't exist: $pages_id");
         if (!$page->viewable()) throw new WireException("Permission denied");
-        $sql = "SELECT timestamp FROM " . VersionControl::REVISIONS_TABLE_NAME . " WHERE id = $revision_id";
+        $sql = "SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = $revision_id";
         $result = $this->db->query($sql);
         $revision = mysqli_fetch_assoc($result);
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");

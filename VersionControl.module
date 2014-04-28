@@ -30,7 +30,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => '',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.15',
+            'version' => '0.8.16',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -100,14 +100,20 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Names of database tables used by this module
      *
-     * Data table is used as a storage table for actual revision data (content) while main table provides dates, user
-     * and page id's etc. (metadata.)
-     *
+     * Revisions table handles system-wide revision numbers and stores dates,
+     * user and page id's etc. (metadata) while data table stores actual data
+     * (content).
+     * 
+     * Files table stores data for individual files and data files junction
+     * table connects files with data. Separate file tables make tasks such
+     * as mime type checking, fetching file sizes and hashes etc. fast and
+     * also make it easier and more efficient to clean up orphaned files.
+     * 
      */
-    const REVISIONS_TABLE_NAME = 'version_control__revisions';
-    const DATA_TABLE_NAME = 'version_control__data';
-    const FILES_TABLE_NAME = 'version_control__files';
-    const DATA_FILES_TABLE_NAME = 'version_control__data_files';
+    const TABLE_REVISIONS = 'version_control__revisions';
+    const TABLE_DATA = 'version_control__data';
+    const TABLE_FILES = 'version_control__files';
+    const TABLE_DATA_FILES = 'version_control__data_files';
 
     /**
      * Populate the default config data
@@ -302,8 +308,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         if (!$this->data_max_age) return;
 
-        $t1 = self::REVISIONS_TABLE_NAME;
-        $t2 = self::DATA_TABLE_NAME;
+        $t1 = self::TABLE_REVISIONS;
+        $t2 = self::TABLE_DATA;
         $interval = $this->db->escape_string($this->data_max_age);
         $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.timestamp < DATE_SUB(NOW(), INTERVAL $interval) AND $t2.revisions_id = $t1.id";
 
@@ -318,8 +324,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     public function cleanupFiles() {
 
-        $t1 = self::FILES_TABLE_NAME;
-        $t2 = self::DATA_FILES_TABLE_NAME;
+        $t1 = self::TABLE_FILES;
+        $t2 = self::TABLE_DATA_FILES;
         $sql = "SELECT * FROM $t1 WHERE id NOT IN (SELECT DISTINCT files_id from $t2)";
         $result = $this->db->query($sql);
         while ($row = mysqli_fetch_assoc($result)) {
@@ -344,8 +350,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!$this->data_row_limit) return;
 
         $ids = "";
-        $t1 = self::REVISIONS_TABLE_NAME;
-        $t2 = self::DATA_TABLE_NAME;
+        $t1 = self::TABLE_REVISIONS;
+        $t2 = self::TABLE_DATA;
         $sql = "SELECT COUNT(*) AS count FROM $t1, $t2 WHERE $t1.pages_id = $pages_id AND $t2.fields_id = $fields_id AND $t2.revisions_id = $t1.id";
         $result = $this->db->query($sql);
         $row = mysqli_fetch_assoc($result);
@@ -374,8 +380,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         $page = $event->arguments[0];
 
-        $t1 = self::REVISIONS_TABLE_NAME;
-        $t2 = self::DATA_TABLE_NAME;
+        $t1 = self::TABLE_REVISIONS;
+        $t2 = self::TABLE_DATA;
         $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id = $page AND $t2.revisions_id = $t1.id";
 
         $this->db->query($sql);
@@ -414,7 +420,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // if we got this far and removed fields were found, delete data rows
         if (count($removed_fields)) {
             $fields = implode(",", array_keys($removed_fields));
-            $sql = "DELETE FROM " . self::DATA_TABLE_NAME . " WHERE fields_id IN ($fields)";
+            $sql = "DELETE FROM " . self::TABLE_DATA . " WHERE fields_id IN ($fields)";
             $this->db->query($sql);
             $this->cleanupFiles();
         }
@@ -429,7 +435,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function cleanupTemplateChanged(HookEvent $event) {
         $page = $event->arguments[0];
         $fields = implode(",", array_keys($page->template->fields->getArray()));
-        $sql = "DELETE FROM " . self::DATA_TABLE_NAME . " WHERE revisions_id IN (SELECT id FROM " . self::REVISIONS_TABLE_NAME . " WHERE pages_id = {$page->id}) AND fields_id NOT IN ($fields)";
+        $sql = "DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = {$page->id}) AND fields_id NOT IN ($fields)";
         $this->db->query($sql);
         $this->cleanupFiles();
     }
@@ -610,7 +616,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             if (!$revisions_id) {
                 $sql_fields = "pages_id, users_id, username";
                 $sql_values = "{$page->id}, $users_id, '$username'";
-                $sql = "INSERT INTO " . self::REVISIONS_TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
+                $sql = "INSERT INTO " . self::TABLE_REVISIONS . " ($sql_fields) VALUES ($sql_values)";
                 $this->db->query($sql);
                 $revisions_id = $this->db->insert_id;
             }
@@ -640,11 +646,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         finfo_close($finfo);
                         $size = filesize($file);
                         if (!$size) $size = 0;
-                        $sql = "INSERT INTO " . self::FILES_TABLE_NAME . " (filename, mime_type, size) VALUES ('$filename', '$mime_type', $size)";
+                        $sql = "INSERT INTO " . self::TABLE_FILES . " (filename, mime_type, size) VALUES ('$filename', '$mime_type', $size)";
                         $this->db->query($sql);
                         $file_id = $this->db->insert_id;
                     } else {
-                        $sql = "SELECT id FROM " . self::FILES_TABLE_NAME . " WHERE filename='$filename'";
+                        $sql = "SELECT id FROM " . self::TABLE_FILES . " WHERE filename='$filename'";
                         $result = $this->db->query($sql);
                         $row = mysqli_fetch_assoc($result);
                         $file_id = $row['id'];
@@ -657,12 +663,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 else $data = "'" . $this->db->real_escape_string($data) . "'";
                 $property = $this->db->real_escape_string($property);
                 $sql_values = "$revisions_id, $fields_id, '$property', $data";
-                $sql = "INSERT INTO " . self::DATA_TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
+                $sql = "INSERT INTO " . self::TABLE_DATA . " ($sql_fields) VALUES ($sql_values)";
                 $this->db->query($sql);
                 if ($file_id) {
                     // if data row is related to file, add row to junction table
                     $data_id = $this->db->insert_id;
-                    $sql = "INSERT INTO " . self::DATA_FILES_TABLE_NAME . " (data_id, files_id) VALUES ($data_id, $file_id)";
+                    $sql = "INSERT INTO " . self::TABLE_DATA_FILES . " (data_id, files_id) VALUES ($data_id, $file_id)";
                     $this->db->query($sql);
                 }
             }
@@ -734,7 +740,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
         // cache usernames for later use
-        $sql = "SELECT DISTINCT users_id FROM " . self::REVISIONS_TABLE_NAME . " WHERE pages_id = {$page->id}";
+        $sql = "SELECT DISTINCT users_id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = {$page->id}";
         $result = $this->db->query($sql);
         $users = array();
         while ($row = mysqli_fetch_assoc($result)) {
@@ -742,7 +748,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             if ($user->id) {
                 $users[$user->name] = $user->id;
             } else {
-                $sql = "SELECT username FROM " . self::REVISIONS_TABLE_NAME . " WHERE users_id = $users_id LIMIT 1";
+                $sql = "SELECT username FROM " . self::TABLE_REVISIONS . " WHERE users_id = $users_id LIMIT 1";
                 $user = mysqli_fetch_assoc($this->db->query($sql));
                 $users[$user['username']] = $row['users_id'];
             }
@@ -766,7 +772,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $where = "WHERE " . implode(" AND ", $where);
 
         // total count of rows in database table
-        $sql = "SELECT COUNT(*) FROM " . self::REVISIONS_TABLE_NAME . " $where";
+        $sql = "SELECT COUNT(*) FROM " . self::TABLE_REVISIONS . " $where";
         $row = $this->db->query($sql)->fetch_row();
         $total = reset($row);
 
@@ -790,7 +796,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // fetch and parse history rows
         $sql = "
         SELECT id, users_id, username, timestamp, comment
-        FROM " . self::REVISIONS_TABLE_NAME . "
+        FROM " . self::TABLE_REVISIONS . "
         $where
         ORDER BY timestamp DESC, id DESC
         LIMIT $start, $limit
@@ -895,12 +901,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * When module is installed, create database tables for storing data
      *
-     * @todo suggest import if VersionControlForTextFields tables are found
      */
     public function ___install() {
         
         // revisions table bundles individual data rows into site-wide revisions
-        $this->createTable(self::REVISIONS_TABLE_NAME, array(
+        $this->createTable(self::TABLE_REVISIONS, array(
             'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
             'pages_id INT UNSIGNED NOT NULL',
             'users_id INT UNSIGNED DEFAULT NULL',
@@ -911,7 +916,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ));
 
         // data table, contains actual content for edited fields
-        $this->createTable(self::DATA_TABLE_NAME, array(
+        $this->createTable(self::TABLE_DATA, array(
             'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
             'revisions_id INT UNSIGNED NOT NULL',
             'fields_id INT UNSIGNED NOT NULL',
@@ -922,7 +927,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ));
 
         // files table contains one row for each stored file
-        $this->createTable(self::FILES_TABLE_NAME, array(
+        $this->createTable(self::TABLE_FILES, array(
             'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
             'filename VARCHAR(255) NOT NULL',
             'mime_type VARCHAR(255)',
@@ -930,7 +935,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ));
 
         // junction table: connects files to data rows
-        $this->createTable(self::DATA_FILES_TABLE_NAME, array(
+        $this->createTable(self::TABLE_DATA_FILES, array(
             'data_id INT UNSIGNED NOT NULL',
             'files_id INT UNSIGNED NOT NULL',
             'PRIMARY KEY (data_id, files_id)',
@@ -943,10 +948,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      */
     public function ___uninstall() {
-        $this->dropTable(self::REVISIONS_TABLE_NAME);
-        $this->dropTable(self::DATA_TABLE_NAME);
-        $this->dropTable(self::FILES_TABLE_NAME);
-        $this->dropTable(self::DATA_FILES_TABLE_NAME);
+        $this->dropTable(self::TABLE_REVISIONS);
+        $this->dropTable(self::TABLE_DATA);
+        $this->dropTable(self::TABLE_FILES);
+        $this->dropTable(self::TABLE_DATA_FILES);
     }
     
     /**
