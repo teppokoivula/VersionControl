@@ -30,7 +30,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => '',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.16',
+            'version' => '0.8.17',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -903,6 +903,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      */
     public function ___install() {
+
+        // if Version Control For Text Fields is found, cancel installation to avoid conflict
+        if (is_dir($this->config->paths->siteModules . "VersionControlForTextFields")) {
+            throw new WireException("VersionControlForTextFields has to be removed first");
+        }
         
         // revisions table bundles individual data rows into site-wide revisions
         $this->createTable(self::TABLE_REVISIONS, array(
@@ -941,6 +946,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'PRIMARY KEY (data_id, files_id)',
         ));
 
+        // attempt to import VersionControlForTextFields data
+        $this->versionControlForTextFieldsImport();
+        
     }
 
     /**
@@ -987,6 +995,42 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $sql .= ") ENGINE = MYISAM DEFAULT CHARSET=utf8";
         $this->db->query($sql);
         $this->message("Created Table: $table");
+    }
+
+    /**
+     * Import data from Version Control For Text Fields
+     * 
+     */
+    protected function versionControlForTextFieldsImport() {
+        $main_table = $this->db->query("SHOW TABLES LIKE 'version_control_for_text_fields'");
+        $data_table = $this->db->query("SHOW TABLES LIKE 'version_control_for_text_fields__data'");
+        if ($main_table->num_rows == 1 && $data_table->num_rows == 1) {
+            $sql_select_data_row = "SELECT property, data FROM version_control_for_text_fields__data WHERE version_control_for_text_fields_id = %d";
+            $sql_insert_revision = "INSERT INTO " . self::TABLE_REVISIONS . " (pages_id, users_id, username, timestamp) VALUES (%d, %d, '%s', '%s')";
+            $sql_insert_data_row = "INSERT INTO " . self::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (%d, %d, '%s', '%s')";
+            $result = $this->db->query("SELECT * FROM version_control_for_text_fields");
+            while ($row = mysqli_fetch_assoc($result)) {
+                $revision = array(
+                    (int) $row['pages_id'],
+                    (int) $row['users_id'],
+                    $this->db->real_escape_string($row['username']),
+                    $this->db->real_escape_string($row['timestamp']),
+                );
+                $this->db->query(vsprintf($sql_insert_revision, $revision));
+                $revisions_id = $this->db->insert_id;
+                $data_result = $this->db->query(sprintf($sql_select_data_row, (int) $row['id']));
+                while ($data_row = mysqli_fetch_assoc($data_result)) {
+                    $data = array(
+                        $revisions_id,
+                        (int) $row['fields_id'],
+                        $this->db->real_escape_string($data_row['property']),
+                        $this->db->real_escape_string($data_row['data']),
+                    );
+                    $this->db->query(vsprintf($sql_insert_data_row, $data));
+                }
+            }
+            $this->message("Imported existing Version Control For Text Fields data");
+        }
     }
 
     /**
