@@ -632,15 +632,15 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // delete page
         if ($page->id) {
-            $this->message("Deleting Page: {$page->path}"); 
             $page->delete();
+            $this->message("Deleted Page: {$page->path}"); 
         }
 
         // delete version-control permission
         $permission = $this->permissions->get("version-control");
         if ($permission->id) {
-            $this->message("Deleting Permission: {$permission->name}");
             $permission->delete();
+            $this->message("Deleted Permission: {$permission->name}");
         }
 
     }
