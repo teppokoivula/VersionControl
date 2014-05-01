@@ -243,8 +243,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Initialization function
      *
-     * This function attachs required hooks.
-     *
+     * @todo storing files on delete (requires core changes)
      */
     public function init() {
 
@@ -268,31 +267,24 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
 
         if (count($this->enabled_templates)) {
-            // add hook that handles restoring files and/or images
+            // add hooks that gather and store data
             $this->addHookBefore('Pages::saveReady', $this, 'restoreFiles');
-            // add hooks that gather information and trigger insert
             $this->addHook('Pages::saveReady', $this, 'gather'); 
             $this->addHook('Pages::saveField', $this, 'gather');
-            // @todo avoid creating duplicate files by storing them on delete 
-            // (note: this could prove to be difficult as files are apparently
-            // deleted in multiple ways, some of which don't seem hookable..)
             $this->addHookAfter('Pages::save', $this, 'insert');
             $this->addHookAfter('Pages::saveField', $this, 'insert');
-            // add hook that clears stored data for deleted pages
+            // add hooks that clear obsolete or orphaned data
             $this->addHookAfter('Pages::deleted', $this, 'cleanupDeletedPage');
-            // add hook that clears stored data for deleted/removed fields
             $this->addHookBefore('Fieldgroups::save', $this, 'cleanupDeletedField');
-            // add hook that clears obsoleted data after template change
-            $this->addHook('Pages::templateChanged', $this, 'cleanupTemplateChanged');
-            // add hook that injects additional scripts and/or styles
+            $this->addHook('Pages::templateChanged', $this, 'cleanupChangedTemplate');
+            // add hooks that add additional scripts, styles and markup
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
-            // add hook that inserts new 'history' tab to Page Edit form
             $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
-            // add hooks that alter image and file inputfield output
+            // add hooks that alter image and file inputfield output on the fly
             $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
             $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
             $this->addHookAfter('InputfieldFile::renderList', $this, 'replaceHashes');
-            // add hook that removes hashes within text content of pages
+            // add hook that removes hashes within text content of rendered page
             $this->addHookAfter('Page::render', $this, 'replaceTextHashes');
             // add new property versionControlFields to Template object
             $this->addHookProperty('Template::versionControlFields', $this, 'versionControlFields');
@@ -377,16 +369,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param HookEvent $event
      */
     protected function cleanupDeletedPage(HookEvent $event) {
-
         $page = $event->arguments[0];
-
         $t1 = self::TABLE_REVISIONS;
         $t2 = self::TABLE_DATA;
         $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id = $page AND $t2.revisions_id = $t1.id";
-
         $this->db->query($sql);
         $this->cleanupFiles();
-        
     }
 
     /**
@@ -432,7 +420,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * 
      * @param HookEvent $event
      */
-    protected function cleanupTemplateChanged(HookEvent $event) {
+    protected function cleanupChangedTemplate(HookEvent $event) {
         $page = $event->arguments[0];
         $fields = implode(",", array_keys($page->template->fields->getArray()));
         $sql = "DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = {$page->id}) AND fields_id NOT IN ($fields)";
@@ -471,6 +459,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * Attempt to replace hashes within text content of rendered page output
+     * 
+     * This only applies to preview mode, i.e. checking out the content of a
+     * specific page in given revision.
      *
      * @param HookEvent $event
      */
@@ -581,11 +572,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Insert row into database or other suitable medium (currently only database
-     * is supported, though..)
-     *
+     * Store new data in database (and disk, if files or images are involved)
+     * 
      * @param HookEvent $event
-     * @todo consider adding support for automatically compressing files
+     * @todo consider adding support for automatically compressing file data
+     * @todo consider alternative storage methods for data (files on disk etc.)
      */
     public function insert(HookEvent $event) {
 
@@ -901,6 +892,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * When module is installed, create database tables for storing data
      *
+     * @throws WireException if VersionControlForTextFields module is found
      */
     public function ___install() {
 
@@ -982,6 +974,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param string $table Table name
      * @param array $schema Table schema
+     * @throws WireDatabaseException if table already exists
      */
     protected function createTable($table, $schema) {
         $table = $this->db->real_escape_string($table);

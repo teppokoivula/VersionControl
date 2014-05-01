@@ -161,6 +161,8 @@ class PageSnapshot extends WireData implements Module {
      * @param Page $page
      * @param mixed $time
      * @param null|int $revision_id
+     * @throws WireException if GET param revision_id is set but isn't integer
+     * @throws WireException if revision defined by GET param revision_id doesn't exist
      * @return array
      */
     public function snapshot(Page $page, $time = null, $revision_id = null) {   

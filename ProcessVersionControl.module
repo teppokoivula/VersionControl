@@ -167,6 +167,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * Currently only displays 404 error, but could potentially be used for
      * something more useful later.
      * 
+     * @throws Wire404Exception by default
      */
     public function ___execute() {
         throw new Wire404Exception("Unrecognized path");
@@ -179,6 +180,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * param 'settings'. Supported settings are 'empty' (to render placeholders
      * for fields with no stored data) and 'render' (selecting render method).
      * 
+     * @throws WireException if GET param pages_id is missing
+     * @return revision data rendered with one of available render methods
      */
     public function ___executePage() {
         
@@ -286,6 +289,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * Diff is computed with JavaScript library diff_match_patch and returned as
      * HTML div element, id attribute set to 'diff', and rudimentary CSS styles.
      *
+     * @throws WireException if GET param field is missing
+     * @throws WireException if GET param revisions is missing
+     * @throws WireException if GET param revisions is invalid
      */
     public function ___executeDiff() {
         
@@ -370,6 +376,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * Revision is defined with GET param 'revision', field with GET param
      * 'field'. Output is either rendered inputfield (HTML) or JSON string.
      *
+     * @throws WireException if GET param revision is missing
+     * @throws WireException if GET param field is missing
      */
     public function ___executeField() {
 
@@ -477,7 +485,11 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
     /**
      * Set revision comment text
+     * 
+     * Revision is defined by POST param 'revision' and comment text by POST
+     * param 'comment'.
      *
+     * @throws WireException if revision doesn't exist
      * @return null|string Comment text or null
      */
     public function ___executeComment() {
@@ -557,6 +569,11 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      * Used internally by preview and restore methods.
      *
+     * @throws WireException if GET param pages_id is missing
+     * @throws WireException if GET param revision is missing
+     * @throws WireException if page defined by GET param pages_id doesn't exist
+     * @throws WireException if user doesn't have permission to view given page
+     * @throws WireException if revision defined by GET param revision doesn't exist
      * @return Page
      */
     protected function getPageRevision() {
