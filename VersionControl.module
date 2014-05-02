@@ -30,7 +30,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => '',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.17',
+            'version' => '0.8.18',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -321,7 +321,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $sql = "SELECT * FROM $t1 WHERE id NOT IN (SELECT DISTINCT files_id from $t2)";
         $result = $this->db->query($sql);
         while ($row = mysqli_fetch_assoc($result)) {
-            $file = $this->path . $row['name'];
+            $file = $this->path . $row['filename'];
             if (is_file($file)) unlink($file);
             $sql = "DELETE FROM $t1 WHERE id = {$row['id']}";
             $this->db->query($sql);
@@ -547,7 +547,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         foreach ($data as $item) {
                             $data_item = array(
                                 'original_filename' => $item->filename, 
-                                'filename' => hash_file('sha256', $item->filename) . "." . $item->basename,
+                                'filename' => hash_file('sha256', $item->filename),
                                 'description' => $item->description,
                                 'modified' => $item->modified,
                                 'created' => $item->created,
@@ -646,6 +646,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $row = mysqli_fetch_assoc($result);
                         $file_id = $row['id'];
                     }
+                    $data['filename'] = basename($data['original_filename']);
                     unset($data['original_filename']);
                     // re-encode JSON data
                     $data = json_encode($data);
@@ -926,7 +927,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // files table contains one row for each stored file
         $this->createTable(self::TABLE_FILES, array(
             'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
-            'filename VARCHAR(255) NOT NULL',
+            'filename CHAR(64) NOT NULL',
             'mime_type VARCHAR(255)',
             'size INT UNSIGNED NOT NULL',
         ));
