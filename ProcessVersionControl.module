@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 88,
+            'version' => 89,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -456,7 +456,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     }
 
     /**
-     * Return specific page to given revision
+     * Return (or revert) specific page to given revision
      *
      * Revision is defined with GET param 'revision', page with GET param
      * 'pages_id'. Afterwards redirect user to page edit.
@@ -572,7 +572,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     /**
      * Return page as it was in given revision
      *
-     * Used internally by preview and restore methods.
+     * Used internally by preview and restore methods. Stores ID of requested
+     * revision as temporary _version_control_parent param to the Page object.
      *
      * @throws WireException if GET param pages_id is missing
      * @throws WireException if GET param revision is missing
@@ -600,6 +601,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // fetch snapshot of page at the time of given revision
         $page->snapshot($revision['timestamp'], $revision_id);
+        $page->_version_control_parent = $revision_id;
 
         return $page;
 
