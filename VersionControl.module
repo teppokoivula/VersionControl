@@ -30,7 +30,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => '',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.19',
+            'version' => '0.8.20',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -467,7 +467,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     public function replaceTextHashes(HookEvent $event) {
         if ($this->input->get->revision) {
-            $event->return = preg_replace("#[a-z0-9]{64}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
+            $event->return = preg_replace("#[a-z0-9]{40}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
         }
     }
 
@@ -547,7 +547,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         foreach ($data as $item) {
                             $data_item = array(
                                 'original_filename' => $item->filename, 
-                                'filename' => hash_file('sha256', $item->filename),
+                                'filename' => hash_file('sha1', $item->filename),
                                 'description' => $item->description,
                                 'modified' => $item->modified,
                                 'created' => $item->created,
@@ -939,7 +939,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // files table contains one row for each stored file
         $this->createTable(self::TABLE_FILES, array(
             'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
-            'filename CHAR(64) NOT NULL',
+            'filename CHAR(40) NOT NULL',
             'mime_type VARCHAR(255)',
             'size INT UNSIGNED NOT NULL',
         ));
