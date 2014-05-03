@@ -392,11 +392,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // find values
         $sql = "
-        SELECT r.pages_id, d.fields_id, d.property, d.data, f.filename
-        FROM fields, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
-        LEFT JOIN " . VersionControl::TABLE_DATA_FILES . " AS df ON df.data_id = d.id
-        LEFT JOIN " . VersionControl::TABLE_FILES . " AS f ON f.id = df.files_id
-        WHERE fields.name = '$field_name' AND r.id = $revision_id AND d.revisions_id = r.id AND d.fields_id = fields.id
+        SELECT r.pages_id, d.fields_id, d.property, d.data
+        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
+        WHERE f.name = '$field_name' AND r.id = $revision_id AND d.revisions_id = r.id AND d.fields_id = f.id
         ";
         $result = $this->db->query($sql);
 
@@ -404,7 +402,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $page = null;
         $field = null;
         $data = array();
-        $filenames = array();
         if ($result->num_rows) {
             while ($row = mysqli_fetch_assoc($result)) {
                 if (!$page) $page = $this->pages->get($row['pages_id']);
@@ -415,7 +412,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                     $row['data'] = date($format, $row['data']);
                 }
                 $data[$row['property']] = $row['data'];
-                if ($row['filename']) $filenames[$row['property']] = $row['filename'];
             }
         }
 
@@ -429,14 +425,14 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                 if (strpos($key, ".")) {
                     if (is_null($value)) {
                         $filedata[$field->name] = null;
-                    } else if ($value && isset($filenames[$key])) {
+                    } else if ($value) {
                         if (!$files) $files = $field->type->getBlankValue($this->page, $field);
                         $value = json_decode($value, true);
                         $file = $files->makeBlankItem();
-                        $file->setFilename($filenames[$key]);
+                        $file->setFilename($value['filename']);
                         $file->description = $value['description'];
                         if (isset($value['tags']) && $field->useTags) $file->tags = $value['tags'];
-                        $file->_basename = $value['filename'];
+                        $file->_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
                         $files->add($file);
                         $value['filename'] = $files->path . $value['filename'];
                         $filedata[$field->name][] = $value;

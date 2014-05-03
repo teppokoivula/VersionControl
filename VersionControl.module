@@ -547,7 +547,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         foreach ($data as $item) {
                             $data_item = array(
                                 'original_filename' => $item->filename, 
-                                'filename' => hash_file('sha1', $item->filename),
+                                'filename' => hash_file('sha1', $item->filename) . "." . $item->basename,
                                 'description' => $item->description,
                                 'modified' => $item->modified,
                                 'created' => $item->created,
@@ -658,7 +658,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $row = mysqli_fetch_assoc($result);
                         $file_id = $row['id'];
                     }
-                    $data['filename'] = basename($data['original_filename']);
                     unset($data['original_filename']);
                     // re-encode JSON data
                     $data = json_encode($data);
@@ -819,7 +818,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $users[$row['users_id']],
                 $row['timestamp'],
                 $row['comment'],
-                sprintf($comment, $row['id']) . ($start || count($rows) ? sprintf($preview, $row['timestamp'], $row['id']) . sprintf($restore, $row['id']) : '<span></span><span></span>'),
+                sprintf($comment, $row['id']) . sprintf($preview, $row['timestamp'], $row['id']) . ($start || count($rows) ? sprintf($restore, $row['id']) : '<span></span>'),
             );
         }
 
@@ -940,7 +939,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // files table contains one row for each stored file
         $this->createTable(self::TABLE_FILES, array(
             'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
-            'filename CHAR(40) NOT NULL',
+            'filename VARCHAR(255) NOT NULL',
             'mime_type VARCHAR(255)',
             'size INT UNSIGNED NOT NULL',
         ));
