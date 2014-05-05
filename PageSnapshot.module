@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 117,
+            'version' => 118,
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -86,7 +86,6 @@ class PageSnapshot extends WireData implements Module {
                     } else if ($value) {
                         if (!isset($filedata[$field])) $filedata[$field] = array();
                         $value = json_decode($value, true);
-                        $value['filename'] = $this->modules->VersionControl->path . $value['filename'];
                         $filedata[$field][$count] = $value;
                     }
                 } else {
@@ -102,21 +101,24 @@ class PageSnapshot extends WireData implements Module {
         }
         if (count($filedata)) {
             // filedata comes in chunks and needs to be processed in two steps
-            $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
-            $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
-            $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
+            if (!$page->_install_pagefiles) {
+                $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
+                $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
+                $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
+            }
             foreach ($filedata as $field => $items) {
                 $page->get($field)->deleteAll();
                 if (is_array($items)) {
                     ksort($items);
                     foreach ($items as $item) {
-                        $page->$field = $item['filename'];
+                        $filename = substr($value['filename'], 0, 2) . "/" . $value['filename'];
+                        $page->$field = $this->modules->VersionControl->path . $filename;
                         $page->$field->last()->description = $item['description'];
                         $page->$field->last()->modified = $item['modified'];
                         $page->$field->last()->created = $item['created'];
                         if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
-                        $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $page->$field->last()->basename;
-                        $page->$field->last()->_custom_filename = $item['filename'];
+                        $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $filename;
+                        $page->$field->last()->_custom_filename = $this->modules->VersionControl->path . $filename;
                     }
                 }
             }

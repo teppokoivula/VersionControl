@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 89,
+            'version' => '0.8.10',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -426,13 +426,22 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                     if (is_null($value)) {
                         $filedata[$field->name] = null;
                     } else if ($value) {
-                        if (!$files) $files = $field->type->getBlankValue($this->page, $field);
+                        if (!$files) {
+                            $files = $field->type->getBlankValue($this->page, $field);
+                            $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
+                            $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
+                            $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
+                            $this->addHookAfter('Pageimage::size', $this, 'hookPageimageSize');
+                        }
                         $value = json_decode($value, true);
                         $file = $files->makeBlankItem();
                         $file->setFilename($value['filename']);
                         $file->description = $value['description'];
                         if (isset($value['tags']) && $field->useTags) $file->tags = $value['tags'];
+                        $value['filename'] = substr($value['filename'], 0, 2) . "/" . $value['filename'];
                         $file->_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
+                        $file->_custom_url = $this->modules->VersionControl->url . $value['filename'];
+                        $file->_custom_filename = $this->modules->VersionControl->path . $value['filename'];
                         $files->add($file);
                         $value['filename'] = $files->path . $value['filename'];
                         $filedata[$field->name][] = $value;
@@ -449,6 +458,50 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             exit($this->renderJSON($data));
         }
         
+    }
+
+    /**
+     * Prevent installing Pagefile if path is that of ProcessVersionControl
+     *
+     * @param HookEvent $event
+     */
+    public function hookPagefileInstall(HookEvent $event) {
+        if (strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
+            $event->object->basename = $event->arguments[0];
+            $event->replace = true;
+        }
+    }
+
+    /**
+     * Override Pageimage / Pagefile URL with custom one
+     *
+     * @param HookEvent $event
+     */
+    public function hookPagefileUrl(HookEvent $event) {
+        if ($event->object->_custom_url) $event->return = $event->object->_custom_url;
+    }
+
+    /**
+     * Override Pageimage / Pagefile filename with custom one
+     *
+     * @param HookEvent $event
+     */
+    public function hookPagefileFilename(HookEvent $event) {
+        if ($event->object->_custom_filename) $event->return = $event->object->_custom_filename;
+    }
+
+    /**
+     * Move resized pageimages (thumbs) to custom location
+     * 
+     * @param HookEvent $event
+     */
+    public function hookPageimageSize(HookEvent $event) {
+        if ($event->return->_custom_filename) {
+            $filename = substr($event->return->basename, 0, 2) . "/variations/" . $event->return->basename;
+            $event->return->_custom_url = $this->modules->VersionControl->url . $filename;
+            $event->return->_custom_filename = $this->modules->VersionControl->path . $filename;
+            rename($event->return->pagefiles->path() . $event->return->basename, $event->return->filename);
+        }
     }
 
     /**
@@ -596,6 +649,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
 
         // fetch snapshot of page at the time of given revision
+        $page->_install_pagefiles = $this->input->urlSegment1 == "restore";
         $page->snapshot($revision['timestamp'], $revision_id);
         $page->_version_control_parent = $revision_id;
 
@@ -652,6 +706,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // delete page
         if ($page->id) {
+            if (PagefilesManager::hasPath($page)) wireRmdir($page->filesManager->path, true);
             $page->delete();
             $this->message("Deleted Page: {$page->path}"); 
         }
