@@ -30,7 +30,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => '',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.22',
+            'version' => '0.8.23',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -405,6 +405,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // find out if fields are actually going to be removed (permanent/global
         // flags can result in WireExceptions, terminating removal entirely) and
         // which of those (if any) can have rows in version control data table
+        $removed_fields = array();
         $item = $event->arguments[0];
         if ($item->id && $item->removedFields) {
             $removed_fields = $item->removedFields->getArray();
@@ -553,7 +554,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 // old field was cleared) or page is new and field has value
                 if ($page->id || !is_null($data) && $data != "") {
                     if (!isset($this->page_data[$page_id])) $this->page_data[$page_id] = array();
-                    $data_array = array('0.data' => null);
+                    $data_array = array();
                     if ($data instanceof Pagefiles) {
                         // note: originally 'sort' value of each item was
                         // used instead of custom counter, but that's not
@@ -571,6 +572,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             $data_array[$count.'.data'] = json_encode($data_item);
                             ++$count;
                         }
+                        if (!count($data_array)) $data_array['0.data'] = null;
                     } else if ($data instanceof LanguagesPageFieldValue) {
                         foreach ($this->languages as $language) {
                             $language_value = $data->getLanguageValue($language);
