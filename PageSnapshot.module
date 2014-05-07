@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 118,
+            'version' => 119,
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -111,7 +111,7 @@ class PageSnapshot extends WireData implements Module {
                 if (is_array($items)) {
                     ksort($items);
                     foreach ($items as $item) {
-                        $filename = substr($value['filename'], 0, 2) . "/" . $value['filename'];
+                        $filename = substr($item['filename'], 0, 2) . "/" . $item['filename'];
                         $page->$field = $this->modules->VersionControl->path . $filename;
                         $page->$field->last()->description = $item['description'];
                         $page->$field->last()->modified = $item['modified'];
