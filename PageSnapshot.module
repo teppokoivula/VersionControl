@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => 119,
+            'version' => '1.1.10',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -65,6 +65,7 @@ class PageSnapshot extends WireData implements Module {
         $data = $this->snapshot($page, $time, $revision_id);
         if (!$data) return false;
 
+        $of = $page->of();
         $page->of(false);
         $filedata = array();
         foreach ($data as $key => $value) {
@@ -101,16 +102,14 @@ class PageSnapshot extends WireData implements Module {
         }
         if (count($filedata)) {
             // filedata comes in chunks and needs to be processed in two steps
-            if (!$page->_install_pagefiles) {
-                $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
-                $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
-                $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
-            }
+            $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
+            $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
+            $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
             foreach ($filedata as $field => $items) {
                 $page->get($field)->deleteAll();
                 if (is_array($items)) {
                     ksort($items);
-                    foreach ($items as $item) {
+                    foreach ($items as $key => $item) {
                         $filename = substr($item['filename'], 0, 2) . "/" . $item['filename'];
                         $page->$field = $this->modules->VersionControl->path . $filename;
                         $page->$field->last()->description = $item['description'];
@@ -119,11 +118,14 @@ class PageSnapshot extends WireData implements Module {
                         if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
                         $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $filename;
                         $page->$field->last()->_custom_filename = $this->modules->VersionControl->path . $filename;
+                        $item['filename'] = $this->modules->VersionControl->path . $filename;
+                        $filedata[$field][$key] = $item;
                     }
                 }
             }
+            $page->_filedata = array(json_encode($filedata));
         }
-        $page->of(true);
+        $page->of($of);
         
     }
 
@@ -133,7 +135,7 @@ class PageSnapshot extends WireData implements Module {
      * @param HookEvent $event
      */
     public function hookPagefileInstall(HookEvent $event) {
-        if (strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
+        if (!$this->install_pagefiles && strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
             $event->object->basename = $event->arguments[0];
             $event->replace = true;
         }
@@ -145,7 +147,7 @@ class PageSnapshot extends WireData implements Module {
      * @param HookEvent $event
      */
     public function hookPagefileUrl(HookEvent $event) {
-        if ($event->object->_custom_url) $event->return = $event->object->_custom_url;
+        if (!$this->install_pagefiles && $event->object->_custom_url) $event->return = $event->object->_custom_url;
     }
 
     /**
@@ -154,7 +156,7 @@ class PageSnapshot extends WireData implements Module {
      * @param HookEvent $event
      */
     public function hookPagefileFilename(HookEvent $event) {
-        if ($event->object->_custom_filename) $event->return = $event->object->_custom_filename;
+        if (!$this->install_pagefiles && $event->object->_custom_filename) $event->return = $event->object->_custom_filename;
     }
 
     /**

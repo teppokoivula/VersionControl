@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.10',
+            'version' => '0.8.11',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -649,7 +649,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
 
         // fetch snapshot of page at the time of given revision
-        $page->_install_pagefiles = $this->input->urlSegment1 == "restore";
         $page->snapshot($revision['timestamp'], $revision_id);
         $page->_version_control_parent = $revision_id;
 
