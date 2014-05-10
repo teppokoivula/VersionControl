@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.11',
+            'version' => 90,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -439,9 +439,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                         $file->description = $value['description'];
                         if (isset($value['tags']) && $field->useTags) $file->tags = $value['tags'];
                         $value['filename'] = substr($value['filename'], 0, 2) . "/" . $value['filename'];
-                        $file->_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
-                        $file->_custom_url = $this->modules->VersionControl->url . $value['filename'];
-                        $file->_custom_filename = $this->modules->VersionControl->path . $value['filename'];
+                        $file->_version_control_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
+                        $file->_version_control_url = $this->modules->VersionControl->url . $value['filename'];
+                        $file->_version_control_filename = $this->modules->VersionControl->path . $value['filename'];
                         $files->add($file);
                         $value['filename'] = $files->path . $value['filename'];
                         $filedata[$field->name][] = $value;
@@ -478,7 +478,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @param HookEvent $event
      */
     public function hookPagefileUrl(HookEvent $event) {
-        if ($event->object->_custom_url) $event->return = $event->object->_custom_url;
+        if ($event->object->_version_control_url) $event->return = $event->object->_version_control_url;
     }
 
     /**
@@ -487,7 +487,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @param HookEvent $event
      */
     public function hookPagefileFilename(HookEvent $event) {
-        if ($event->object->_custom_filename) $event->return = $event->object->_custom_filename;
+        if ($event->object->_version_control_filename) $event->return = $event->object->_version_control_filename;
     }
 
     /**
@@ -496,10 +496,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @param HookEvent $event
      */
     public function hookPageimageSize(HookEvent $event) {
-        if ($event->return->_custom_filename) {
+        if ($event->return->_version_control_filename) {
             $filename = substr($event->return->basename, 0, 2) . "/variations/" . $event->return->basename;
-            $event->return->_custom_url = $this->modules->VersionControl->url . $filename;
-            $event->return->_custom_filename = $this->modules->VersionControl->path . $filename;
+            $event->return->_version_control_url = $this->modules->VersionControl->url . $filename;
+            $event->return->_version_control_filename = $this->modules->VersionControl->path . $filename;
             rename($event->return->pagefiles->path() . $event->return->basename, $event->return->filename);
         }
     }

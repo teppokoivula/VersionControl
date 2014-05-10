@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.10',
+            'version' => '1.1.11',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -39,6 +39,12 @@ class PageSnapshot extends WireData implements Module {
         ); 
     }
 
+    /**
+     * Array for storing IDs of hooks altering Pagefile behaviour
+     * 
+     */
+    protected $pagefile_hooks = array();
+    
     /**
      * Initialization function
      *
@@ -102,9 +108,11 @@ class PageSnapshot extends WireData implements Module {
         }
         if (count($filedata)) {
             // filedata comes in chunks and needs to be processed in two steps
-            $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
-            $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
-            $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
+            if (!count($this->pagefile_hooks)) {
+                $this->pagefile_hooks[] = $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
+                $this->pagefile_hooks[] = $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
+                $this->pagefile_hooks[] = $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
+            }
             foreach ($filedata as $field => $items) {
                 $page->get($field)->deleteAll();
                 if (is_array($items)) {
@@ -116,14 +124,14 @@ class PageSnapshot extends WireData implements Module {
                         $page->$field->last()->modified = $item['modified'];
                         $page->$field->last()->created = $item['created'];
                         if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
-                        $page->$field->last()->_custom_url = $this->modules->VersionControl->url . $filename;
-                        $page->$field->last()->_custom_filename = $this->modules->VersionControl->path . $filename;
+                        $page->$field->last()->_version_control_url = $this->modules->VersionControl->url . $filename;
+                        $page->$field->last()->_version_control_filename = $this->modules->VersionControl->path . $filename;
                         $item['filename'] = $this->modules->VersionControl->path . $filename;
                         $filedata[$field][$key] = $item;
                     }
                 }
             }
-            $page->_filedata = array(json_encode($filedata));
+            $page->_version_control_filedata = array(json_encode($filedata));
         }
         $page->of($of);
         
@@ -135,7 +143,8 @@ class PageSnapshot extends WireData implements Module {
      * @param HookEvent $event
      */
     public function hookPagefileInstall(HookEvent $event) {
-        if (!$this->install_pagefiles && strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
+        if ($this->install_pagefiles) return;
+        if (strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
             $event->object->basename = $event->arguments[0];
             $event->replace = true;
         }
@@ -147,7 +156,8 @@ class PageSnapshot extends WireData implements Module {
      * @param HookEvent $event
      */
     public function hookPagefileUrl(HookEvent $event) {
-        if (!$this->install_pagefiles && $event->object->_custom_url) $event->return = $event->object->_custom_url;
+        if ($this->install_pagefiles) return;
+        if ($event->object->_version_control_url) $event->return = $event->object->_version_control_url;
     }
 
     /**
@@ -156,7 +166,19 @@ class PageSnapshot extends WireData implements Module {
      * @param HookEvent $event
      */
     public function hookPagefileFilename(HookEvent $event) {
-        if (!$this->install_pagefiles && $event->object->_custom_filename) $event->return = $event->object->_custom_filename;
+        if ($this->install_pagefiles) return;
+        if ($event->object->_version_control_filename) $event->return = $event->object->_version_control_filename;
+    }
+
+    /**
+     * Remove hooks we're using to alter Pagefile behaviour
+     * 
+     */
+    public function removePagefileHooks() {
+        foreach ($this->pagefile_hooks as $key => $hook) {
+            $this->removeHook($hook);
+            unset($this->pagefile_hooks[$key]);
+        }
     }
 
     /**

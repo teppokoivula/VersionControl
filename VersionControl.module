@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => '',
             'author' => 'Teppo Koivula',
-            'version' => '0.8.26',
+            'version' => 90,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -455,9 +455,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     public function captureHash(HookEvent $event) {
         $item = $event->arguments[0];
-        if ($item->_basename) {
+        if ($item->_version_control_basename) {
             if (!isset($this->hash_map[">$item->basename<"])) {
-                $this->hash_map[">$item->basename<"] = ">$item->_basename<";
+                $this->hash_map[">$item->basename<"] = ">$item->_version_control_basename<";
             }
         }
     }
@@ -492,8 +492,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Update file fields if Page object contains variable _filedata or if
-     * special POST variable 'filedata' was received.
+     * Update file fields if Page has variable _version_control_filedata set
+     * or if special POST variable 'version_control_filedata' was received.
+     * 
+     * Note: Page variable is set by PageSnapshot during API usage, while
+     * POST variable is added by ProcessVersionControl during page edit.
      *
      * @param HookEvent $event
      */
@@ -501,18 +504,17 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $page = $event->arguments[0];
         $this->pages->uncacheAll();
         $page_current = $this->pages->get($page->id);
-        if (!$page->_filedata) {
-            $page->_filedata = $this->input->post->version_control_filedata;
+        if (!$page->_version_control_filedata) {
+            $page->_version_control_filedata = $this->input->post->version_control_filedata;
         }
-        if ($page->_filedata) {
-            $this->modules->PageSnapshot->install_pagefiles = true;
-            foreach ($page->_filedata as $filedata) {
+        if ($page->_version_control_filedata) {
+            // remove hooks PageSnapshot uses to prevent installing pagefiles
+            $this->modules->PageSnapshot->removePagefileHooks();
+            foreach ($page->_version_control_filedata as $filedata) {
                 $filedata = json_decode($filedata, true);
                 foreach ($filedata as $field => $items) {
                     // remove old files from disk and then from field itself
-                    foreach ($page_current->$field as $file) {
-                        $file->unlink();
-                    }
+                    foreach ($page_current->$field as $file) $file->unlink();
                     $page->$field->deleteAll();
                     // insert new files into field (field copies files to correct
                     // location itself, but we'll have to rename them to original
@@ -535,7 +537,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     }
                 }
             }
-            $page->_filedata = null;
+            unset($page->_version_control_filedata);
         }
     }
 
