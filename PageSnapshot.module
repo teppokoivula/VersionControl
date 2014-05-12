@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.11',
+            'version' => '1.1.12',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -193,7 +193,7 @@ class PageSnapshot extends WireData implements Module {
      */
     public function snapshot(Page $page, $time = null, $revision_id = null) {   
 
-        if (!is_integer($time)) $time = strtotime($time);
+        if ($time && !is_integer($time)) $time = strtotime($time);
 
         // revision info
         if ($revision_id) {
@@ -202,6 +202,7 @@ class PageSnapshot extends WireData implements Module {
             $result = $this->db->query($sql);
             $revision = mysqli_fetch_assoc($result);
             if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+            $page->_version_control_revision = $revision_id;
         }
 
         // default value for time
@@ -229,7 +230,7 @@ class PageSnapshot extends WireData implements Module {
         $t2 = VersionControl::TABLE_DATA;
         $where = $revision_id ? "t1.id = $revision_id AND " : "";
         $sql = "
-        SELECT t1.pages_id, t2.fields_id, t2.property, t2.data
+        SELECT t1.pages_id, t2.revisions_id, t2.fields_id, t2.property, t2.data
         FROM (
             SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
             FROM $t1 AS t1, $t2 AS t2
@@ -244,6 +245,10 @@ class PageSnapshot extends WireData implements Module {
         // generate data (associative array)
         $data = array();
         while ($row = mysqli_fetch_assoc($result)) {
+            if (!$revision_id) {
+                $revision_id = $row['revisions_id'];
+                $page->_version_control_revision = $revision_id;
+            }
             $field = $this->fields->get($row['fields_id']);
             if ($row['pages_id'] != $page->id) {
                 $repeater_page = $this->pages->get($row['pages_id']);
