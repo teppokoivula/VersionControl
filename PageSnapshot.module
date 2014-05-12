@@ -27,7 +27,7 @@ class PageSnapshot extends WireData implements Module {
         return array(
             'title' => 'Page Snapshot',
             'summary' => 'Return page in the state it was at the given time.',
-            'href' => 'http://modules.processwire.com/modules/version-control-for-text-fields/',
+            'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
             'version' => '1.1.11',
             'singular' => true,
