@@ -29,9 +29,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'Version Control',
             'summary' => 'Basic version control features for page content.',
-            'href' => '',
+            'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 91,
+            'version' => 92,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -70,6 +70,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'FieldtypeModule',
                 'FieldtypeFile',
                 'FieldtypeImage',
+                'FieldtypeSelector',
             )
         );
     }
