@@ -30,7 +30,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 93,
+            'version' => 94,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -953,6 +953,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             if ($result->num_rows) {
                 $row = mysqli_fetch_assoc($result);
                 $revision = $row['id'];
+                $page->_version_control_revision = $revision;
             }
         }
         $event->return = $revision ? (int) $revision : null;
