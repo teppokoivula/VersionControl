@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.12',
+            'version' => '1.1.13',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -235,10 +235,11 @@ class PageSnapshot extends WireData implements Module {
             SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
             FROM $t1 AS t1, $t2 AS t2
             WHERE {$where}t1.pages_id IN ($pages_id) AND t1.timestamp <= FROM_UNIXTIME($time) AND t2.revisions_id = t1.id
-            GROUP BY t1.pages_id, t2.fields_id
+            GROUP BY t1.pages_id, t2.fields_id, t2.property
         ) AS t1
         INNER JOIN $t2 AS t2
         ON t2.revisions_id = t1.id AND t2.fields_id = t1.fields_id
+        GROUP BY t1.pages_id, t2.fields_id, t2.property
         ";
         $result = $this->db->query($sql);
 
