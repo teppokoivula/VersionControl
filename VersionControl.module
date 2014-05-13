@@ -16,6 +16,7 @@
  * 
  * http://processwire.com
  *
+ * @todo store initial values during install and when new fields are added to templates
  */
 class VersionControl extends WireData implements Module, ConfigurableModule {
 

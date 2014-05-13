@@ -190,6 +190,7 @@ class PageSnapshot extends WireData implements Module {
      * @throws WireException if GET param revision_id is set but isn't integer
      * @throws WireException if revision defined by GET param revision_id doesn't exist
      * @return array
+     * @todo should null values be set if page, field or value didn't exist at given time?
      */
     public function snapshot(Page $page, $time = null, $revision_id = null) {   
 
