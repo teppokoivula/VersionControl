@@ -30,7 +30,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 94,
+            'version' => 95,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -79,13 +79,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      */
     protected $page_data = array();
-
-    /**
-     * Data fields for installed languages
-     *
-     * @deprecated
-     */
-    protected $data_fields = array();
 
     /**
      * Array for storing local variables
@@ -248,22 +241,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @todo storing files on delete (requires core changes)
      */
     public function init() {
-
-        // init data fields
-        $this->data_fields = array();
-        if ($this->modules->isInstalled('LanguageSupport')) {
-            $language_support = $this->modules->get('LanguageSupport');
-            $default_language = $language_support->defaultLanguagePageID;
-            $this->data_fields = array($default_language => 'data');
-            $language_ids = $language_support->otherLanguagePageIDs;
-            if (count($language_ids)) {
-                foreach ($language_ids as $language_id) {
-                    $this->data_fields[$language_id] = "data$language_id";
-                }
-            }
-        } else {
-            $this->data_fields[] = 'data';
-        }
 
         // remove expired data rows daily
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
@@ -593,9 +570,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         }
                         if (!count($data_array)) $data_array['0.data'] = null;
                     } else if ($data instanceof LanguagesPageFieldValue) {
-                        foreach ($this->languages as $language) {
-                            $language_value = $data->getLanguageValue($language);
-                            $data_array['data' . ($language->isDefault() ? '' : $language)] = $language_value;
+                        foreach ($data->getChanges() as $key) {
+                            if ($key == 'data') continue;
+                            $data_array[$key] = $data->getLanguageValue(str_replace('data', '', $key));
                         }
                     } else {
                         $data_array = array('data' => $data);
