@@ -16,7 +16,7 @@
  * 
  * http://processwire.com
  *
- * @todo store initial values during install and when new fields are added to templates
+ * @todo regenerate data when new fields are added to template
  */
 class VersionControl extends WireData implements Module, ConfigurableModule {
 
@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 95,
+            'version' => 96,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -245,6 +245,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // remove expired data rows daily
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+
+        // regenerate base data when enabled templates change
+        $this->addHookAfter('Modules::saveModuleConfigData', $this, 'regenerateData');
 
         if (count($this->enabled_templates)) {
             // add hooks that gather and store data
@@ -525,11 +528,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * After page has been edited track changed fields and trigger insert method
      * to save their values to database or any other applicable storage medium.
      *
-     * @param HookEvent $event
+     * @param HookEvent|Page $object
      */
-    public function gather(HookEvent $event) {
+    protected function gather($object) {
 
-        $page = $event->arguments[0];
+        if ($object instanceof HookEvent) $page = $object->arguments[0];
+        else if ($object instanceof Page) $page = $object;
+        else throw new WireException("Wrong param type: expecting HookEvent or Page");
 
         // if page has no id, it's currently being added
         $page_id = $page->id ? $page->id : 0;
@@ -538,11 +543,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // page or (in case of repeater pages) template of containing page
         $template_id = $page->template->id;
         if ($page instanceof RepeaterPage) $template_id = $page->getForPage()->template->id;
-        if (!in_array($template_id, $this->enabled_templates)) return;
+        if (!$object instanceof Page && !in_array($template_id, $this->enabled_templates)) return;
 
-        if ($page->isChanged()) {
+        if ($object instanceof Page || $page->isChanged()) {
             foreach ($page->template->fields as $field) {
-                if (!$page->isChanged($field->name)) continue;
+                if (!$object instanceof Page && !$page->isChanged($field->name)) continue;
                 if (!$page->id && $field->type instanceof FieldtypeFile) continue;
                 if (!in_array($field->type, $this->compatible_fieldtypes)) continue;
                 if (count($this->enabled_fields) && !in_array($field->id, $this->enabled_fields)) continue;
@@ -588,13 +593,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Store new data in database (and disk, if files or images are involved)
      * 
-     * @param HookEvent $event
+     * @param HookEvent|Page $object
      * @todo consider adding support for automatically compressing file data
      * @todo consider alternative storage methods for data (files on disk etc.)
      */
-    public function insert(HookEvent $event) {
+    protected function insert($object) {
 
-        $page = $event->arguments[0];
+        if ($object instanceof HookEvent) $page = $object->arguments[0];
+        else if ($object instanceof Page) $page = $object;
+        else throw new WireException("Wrong param type: expecting HookEvent or Page");
 
         // return if current page is repeater parent (for-page-n or for-field-n)
         if ($page->template == "admin" && strpos($page->name, "for-") === 0) return;
@@ -1077,6 +1084,54 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
             $this->message("Imported existing Version Control For Text Fields data");
         }
+    }
+
+    /**
+     * Regenerate data when enabled templates change
+     *
+     * @param HookEvent $event
+     */
+    protected function regenerateData(HookEvent $event) {
+
+        // this only applies to settings of current module
+        if ($event->arguments[0] !== $this->className()) return;
+        $enabled_templates = $event->arguments[1]['enabled_templates'];
+
+        // find out which (if any) templates were added and populate data
+        $new_templates = array_diff($enabled_templates, $this->enabled_templates);
+        if (count($new_templates)) {
+            foreach ($new_templates as $template) {
+                $count = 0;
+                $template = wire('templates')->get($template);
+                foreach ($this->pages->find("template={$template}, include=all") as $page) {
+                    $this->gather($page);
+                    $this->insert($page);
+                    ++$count;
+                }
+                if ($count) {
+                    $this->message(sprintf(_n("Populated data for %d page using template %s", "Populated data for %d pages using template %s", $count), $count, $template));
+                }
+            }
+        }
+
+        // find out which (if any) templates were removed and cleanup data
+        $old_templates = array_diff($this->enabled_templates, $enabled_templates);
+        if (count($old_templates)) {
+            $t1 = self::TABLE_REVISIONS;
+            $t2 = self::TABLE_DATA;
+            foreach ($old_templates as $template) {
+                $template = wire('templates')->get($template);
+                $page_ids = array_values($this->pages->find("template={$template}, include=all")->getArray());
+                if ($count = count($page_ids)) {
+                    $page_ids = implode(",", $page_ids);
+                    $sql = "DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id IN($page_ids) AND $t2.revisions_id = $t1.id";
+                    $this->db->query($sql);
+                    $this->cleanupFiles();
+                    $this->message(sprintf(_n("Removed stored data for %d page using template %s", "Removed stored data for %d pages using template %s", $count), $count, $template));
+                }
+            }
+        }
+
     }
 
     /**
