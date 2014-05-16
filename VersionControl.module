@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 97,
+            'version' => 98,
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -281,7 +281,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * Delete data older than max age defined in module settings
      *
      */
-    public function cleanup() {
+    protected function cleanup() {
 
         if (!$this->data_max_age) return;
 
@@ -299,7 +299,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * Delete files no longer referenced in any data rows
      *
      */
-    public function cleanupFiles() {
+    protected function cleanupFiles() {
 
         // first clean up data files junction table
         $sql = "DELETE FROM " . self::TABLE_DATA_FILES . " WHERE data_id NOT IN (SELECT DISTINCT id FROM " . self::TABLE_DATA . ")";
@@ -436,7 +436,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * 
      * @param HookEvent $event
      */
-    public function captureHash(HookEvent $event) {
+    protected function captureHash(HookEvent $event) {
         $item = $event->arguments[0];
         if ($item->_version_control_basename) {
             if (!isset($this->hash_map[">$item->basename<"])) {
@@ -450,7 +450,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function replaceHashes(HookEvent $event) {
+    protected function replaceHashes(HookEvent $event) {
         if (count($this->hash_map)) {
             $event->return = str_replace(
                 array_keys($this->hash_map), 
@@ -468,7 +468,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function replaceTextHashes(HookEvent $event) {
+    protected function replaceTextHashes(HookEvent $event) {
         if ($this->input->get->revision) {
             $event->return = preg_replace("#[a-z0-9]{40}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
         }
@@ -483,7 +483,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function restoreFiles(HookEvent $event) {
+    protected function restoreFiles(HookEvent $event) {
         $page = $event->arguments[0];
         $this->pages->uncacheAll();
         $page_current = $this->pages->get($page->id);
@@ -712,7 +712,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function inject(HookEvent $event) {
+    protected function inject(HookEvent $event) {
 
         // this only applies to GET requests
         if ($_SERVER['REQUEST_METHOD'] !== "GET") return;
@@ -750,7 +750,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function buildFormHistory(HookEvent $event) {
+    protected function buildFormHistory(HookEvent $event) {
 
         $form = $event->return;
         $page = $this->pages->get($form->id->value);
@@ -905,7 +905,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function versionControlFields(HookEvent $event) {
+    protected function versionControlFields(HookEvent $event) {
 
         $template = $event->object;
         if (!count($this->enabled_fields)) return $event->return = $template->fields;
@@ -926,7 +926,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function versionControlRevision(HookEvent $event) {
+    protected function versionControlRevision(HookEvent $event) {
 
         $page = $event->object;
         if (!in_array($page->template->id, $this->enabled_templates)) return;
@@ -950,7 +950,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @throws WireException if VersionControlForTextFields module is found
      */
-    public function ___install() {
+    public function install() {
 
         // if Version Control For Text Fields is found, cancel installation to avoid conflict
         if (is_dir($this->config->paths->siteModules . "VersionControlForTextFields")) {
@@ -1004,7 +1004,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * When module is uninstalled, drop database tables created during install
      *
      */
-    public function ___uninstall() {
+    public function uninstall() {
         $this->dropTable(self::TABLE_REVISIONS);
         $this->dropTable(self::TABLE_DATA);
         $this->dropTable(self::TABLE_FILES);

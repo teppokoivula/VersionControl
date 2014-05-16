@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 91,
+            'version' => 92,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -169,7 +169,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * 
      * @throws Wire404Exception by default
      */
-    public function ___execute() {
+    public function execute() {
         throw new Wire404Exception("Unrecognized path");
     }
 
@@ -183,7 +183,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if GET param pages_id is missing
      * @return revision data rendered with one of available render methods
      */
-    public function ___executePage() {
+    public function executePage() {
         
         // should date formatting occur?
         $defaults = self::getDefaultData();
@@ -293,7 +293,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if GET param revisions is missing
      * @throws WireException if GET param revisions is invalid
      */
-    public function ___executeDiff() {
+    public function executeDiff() {
         
         // should date formatting occur?
         $defaults = self::getDefaultData();
@@ -379,7 +379,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if GET param revision is missing
      * @throws WireException if GET param field is missing
      */
-    public function ___executeField() {
+    public function executeField() {
 
         // get field and revision
         $revision_id = (int) $this->input->get->revision;
@@ -465,7 +465,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function hookPagefileInstall(HookEvent $event) {
+    protected function hookPagefileInstall(HookEvent $event) {
         if (strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
             $event->object->basename = $event->arguments[0];
             $event->replace = true;
@@ -477,7 +477,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function hookPagefileUrl(HookEvent $event) {
+    protected function hookPagefileUrl(HookEvent $event) {
         if ($event->object->_version_control_url) $event->return = $event->object->_version_control_url;
     }
 
@@ -486,7 +486,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    public function hookPagefileFilename(HookEvent $event) {
+    protected function hookPagefileFilename(HookEvent $event) {
         if ($event->object->_version_control_filename) $event->return = $event->object->_version_control_filename;
     }
 
@@ -495,7 +495,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * 
      * @param HookEvent $event
      */
-    public function hookPageimageSize(HookEvent $event) {
+    protected function hookPageimageSize(HookEvent $event) {
         if ($event->return->_version_control_filename) {
             $filename = substr($event->return->basename, 0, 2) . "/variations/" . $event->return->basename;
             $event->return->_version_control_url = $this->modules->VersionControl->url . $filename;
@@ -511,7 +511,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * 'pages_id'. Afterwards redirect user to page edit.
      *
      */
-    public function ___executeRestore() {
+    public function executeRestore() {
 
         // replace current page content with that from given revision
         $page = $this->getPageRevision();
@@ -532,7 +532,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * 'pages_id'. Afterwards redirect user to page edit.
      *
      */
-    public function ___executePreview() {
+    public function executePreview() {
         exit($this->getPageRevision()->render());
     }
 
@@ -545,7 +545,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if revision doesn't exist
      * @return null|string Comment text or null
      */
-    public function ___executeComment() {
+    public function executeComment() {
         
         // this only applies to POST requests
         if ($_SERVER['REQUEST_METHOD'] !== "POST") return;
@@ -663,7 +663,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * table for storing history data.
      *
      */
-    public function ___install() {
+    public function install() {
 
         // create a page for this module
         $page = new Page();
@@ -697,7 +697,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * Removes page associated with this Process module and also drops related table.
      *
      */
-    public function ___uninstall() {
+    public function uninstall() {
 
         // find and delete the page we installed
         $moduleID = $this->modules->getModuleID($this); 
