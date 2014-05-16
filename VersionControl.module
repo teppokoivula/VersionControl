@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 99,
+            'version' => '0.9.10',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -633,6 +633,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $sql = "INSERT INTO " . self::TABLE_REVISIONS . " ($sql_fields) VALUES ($sql_values)";
                 $this->db->query($sql);
                 $revisions_id = $this->db->insert_id;
+                $page->_version_control_revision = $revisions_id;
                 // if parent isn't assigned yet, use ID of previous revision
                 if (!$parent) {
                     $sql = "SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = {$page->id} AND id < $revisions_id ORDER BY id DESC LIMIT 1";

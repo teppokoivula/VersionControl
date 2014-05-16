@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.14',
+            'version' => '1.1.15',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -197,6 +197,7 @@ class PageSnapshot extends WireData implements Module {
         if ($time && !is_integer($time)) $time = strtotime($time);
 
         // revision info
+        $page->_version_control_revision = null;
         if ($revision_id) {
             if (!is_integer($revision_id)) throw new WireException("Revision ID must be an integer");
             $sql = "SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = $revision_id";
@@ -231,7 +232,7 @@ class PageSnapshot extends WireData implements Module {
         $t2 = VersionControl::TABLE_DATA;
         $where = $revision_id ? "t1.id = $revision_id AND " : "";
         $sql = "
-        SELECT t1.pages_id, t2.revisions_id, t2.fields_id, t2.property, t2.data
+        SELECT t1.pages_id, t1.id AS revision, t2.fields_id, t2.property, t2.data
         FROM (
             SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
             FROM $t1 AS t1, $t2 AS t2
@@ -247,10 +248,6 @@ class PageSnapshot extends WireData implements Module {
         // generate data (associative array)
         $data = array();
         while ($row = mysqli_fetch_assoc($result)) {
-            if (!$revision_id) {
-                $revision_id = $row['revisions_id'];
-                $page->_version_control_revision = $revision_id;
-            }
             $field = $this->fields->get($row['fields_id']);
             if ($row['pages_id'] != $page->id) {
                 $repeater_page = $this->pages->get($row['pages_id']);
@@ -263,6 +260,9 @@ class PageSnapshot extends WireData implements Module {
                 }
             } else {
                 $data[$field.".".$row['property']] = $row['data'];
+                if (!$revision_id && $row['revision'] > $page->_version_control_revision) {
+                    $page->_version_control_revision = $row['revision'];
+                }
             }
         }
 
