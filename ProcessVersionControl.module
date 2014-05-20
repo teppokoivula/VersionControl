@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 92,
+            'version' => 93,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -200,13 +200,13 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // include repeater pages
         $repeater_fields = array();
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
-            $pages_id = array($pages_id);
+            $page_ids = array($pages_id);
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
                     if (count($subfields)) {
                         foreach ($page->$field as $repeater_page) {
-                            $pages_id[] = $repeater_page;
+                            $page_ids[] = $repeater_page;
                             foreach ($subfields as $subfield) {
                                 $repeater_fields[] = $subfield . "_repeater" . $repeater_page;
                             }
@@ -214,22 +214,21 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                     }
                 }
             }
-            $pages_id = implode($pages_id, ",");
         }
 
         // find values
-        $sql = "
+        $stmt = $this->database->prepare("
         SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, d.property, d.data
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
-        WHERE r.pages_id IN ($pages_id) AND d.revisions_id = r.id AND f.id = d.fields_id
+        WHERE r.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
         ORDER BY f.id, d.id DESC
-        ";
-        $result = $this->db->query($sql);
+        ");
+        $stmt->execute($page_ids);
 
         // parse data
         $data = array();
-        while ($row = mysqli_fetch_assoc($result)) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $item = array(
                 'users_id' => null,
                 'username' => isset($row['username']) ? $this->sanitizer->name($row['username']) : null,
@@ -312,17 +311,20 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if (!$r1 || !$r2) throw new WireException("Revisions need to be provided in following format: 123:124");
 
         // find values
-        $sql = "
+        $stmt = $this->database->prepare("
         SELECT r.id, d.data
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
-        WHERE r.id IN({$r1}, {$r2}) AND d.revisions_id = r.id AND f.name = '{$field_name}' AND d.fields_id = f.id
+        WHERE r.id IN(:r1, :r2) AND d.revisions_id = r.id AND f.name = :field_name AND d.fields_id = f.id
         ORDER BY r.id ASC
         LIMIT 2
-        ";
-        $result = $this->db->query($sql);
+        ");
+        $stmt->bindValue(':r1', $r1, PDO::PARAM_INT);
+        $stmt->bindValue(':r2', $r2, PDO::PARAM_INT);
+        $stmt->bindValue(':field_name', $field_name, PDO::PARAM_STR);
+        $stmt->execute();
 
         // render output
-        while ($row = mysqli_fetch_assoc($result)) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
             echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
         }
@@ -391,28 +393,28 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $settings = $this->input->get->settings;
 
         // find values
-        $sql = "
+        $stmt = $this->database->prepare("
         SELECT r.pages_id, d.fields_id, d.property, d.data
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
-        WHERE f.name = '$field_name' AND r.id = $revision_id AND d.revisions_id = r.id AND d.fields_id = f.id
-        ";
-        $result = $this->db->query($sql);
+        WHERE f.name = :field_name AND r.id = :revision_id AND d.revisions_id = r.id AND d.fields_id = f.id
+        ");
+        $stmt->bindValue(':field_name', $field_name, PDO::PARAM_STR);
+        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_STR);
+        $stmt->execute();
 
         // generate data (associative array)
         $page = null;
         $field = null;
         $data = array();
-        if ($result->num_rows) {
-            while ($row = mysqli_fetch_assoc($result)) {
-                if (!$page) $page = $this->pages->get($row['pages_id']);
-                if (!$field) $field = $this->fields->get($row['fields_id']);
-                if ($field->type == "FieldtypeDatetime") {
-                    $input = $field->getInputfield($page);
-                    $format = "$input->dateInputFormat $input->timeInputFormat";
-                    $row['data'] = date($format, $row['data']);
-                }
-                $data[$row['property']] = $row['data'];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (!$page) $page = $this->pages->get($row['pages_id']);
+            if (!$field) $field = $this->fields->get($row['fields_id']);
+            if ($field->type == "FieldtypeDatetime") {
+                $input = $field->getInputfield($page);
+                $format = "$input->dateInputFormat $input->timeInputFormat";
+                $row['data'] = date($format, $row['data']);
             }
+            $data[$row['property']] = $row['data'];
         }
 
         // choose render method and exit with output
@@ -552,18 +554,20 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // get and check revision
         $revision_id = (int) $this->input->post->revision;
-        $sql = "SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = $revision_id";
-        $result = $this->db->query($sql);
-        $revision = mysqli_fetch_assoc($result);
+        $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
+        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $revision = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
 
         // sanitize and store comment text
         $comment = $this->input->post->comment;
         if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
-        $comment_clean = "'" . $this->db->real_escape_string(trim($comment)) . "'";
-        if ($comment_clean == "''") $comment_clean = "NULL";
-        $sql = "UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = $comment_clean WHERE id = $revision_id";
-        $this->db->query($sql);
+        $comment = $this->database->escapeStr($comment);
+        $stmt = $this->database->prepare("UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = :comment WHERE id = :revision_id");
+        $stmt->bindValue(':comment', $comment, PDO::PARAM_STR);
+        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+        $stmt->execute();
         
         // return comment text
         return $comment;
@@ -643,9 +647,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $page = $this->pages->get($pages_id);
         if (!$page->id) throw new WireException("Page doesn't exist: $pages_id");
         if (!$page->viewable()) throw new WireException("Permission denied");
-        $sql = "SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = $revision_id";
-        $result = $this->db->query($sql);
-        $revision = mysqli_fetch_assoc($result);
+        $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
+        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $revision = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
 
         // fetch snapshot of page at the time of given revision

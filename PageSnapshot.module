@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.15',
+            'version' => '1.1.16',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -200,9 +200,10 @@ class PageSnapshot extends WireData implements Module {
         $page->_version_control_revision = null;
         if ($revision_id) {
             if (!is_integer($revision_id)) throw new WireException("Revision ID must be an integer");
-            $sql = "SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = $revision_id";
-            $result = $this->db->query($sql);
-            $revision = mysqli_fetch_assoc($result);
+            $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
+            $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+            $stmt->execute();
+            $revision = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
             $page->_version_control_revision = $revision_id;
         }
@@ -213,41 +214,41 @@ class PageSnapshot extends WireData implements Module {
         // include repeater pages
         $pages_id = $page->id;
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
-            $pages_id = array($pages_id);
+            $page_ids = array($pages_id);
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
                     if (count($subfields)) {
                         foreach ($page->$field as $repeater_page) {
-                            $pages_id[] = $repeater_page;
+                            $page_ids[] = $repeater_page->id;
                         }
                     }
                 }
             }
-            $pages_id = implode($pages_id, ",");
         }
 
         // find values
-        $t1 = VersionControl::TABLE_REVISIONS;
-        $t2 = VersionControl::TABLE_DATA;
-        $where = $revision_id ? "t1.id = $revision_id AND " : "";
-        $sql = "
+        $where = $revision_id ? "t1.id = ? AND " : "";
+        $stmt = $this->database->prepare($sql = "
         SELECT t1.pages_id, t1.id AS revision, t2.fields_id, t2.property, t2.data
         FROM (
             SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
-            FROM $t1 AS t1, $t2 AS t2
-            WHERE {$where}t1.pages_id IN ($pages_id) AND t1.timestamp <= FROM_UNIXTIME($time) AND t2.revisions_id = t1.id
+            FROM " . VersionControl::TABLE_REVISIONS . " AS t1, " . VersionControl::TABLE_DATA . " AS t2
+            WHERE {$where}t1.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND t1.timestamp <= FROM_UNIXTIME(?) AND t2.revisions_id = t1.id
             GROUP BY t1.pages_id, t2.fields_id, t2.property
         ) AS t1
-        INNER JOIN $t2 AS t2
+        INNER JOIN " . VersionControl::TABLE_DATA . " AS t2
         ON t2.revisions_id = t1.id AND t2.fields_id = t1.fields_id
         GROUP BY t1.pages_id, t2.fields_id, t2.property
-        ";
-        $result = $this->db->query($sql);
+        ");
+        $input_parameters = $where ? array($revision_id) : array();
+        $input_parameters = array_merge($input_parameters, $page_ids);
+        $input_parameters[] = $time;
+        $stmt->execute($input_parameters);
 
         // generate data (associative array)
         $data = array();
-        while ($row = mysqli_fetch_assoc($result)) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $field = $this->fields->get($row['fields_id']);
             if ($row['pages_id'] != $page->id) {
                 $repeater_page = $this->pages->get($row['pages_id']);
