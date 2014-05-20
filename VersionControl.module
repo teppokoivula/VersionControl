@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.9.11',
+            'version' => '0.9.12',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -811,7 +811,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $where = array();
         $where['pages_id = :pages_id'] = array(':pages_id', $page->id, PDO::PARAM_INT);
         if ($users_id = (int) $this->input->get->users_id) {
-            $where['users_id = :users_id'] = array(':pages_id', $users_id, PDO::PARAM_INT);
+            $where['users_id = :users_id'] = array(':users_id', $users_id, PDO::PARAM_INT);
         }
         $where_str = "WHERE " . implode(" AND ", array_keys($where));
 
