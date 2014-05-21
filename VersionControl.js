@@ -90,6 +90,13 @@ $(function() {
                         $if.find('.InputfieldImageListToggle').remove();
                         $.getScript(config.urls.modules+"Inputfield/InputfieldImage/InputfieldImage.js");
                     }
+                    if ($if.find('.InputfieldAsmSelect').length) {
+                        var $select = $if.find('select[multiple=multiple]');
+			            var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
+                        $select.appendTo($if.find('.InputfieldAsmSelect')).show();
+                        $if.find('.asmContainer').remove();
+                        $select.asmSelect(options);
+                    }
                 } else {
                     update($if, $content, settings, field, cache[field+"."+revision]);
                 }
@@ -131,6 +138,11 @@ $(function() {
                         )
                         .parent('.InputfieldContent')
                         .addClass('overlay-parent');
+                }
+                if ($if.find('.InputfieldAsmSelect').length) {
+                    var $select = $if.find('select[multiple=multiple]');
+			        var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
+                    $select.asmSelect(options);
                 }
             } else {
                 // format of returned data is JSON
