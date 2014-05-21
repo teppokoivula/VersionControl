@@ -92,7 +92,7 @@ $(function() {
                     }
                     if ($if.find('.InputfieldAsmSelect').length) {
                         var $select = $if.find('select[multiple=multiple]');
-			            var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
+                        var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
                         $select.appendTo($if.find('.InputfieldAsmSelect')).show();
                         $if.find('.asmContainer').remove();
                         $select.asmSelect(options);
@@ -141,7 +141,7 @@ $(function() {
                 }
                 if ($if.find('.InputfieldAsmSelect').length) {
                     var $select = $if.find('select[multiple=multiple]');
-			        var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
+                    var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
                     $select.asmSelect(options);
                 }
             } else {
@@ -181,18 +181,18 @@ $(function() {
         // (.field-revisions) triggered mouseleave event of parent itself
         var revision_timeout;
         $('.field-revisions').hover(function() {
-        	if (revision_timeout) {
-        		clearTimeout(revision_timeout);
-        		revision_timeout = false;
-        	}
+            if (revision_timeout) {
+                clearTimeout(revision_timeout);
+                revision_timeout = false;
+            }
         }, function() {
-        	var $this = $(this);
-        	revision_timeout = setTimeout(function() {
-        		if (!$this.hasClass('sticky')) {
-        			$('.compare-revisions').remove();
-        			$this.slideUp();
-        		}
-        	}, 100);
+            var $this = $(this);
+            revision_timeout = setTimeout(function() {
+                if (!$this.hasClass('sticky')) {
+                    $('.compare-revisions').remove();
+                    $this.slideUp();
+                }
+            }, 100);
         });
 
         // if <ul> element containing revision history is long enough to get
@@ -229,9 +229,9 @@ $(function() {
                 // introduced in jQuery 1.7 and ProcessWire 2.2 only had 1.6.2
                 // that's not really an option quite yet.
                 $('.compare-revisions').hover(function() {
-                	$(this).parents('.field-revisions:first').addClass('sticky');
+                    $(this).parents('.field-revisions:first').addClass('sticky');
                 }, function() {
-                	$(this).parents('.field-revisions:first').removeClass('sticky');
+                    $(this).parents('.field-revisions:first').removeClass('sticky');
                 })
                 $('.compare-revisions > a').bind('click', function() {
                     var $parent = $(this).parent();
