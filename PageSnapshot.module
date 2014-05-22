@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.16',
+            'version' => '1.1.17',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -99,9 +99,10 @@ class PageSnapshot extends WireData implements Module {
                     // "regular" property (data, data1001 etc.)
                     $property = $count;
                     $language = str_replace("data", "", $property);
-                    if (!$language) $page->$field = $value;
-                    else if ($language = $this->languages->get((int) $language)) {
-                        $page->$field->setLanguageValue($language, $value);
+                    if (!$language) {
+                        if ($page->$field != $value) $page->$field = $value;
+                    } else if ($language = $this->languages->get((int) $language)) {
+                        if ($page->$field->getLanguageValue($language) != $value) $page->$field->setLanguageValue($language, $value);
                     }
                 }
             }
