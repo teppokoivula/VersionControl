@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.9.13',
+            'version' => '0.9.14',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -492,12 +492,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function restoreFiles(HookEvent $event) {
         $page = $event->arguments[0];
-        $this->pages->uncacheAll();
-        $page_current = $this->pages->get($page->id);
         if (!$page->_version_control_filedata) {
             $page->_version_control_filedata = $this->input->post->version_control_filedata;
         }
         if ($page->_version_control_filedata) {
+            $page_current = clone($page);
+            $page_current->uncache();
             // remove hooks PageSnapshot uses to prevent installing pagefiles
             $this->modules->PageSnapshot->removePagefileHooks();
             foreach ($page->_version_control_filedata as $filedata) {
