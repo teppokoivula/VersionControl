@@ -38,7 +38,7 @@ $(function() {
     });
 
     // preview feature
-    $('a.preview').on('click', function() {
+    $tab.on('click', 'a.preview', function() {
         var $a = $(this);
         $('body')
             .append('<div id="preview-overlay"></div>')
@@ -49,21 +49,22 @@ $(function() {
             .animate({ right: 0 }, 500, function() {
                 $('body').addClass('preview');
             });
-        $('*').on('click.preview', function() {
-            closePreview($a);
-        });
         $(window).on('blur.preview', function() {
             closePreview($a);
         });
-        $(document).on('keyup.preview', function() {
-            closePreview($a);
-        });
+        $(document)
+            .on('keyup.preview', function() {
+                closePreview($a);
+            })
+            .on('click.preview', function() {
+                closePreview($a);
+            });
         return false;
     });
     var closePreview = function($a) {
-        $('*').off('click.preview');
         $(window).off('blur.preview');
         $(document).off('keyup.preview');
+        $(document).off('click.preview');
         $('body').removeClass('preview');
         $('#preview-overlay').fadeOut(function() {
             $(this).remove();
@@ -74,5 +75,10 @@ $(function() {
         $a.parents('tr:first').effect("highlight", {}, 1500);
         return false;
     }
+
+    // Confirm before restoring page
+    $tab.on('click', 'a.restore', function() {
+        return confirm(moduleConfig.i18n.confirmRestore);
+    });
 
 });
