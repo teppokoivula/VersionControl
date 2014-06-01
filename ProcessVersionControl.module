@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 94,
+            'version' => 95,
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -522,7 +522,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // redirect to page edit
         $revision_id = (int) $this->input->get->revision;
-        $this->session->message(sprintf(__("Page returned to revision #%d"), $revision_id));
+        $this->session->message(sprintf(__("Page reverted to revision #%d"), $revision_id));
         $this->session->redirect($this->config->urls->admin . "page/edit/?id=" . $page->id, false);
         
     }
