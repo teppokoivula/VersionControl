@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.18',
+            'version' => '1.1.19',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -228,9 +228,8 @@ class PageSnapshot extends WireData implements Module {
         if (empty($time)) $time = $revision_id ? strtotime($revision['timestamp']) : time();
         
         // include repeater pages
-        $pages_id = $page->id;
+        $page_ids = array($page->id);
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
-            $page_ids = array($pages_id);
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
