@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.9.15',
+            'version' => '0.9.16',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -735,6 +735,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // this only applies to GET requests
         if ($_SERVER['REQUEST_METHOD'] !== "GET") return;
 
+        // make sure that current user has version-control permission
+        if (!$this->user->hasPermission('version-control')) return;
+
         // make sure that value tracking is enabled for template of
         // the page currently being edited
         if ($this->input->get->id) $page = $this->pages->get((int) $this->input->get->id);
@@ -770,6 +773,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param HookEvent $event
      */
     protected function buildFormHistory(HookEvent $event) {
+
+        // make sure that current user has version-control permission
+        if (!$this->user->hasPermission('version-control')) return;
 
         $form = $event->return;
         $page = $this->pages->get($form->id->value);
