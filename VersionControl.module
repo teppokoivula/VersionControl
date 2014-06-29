@@ -31,13 +31,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.9.16',
+            'version' => '0.10.0',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
                 'LazyCron',
                 'PageSnapshot',
                 'ProcessVersionControl',
+            ),
+            'requires' => array(
                 'ProcessWire>=2.4.1',
             ),
         ); 
@@ -274,6 +276,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->addHookProperty('Template::versionControlFields', $this, 'versionControlFields');
             // add new property versionControlRevision to Page object
             $this->addHookProperty('Page::versionControlRevision', $this, 'versionControlRevision');
+            // add new method versionControlRevisions to Page object
+            $this->addHook('Page::versionControlRevisions', $this, 'versionControlRevisions');
         }
 
     }
@@ -977,6 +981,64 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
         $event->return = $revision ? $revision : null;
+
+    }
+
+    /**
+     * Find existing revisions of current page
+     * 
+     * Adds new versionControlRevisions() method to Pages. This method can take
+     * optional $limit param (int), which defines how many revisions should be
+     * returned. Returns an array with revision IDs as keys and datetimes as
+     * values, current revision always being the first array item:
+     * 
+     * array(
+     *     3 => '2014-01-01 01:15:00', // current revision
+     *     2 => '2014-01-01 01:10:00',
+     *     1 => '2014-01-01 01:00:00',
+     *     // etc.
+     * );
+     * 
+     * @param HookEvent $event
+     */
+    protected function versionControlRevisions(HookEvent $event) {
+
+        $page = $event->object;
+        if (!in_array($page->template->id, $this->enabled_templates)) return;
+
+        // limit argument defines how many revisions can be returned
+        $limit = null;
+        if (isset($event->arguments[0]) && (int) $event->arguments[0] > 0) {
+            $limit = (int) $event->arguments[0];
+        }
+        
+        $revisions = null;
+        // attempt to fetch revisions from cache
+        if (is_array($page->_version_control_revisions)) {
+            $cache = $page->_version_control_revisions;
+            if ($cache['limit'] == $limit) {
+                $revisions = $cache['revisions'];
+            } else if ($limit && $cache['limit'] > $limit) {
+                $revisions = array_slice($cache['revisions'], 0, $limit, true);
+            }
+        }
+
+        if (!is_array($revisions)) {
+            // fetch revision from database (with limit if one is set)
+            $sql = "SELECT id, timestamp FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id ORDER BY id DESC";
+            if ($limit) $sql .= " LIMIT :limit";
+            $stmt = $this->database->prepare($sql);
+            $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
+            if ($limit) $stmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            $revisions = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            $page->_version_control_revisions = array(
+                'limit' => $limit,
+                'revisions' => $revisions,
+            );
+        }
+
+        $event->return = $revisions;
 
     }
 
