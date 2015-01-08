@@ -9,7 +9,7 @@
  *
  * See comments of main module for more information.
  *
- * @copyright Copyright (c) 2013-2014, Teppo Koivula
+ * @copyright Copyright (c) 2013-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
  * ProcessWire 2.x 
@@ -615,7 +615,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     /**
      * Render JSON based on input array
      *
-     * @return string $json
+     * @param array $data
+     * @return string
      */
     protected function renderJSON(array $data) {
         header('Content-type: application/json');
