@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.10.1',
+            'version' => '0.11.0',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -130,6 +130,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * Module configuration
+     * 
+     * Note: some configuration inputfields are pulled from the companion module
+     * ProcessVersionControl. This is an attempt to make configuration options
+     * for the module bundle easier to grasp (and harder to miss).
      *
      * @param array $data
      * @return InputfieldWrapper
@@ -226,17 +230,39 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (isset($data['data_row_limit'])) $field->value = $data['data_row_limit'];
         $fields->add($field);
 
-        // notice about additional config options
-        $field = $modules->get("InputfieldMarkup");
-        $field->label = __("Additional config options");
-        $field->icon = "gear";
-        $link_module = "ProcessVersionControl";
-        $link_markup = "<a href='".wire('page')->url."edit?name=$link_module'>$link_module</a>";
-        $field->set('markupText', sprintf(__("You can find additional config options related to this module at %s"), $link_markup));
-        $fields->add($field);
+        // display config options from the Process module
+        $p_data = wire('modules')->getModuleConfigData('ProcessVersionControl');
+        $p_fields = ProcessVersionControl::getModuleConfigInputfields($p_data);
+        foreach ($p_fields as $p_field) {
+            $p_field->name .= "_p";
+            if ($p_field instanceof InputfieldWrapper) {
+                foreach ($p_field as $p_subfield) {
+                    $p_subfield->name .= "_p";
+                    if ($p_subfield->showIf) {
+                        $p_subfield->showIf = str_replace("=", "_p=", $p_subfield->showIf);
+                    }
+                    $p_field->add($p_subfield);
+                }
+            }
+        }
+        $fields->add($p_fields);
 
         return $fields;
 
+    }
+
+    /**
+     * Save config settings for both current module and the Process module
+     * 
+     * @param array $data
+     */
+    public function setConfigData(array $data) {
+        $p_data = array();
+        foreach ($data as $key => $value) {
+            if (substr($key, -2) != "_p") $this->$key = $value;
+            else $p_data[substr($key, 0, strlen($key)-2)] = $value;
+        }
+        wire('modules')->saveModuleConfigData('ProcessVersionControl', $p_data);
     }
 
     /**

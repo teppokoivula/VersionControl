@@ -19,7 +19,7 @@
  * http://processwire.com
  *
  */
-class ProcessVersionControl extends Process implements ConfigurableModule {
+class ProcessVersionControl extends Process {
     
     /**
      * Return information about this module (required)
@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => 95,
+            'version' => '0.10.0',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -74,10 +74,29 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         foreach(self::getDefaultData() as $key => $value) {
             $this->$key = $value;
         }
+        wire('modules')->setModuleConfigData($this->className);
+    }
+
+    /**
+     * Populate config data
+     * 
+     * Since this isn't actual ConfigurableModule, we need to handle this task
+     * manually.
+     */
+    public function init() {
+        foreach (wire('modules')->getModuleConfigData($this->className) as $key => $value) {
+            $this->$key = $value;
+        }
     }
 
     /**
      * Module configuration
+     * 
+     * Note: this module isn't configurable in the usual way, and thus doesn't
+     * implement the ConfigurableModule interface. Native features are used to
+     * define config inputfields, and user-provided config settings are stored
+     * just like regular config settings, but the user only ever accesses them
+     * via the main module, VersionControl.
      *
      * @param array $data
      * @return InputfieldWrapper
@@ -147,15 +166,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $fieldset->add($field);
 
         $fields->add($fieldset);
-
-        // notice about additional config options
-        $field = $modules->get("InputfieldMarkup");
-        $field->label = __("Additional config options");
-        $field->icon = "gear";
-        $link_module = "VersionControl";
-        $link_markup = "<a href='".wire('page')->url."edit?name=$link_module'>$link_module</a>";
-        $field->set('markupText', sprintf(__("You can find additional config options related to this module at %s"), $link_markup));
-        $fields->add($field);
 
         return $fields;
 
