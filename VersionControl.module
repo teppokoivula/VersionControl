@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.11.0',
+            'version' => '0.11.1',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -231,38 +231,32 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $fields->add($field);
 
         // display config options from the Process module
-        $p_data = wire('modules')->getModuleConfigData('ProcessVersionControl');
-        $p_fields = ProcessVersionControl::getModuleConfigInputfields($p_data);
-        foreach ($p_fields as $p_field) {
-            $p_field->name .= "_p";
-            if ($p_field instanceof InputfieldWrapper) {
-                foreach ($p_field as $p_subfield) {
-                    $p_subfield->name .= "_p";
-                    if ($p_subfield->showIf) {
-                        $p_subfield->showIf = str_replace("=", "_p=", $p_subfield->showIf);
+        if (wire('modules')->isInstalled('ProcessVersionControl')) {
+            $p = wire('modules')->get('ProcessVersionControl');
+            $p_data = wire('modules')->getModuleConfigData('ProcessVersionControl');
+            $p_fields = ProcessVersionControl::getModuleConfigInputfields($p_data);
+            foreach ($p_fields as $p_field) {
+                $p_field->name .= "_p";
+                if ($p_field->collapsed == Inputfield::collapsedHidden) {
+                    $p_field->collapsed = Inputfield::collapsedNo;
+                } else {
+                    $p_field->collapsed = Inputfield::collapsedHidden;
+                }
+                if ($p_field instanceof InputfieldWrapper) {
+                    foreach ($p_field as $p_subfield) {
+                        $p_subfield->name .= "_p";
+                        if ($p_subfield->showIf) {
+                            $p_subfield->showIf = str_replace("=", "_p=", $p_subfield->showIf);
+                        }
+                        $p_field->add($p_subfield);
                     }
-                    $p_field->add($p_subfield);
                 }
             }
+            $fields->add($p_fields);
         }
-        $fields->add($p_fields);
 
         return $fields;
 
-    }
-
-    /**
-     * Save config settings for both current module and the Process module
-     * 
-     * @param array $data
-     */
-    public function setConfigData(array $data) {
-        $p_data = array();
-        foreach ($data as $key => $value) {
-            if (substr($key, -2) != "_p") $this->$key = $value;
-            else $p_data[substr($key, 0, strlen($key)-2)] = $value;
-        }
-        wire('modules')->saveModuleConfigData('ProcessVersionControl', $p_data);
     }
 
     /**
@@ -274,6 +268,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // remove expired data rows daily
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+        
+        // handle saving config data for the Process module
+        $this->addHookBefore('Modules::saveModuleConfigData', $this, 'saveConfigData');
 
         // regenerate base data when enabled templates change
         $this->addHookAfter('Modules::saveModuleConfigData', $this, 'regenerateData');
@@ -1211,6 +1208,27 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
+     * Handle saving module config data for the companion Process module
+     * 
+     * @param HookEvent $event
+     */
+    protected function saveConfigData(HookEvent $event) {
+        if ($event->arguments[0] !== $this->className) return;
+        $data = $event->arguments[1];
+        $p_data = array();
+        foreach ($data as $key => $value) {
+            if (substr($key, -2) == "_p") {
+                $p_data[substr($key, 0, strlen($key)-2)] = $value;
+                unset($data[$key]);
+            }
+        }
+        $event->arguments(1, $data);
+        if (wire('modules')->isInstalled('ProcessVersionControl')) {
+            wire('modules')->saveModuleConfigData('ProcessVersionControl', $p_data);
+        }
+    }
+
+    /**
      * Regenerate data when enabled templates change
      *
      * @param HookEvent $event
@@ -1338,13 +1356,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if ($key == "path" || $key == "url") {
             if (!array_key_exists($key, $this->data)) {
                 $processModuleID = wire('modules')->getModuleID("ProcessVersionControl");
-                $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=" . ProcessVersionControl::PAGE_NAME); 
-                $pagefilesManager = new PagefilesManager($processPage);
-                $this->data['path'] = $pagefilesManager->path();
-                $this->data['url'] = $pagefilesManager->url();
-                if (!is_dir($this->data['path'])) wireMkdir($this->data['path']);
+                if ($processModuleID) {
+                    $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=" . ProcessVersionControl::PAGE_NAME); 
+                    $pagefilesManager = new PagefilesManager($processPage);
+                    $this->data['path'] = $pagefilesManager->path();
+                    $this->data['url'] = $pagefilesManager->url();
+                    if (!is_dir($this->data['path'])) wireMkdir($this->data['path']);
+                }
             }
-            return $this->data[$key];
+            return isset($this->data[$key]) ? $this->data[$key] : null;
         }
         return parent::__get($key);
     }

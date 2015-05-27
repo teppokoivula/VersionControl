@@ -19,7 +19,7 @@
  * http://processwire.com
  *
  */
-class ProcessVersionControl extends Process {
+class ProcessVersionControl extends Process implements ConfigurableModule {
     
     /**
      * Return information about this module (required)
@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.10.0',
+            'version' => '0.10.1',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -78,25 +78,12 @@ class ProcessVersionControl extends Process {
     }
 
     /**
-     * Populate config data
-     * 
-     * Since this isn't actual ConfigurableModule, we need to handle this task
-     * manually.
-     */
-    public function init() {
-        foreach (wire('modules')->getModuleConfigData($this->className) as $key => $value) {
-            $this->$key = $value;
-        }
-    }
-
-    /**
      * Module configuration
      * 
-     * Note: this module isn't configurable in the usual way, and thus doesn't
-     * implement the ConfigurableModule interface. Native features are used to
-     * define config inputfields, and user-provided config settings are stored
-     * just like regular config settings, but the user only ever accesses them
-     * via the main module, VersionControl.
+     * Note: this module isn't meant to be configurable in the usual way. While
+     * native features are used to define config inputfields, and user-provided
+     * config settings are stored just like regular config settings, the user
+     * only ever accesses them via the main module, VersionControl.
      *
      * @param array $data
      * @return InputfieldWrapper
@@ -113,6 +100,15 @@ class ProcessVersionControl extends Process {
         $defaults = self::getDefaultData();
         $data = array_merge($defaults, $data);
 
+        // notice about centralized configuration
+        $field = $modules->get("InputfieldMarkup");
+        $field->label = __("Configuring the Version Control module bundle");
+        $field->icon = "info-circle";
+        $link_module = "VersionControl";
+        $link_markup = "<a href='".wire('page')->url."edit?name=$link_module'>$link_module</a>";
+        $field->set('markupText', sprintf(__("All configuration settings for the Version Control module bundle can be found from the %s module."), $link_markup));
+        $fields->add($field);
+
         // date format used
         $field = $modules->get("InputfieldText");
         $field->name = "date_format";
@@ -121,12 +117,14 @@ class ProcessVersionControl extends Process {
         $field->notes = __("See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.");
         $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
         $field->icon = "clock-o";
+        $field->collapsed = Inputfield::collapsedHidden;
         $fields->add($field);
 
         // disable diff feature
         $fieldset = $modules->get("InputfieldFieldset");
         $fieldset->label = __("Diff Settings");
         $fieldset->icon = "files-o";
+        $fieldset->collapsed = Inputfield::collapsedHidden;
 
         $field = $modules->get("InputfieldCheckbox");
         $field->name = "diff_disabled";
