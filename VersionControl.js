@@ -138,6 +138,9 @@ $(function() {
                         )
                         .parent('.InputfieldContent')
                         .addClass('overlay-parent');
+                } else if ($if.hasClass('Inputfield_permissions')) {
+                    $('.Inputfield_permissions .Inputfield_permissions > .InputfieldContent').insertAfter($('.Inputfield_permissions:first > .InputfieldContent:first'));
+                    $('.Inputfield_permissions:first > .InputfieldContent:first').remove();
                 }
                 if ($if.find('.InputfieldAsmSelect').length) {
                     var $select = $if.find('select[multiple=multiple]');

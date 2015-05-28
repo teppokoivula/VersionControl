@@ -7,7 +7,7 @@
  * history data in series of custom database tables so that it can later be used
  * again.
  *
- * @copyright Copyright (c) 2013-2014, Teppo Koivula
+ * @copyright Copyright (c) 2013-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
  * ProcessWire 2.x 
@@ -31,7 +31,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.11.1',
+            'version' => '0.12.0',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -173,14 +173,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "enabled_templates";
         $field->label = __("Enable history for these templates");
-        $field->notes = __("Only non-system templates can be selected.");
         $field->icon = "file-o";
-        $field->columnWidth = 50;
         foreach (wire('templates')->getAll() as $key => $template) {
-            // include only non-system templates
-            if (~ $template->flags & Template::flagSystem) {
-                $field->addOption($key, $template);
-            }
+            if ($template->name != "language") $field->addOption($key, $template);
         }
         if (isset($data['enabled_templates'])) $field->value = $data['enabled_templates'];
         $fields->add($field);
@@ -191,7 +186,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field->label = __("Enable history for these fields");
         $field->notes = __("Only fields of compatible fieldtypes can be selected. If no fields are selected, all fields of compatible fieldtypes are considered enabled.");
         $field->icon = "file-text-o";
-        $field->columnWidth = 50;
         $types = implode($data['compatible_fieldtypes'], "|");
         $field->addOptions(wire('fields')->find("type=$types")->getArray());
         if (isset($data['enabled_fields'])) $field->value = $data['enabled_fields'];
@@ -216,7 +210,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field->label = __("For how long should we retain collected data?");
         $field->name = "data_max_age";
         $field->icon = "clock-o";
-        $field->columnWidth = 50;
         $fields->add($field);
 
         // should we limit the amount of revisions saved for each field + page combination?
@@ -226,7 +219,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field->addOptions(array(10 => '10', 20 => '20', 50 => '50', 100 => '100'));
         $field->notes = __("Leave empty to not limit stored revisions at all.");
         $field->icon = "random";
-        $field->columnWidth = 50;
         if (isset($data['data_row_limit'])) $field->value = $data['data_row_limit'];
         $fields->add($field);
 
@@ -895,12 +887,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $preview = "<a class='preview' target='_blank' data-date='%s' href='{$process_page}preview/?pages_id={$page->id}&revision=%d'><i class='fa fa-eye' title='" . __("Preview revision") . "'></i></a>";
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if ($date_format) $row['timestamp'] = date($date_format, strtotime($row['timestamp']));
+            $toggle_preview = $page->viewable() ? sprintf($preview, $row['timestamp'], $row['id']) : '';
+            $toggle_restore = $page->editable() ? sprintf($restore, $row['id']) : '';
             $rows[] = array(
                 $row['id'], 
                 $users[$row['users_id']],
                 $row['timestamp'],
                 $row['comment'],
-                sprintf($comment, $row['id']) . sprintf($preview, $row['timestamp'], $row['id']) . ($start || count($rows) ? sprintf($restore, $row['id']) : '<span></span>'),
+                sprintf($comment, $row['id']) . $toggle_preview . ($start || count($rows) ? $toggle_restore : '<span></span>'),
             );
         }
 

@@ -32,7 +32,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.10.1',
+            'version' => '0.11.0',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -109,6 +109,13 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $field->set('markupText', sprintf(__("All configuration settings for the Version Control module bundle can be found from the %s module."), $link_markup));
         $fields->add($field);
 
+        // fieldset: output settings
+        $fieldset = $modules->get("InputfieldFieldset");
+        $fieldset->label = __("Output Settings");
+        $fieldset->icon = "";
+        $fieldset->collapsed = Inputfield::collapsedHidden;
+        $fields->add($fieldset);
+
         // date format used
         $field = $modules->get("InputfieldText");
         $field->name = "date_format";
@@ -117,21 +124,23 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $field->notes = __("See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.");
         $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
         $field->icon = "clock-o";
-        $field->collapsed = Inputfield::collapsedHidden;
-        $fields->add($field);
+        $fieldset->add($field);
 
-        // disable diff feature
+        // fieldset: diff settings
         $fieldset = $modules->get("InputfieldFieldset");
         $fieldset->label = __("Diff Settings");
         $fieldset->icon = "files-o";
         $fieldset->collapsed = Inputfield::collapsedHidden;
+        $fields->add($fieldset);
 
+        // disable diff feature
         $field = $modules->get("InputfieldCheckbox");
         $field->name = "diff_disabled";
         $field->label = __("Disable diff");
         if (isset($data[$field->name]) && $data[$field->name]) $field->checked = "checked";
         $fieldset->add($field);
 
+        // diff timeout
         $field = $modules->get("InputfieldInteger");
         $field->name = "diff_timeout";
         $field->label = __("Diff Timeout");
@@ -141,6 +150,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $field->value = $data[$field->name];
         $fieldset->add($field);
 
+        // diff cleanup
         $field = $modules->get("InputfieldRadios");
         $field->name = "diff_cleanup";
         $field->label = __("Post-diff Cleanup");
@@ -155,6 +165,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if (isset($data[$field->name])) $field->value = $data[$field->name];
         $fieldset->add($field);
 
+        // diff efficiency cleanup edit cost
         $field = $modules->get("InputfieldInteger");
         $field->name = "diff_efficiency_cleanup_edit_cost";
         $field->label = __("Efficiency Cleanup Edit Cost");
@@ -162,8 +173,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $field->showIf = "diff_disabled=0,diff_cleanup=efficiency";
         if (isset($data[$field->name])) $field->value = $data[$field->name];
         $fieldset->add($field);
-
-        $fields->add($fieldset);
 
         return $fields;
 
@@ -463,6 +472,12 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                 $filedata = json_encode($filedata);
                 echo "<textarea class='version_control_filedata' name='version_control_filedata[]'>{$filedata}</textarea>";
             }
+            if ($page->template->name == "role" && $input->name == "permissions") {
+                $input_permissions = $input;
+                $input = new InputfieldForm();
+                $input->add($input_permissions);
+                wire('modules')->get('ProcessRole');
+            }
             exit($input->render());
         } else {
             exit($this->renderJSON($data));
@@ -524,7 +539,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     public function executeRestore() {
 
         // replace current page content with that from given revision
-        $page = $this->getPageRevision();
+        $page = $this->getPageRevision('edit');
         $page->of(false);
         $page->save();
 
@@ -543,7 +558,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      */
     public function executePreview() {
-        exit($this->getPageRevision()->render());
+        exit($this->getPageRevision('view')->render());
     }
 
     /**
@@ -637,14 +652,15 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * Used internally by preview and restore methods. Stores ID of requested
      * revision as temporary _version_control_parent param to the Page object.
      *
+     * @param string $permission optional permission required (view or edit)
      * @throws WireException if GET param pages_id is missing
      * @throws WireException if GET param revision is missing
      * @throws WireException if page defined by GET param pages_id doesn't exist
-     * @throws WireException if user doesn't have permission to view given page
+     * @throws WireException if user doesn't have specified permission for this page
      * @throws WireException if revision defined by GET param revision doesn't exist
      * @return Page
      */
-    protected function getPageRevision() {
+    protected function getPageRevision($permission = null) {
 
         // get page and revision
         $pages_id = (int) $this->input->get->pages_id;
@@ -655,7 +671,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // check page and revision
         $page = $this->pages->get($pages_id);
         if (!$page->id) throw new WireException("Page doesn't exist: $pages_id");
-        if (!$page->viewable()) throw new WireException("Permission denied");
+        if ($permission == "view" && !$page->viewable()) throw new WireException("Permission denied (not viewable)");
+        if ($permission == "edit" && !$page->editable()) throw new WireException("Permission denied (not editable)");
         $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
         $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
         $stmt->execute();
