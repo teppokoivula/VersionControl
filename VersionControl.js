@@ -195,7 +195,7 @@ $(function() {
                     $('.compare-revisions').remove();
                     $this.slideUp();
                 }
-            }, 100);
+            }, 500);
         });
 
         // if <ul> element containing revision history is long enough to get
