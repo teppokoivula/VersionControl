@@ -48,7 +48,7 @@ $(function() {
         // when a link in revision list is clicked, fetch data for appropriate
         // revision from the interface (most of the code here is related to how
         // things are presented, loading animation etc.)
-        $('.field-revisions a').bind('click', function() {
+        $('.field-revisions').on('click', '> ul > li > a', function() {
             if ($(this).hasClass('ui-state-active')) return false;
             var settings = { render: 'Input' };
             var $this = $(this);
@@ -62,13 +62,7 @@ $(function() {
                 height: $content.innerHeight()+'px',
                 backgroundColor: $content.css('background-color')
             });
-            if ($if.hasClass('InputfieldDatetime')) {
-                // datetime inputfield has <p> tag around it from which we must
-                // remove margin-top here to to avoid odd (Webkit) CSS quirk
-                // (ProcessWire commit 2298dc0035751ad940cac48fd2a1129585c9581f
-                // removes said tag, but older versions still need this fix)
-                $content.find('input:first').parent('p').css('margin-top', 0);
-            } else if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) {
+            if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) {
                 // for some inputfield types we need to get raw data as JSON
                 // instead of pre-rendered inputfield markup (HTML)
                 settings = { render: 'JSON' };
@@ -129,7 +123,7 @@ $(function() {
                     $content.prepend('<div class="version-control-overlay"></div>');
                     $('.version-control-overlay')
                         .attr('title', moduleConfig.i18n.editDisabled)
-                        .bind('click', function() {
+                        .on('click', function() {
                             alert($(this).attr('title'));
                         })
                         .hover(
@@ -169,7 +163,7 @@ $(function() {
         // when mouse cursor is moved on a revisions toggle (or it is clicked,
         // to make it accessible for touch devices etc.) show (or hide if it 
         // was already visible) revision list
-        $('.field-revisions-toggle').bind('click mouseenter', function() {
+        $('.field-revisions-toggle').on('click mouseenter', function() {
             if ($(this).hasClass('inactive')) return false;
             var $revisions = $(this).parent('label').siblings('.field-revisions');
             var show = ($revisions.is(':visible')) ? false : true;
@@ -179,24 +173,25 @@ $(function() {
         });
 
         // hide revision list when user moves mouse cursor off it; timeout
-        // and sticky class are fixes to an issue where moving cursor over
-        // absolutely positioned .compare-revisions within parent element
-        // (.field-revisions) triggered mouseleave event of parent itself
+        // started out as a bugfix, but now it's kept purely for usability
         var revision_timeout;
-        $('.field-revisions').hover(function() {
-            if (revision_timeout) {
-                clearTimeout(revision_timeout);
-                revision_timeout = false;
-            }
-        }, function() {
-            var $this = $(this);
-            revision_timeout = setTimeout(function() {
-                if (!$this.hasClass('sticky')) {
-                    $('.compare-revisions').remove();
-                    $this.slideUp();
+        $('.field-revisions')
+            .on('mouseenter', function() {
+                $(this).slideDown();
+                if (revision_timeout) {
+                    clearTimeout(revision_timeout);
+                    revision_timeout = false;
                 }
-            }, 500);
-        });
+            })
+            .on('mouseleave', function() {
+                var $this = $(this);
+                revision_timeout = setTimeout(function() {
+                    revision_timeout = false;
+                    $this.slideUp(function() {
+                        $('.compare-revisions').remove();
+                    });
+                }, 500);
+            });
 
         // if <ul> element containing revision history is long enough to get
         // vertical scrollbar, add some extra padding to compensate for it
@@ -216,47 +211,39 @@ $(function() {
         // when mouse cursor is moved on a revision link, show compare/diff
         // link, which -- when clicked -- loads a text diff for displaying
         // differences between selected revision and current revision.
-        $('.field-revisions.diff li > a').bind('hover', function() {
-            $('.compare-revisions').remove();
-            if (!$(this).hasClass('ui-state-active')) {
-                // in this case r1 refers to current revision, r2 to selected
-                // revision. diff is fetched as HTML from revision interface.
-                var field = $(this).parents('.field-revisions:first').data('field');
-                var r1 = $(this).parents('.field-revisions:first').find('.ui-state-active').data('revision');
-                var r2 = $(this).data('revision');
-                var href = moduleConfig.processPage+'diff/?revisions='+r1+':'+r2+'&field='+field;
-                var label = moduleConfig.i18n.compareWithCurrent;
-                $(this).before('<div class="compare-revisions"><a class="diff-trigger" href="'+href+'">'+label+'</a></div>');
-                // note: following (and some other actions in this file) could
-                // be achieved more efficiently with .on(), but since that was
-                // introduced in jQuery 1.7 and ProcessWire 2.2 only had 1.6.2
-                // that's not really an option quite yet.
-                $('.compare-revisions').hover(function() {
-                    $(this).parents('.field-revisions:first').addClass('sticky');
-                }, function() {
-                    $(this).parents('.field-revisions:first').removeClass('sticky');
-                })
-                $('.compare-revisions > a').bind('click', function() {
-                    var $parent = $(this).parent();
-                    var $loading = $('<span class="field-revisions-loading"></span>').hide().css({
-                        height: $parent.innerHeight()+'px',
-                        backgroundColor: $parent.css('background-color')
-                    });
-                    $parent.prepend($loading.fadeIn(250)).load($(this).attr('href'), function() {
-                        $(this).find('a.diff-trigger').remove();
-                        $(this).animate({
-                            width: '400px',
-                            padding: '14px'
-                        });
-                        $loading.fadeOut(350, function() {
-                            $(this).remove();
-                        });
-                    });
-                    return false;
+        $('.field-revisions.diff')
+            .on('hover', '> ul > li > a', function() {
+                $('.compare-revisions').remove();
+                if (!$(this).hasClass('ui-state-active')) {
+                    // in this case r1 refers to current revision, r2 to selected
+                    // revision. diff is fetched as HTML from revision interface.
+                    var field = $(this).parents('.field-revisions:first').data('field');
+                    var r1 = $(this).parents('.field-revisions:first').find('.ui-state-active').data('revision');
+                    var r2 = $(this).data('revision');
+                    var href = moduleConfig.processPage+'diff/?revisions='+r1+':'+r2+'&field='+field;
+                    var label = moduleConfig.i18n.compareWithCurrent;
+                    $(this).before('<div class="compare-revisions"><a class="diff-trigger" href="'+href+'">'+label+'</a></div>');
+                }
+            })
+            .on('click', '.compare-revisions > a', function() {
+                var $parent = $(this).parent();
+                var $loading = $('<span class="field-revisions-loading"></span>').hide().css({
+                    height: $parent.innerHeight()+'px',
+                    backgroundColor: $parent.css('background-color')
                 });
-            }
-        });
-
+                $parent.prepend($loading.fadeIn(250)).load($(this).attr('href'), function() {
+                    $(this).find('a.diff-trigger').remove();
+                    $(this).animate({
+                        width: '400px',
+                        padding: '14px'
+                    });
+                    $loading.fadeOut(350, function() {
+                        $(this).remove();
+                    });
+                });
+                return false;
+            });
+    
     });
     
 });
