@@ -4,18 +4,13 @@
  * Version Control
  *
  * This module uses hooks provided by ProcessWire to catch page edits and stores
- * history data in series of custom database tables so that it can later be used
- * again.
+ * history data in a series of custom database tables, so that it can be later
+ * retrieved, reviewed, and restored.
+ * 
+ * For more details, see the README.md file distributed with this module.
  *
  * @copyright Copyright (c) 2013-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- *
- * ProcessWire 2.x 
- * Copyright (C) 2013 by Ryan Cramer 
- * Licensed under GNU/GPL v2, see LICENSE.TXT
- * 
- * http://processwire.com
- *
  * @todo regenerate data when new fields are added to template
  */
 class VersionControl extends WireData implements Module, ConfigurableModule {
@@ -31,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.12.0',
+            'version' => '0.12.1',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -150,25 +145,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $defaults = self::getDefaultData();
         $data = array_merge($defaults, $data);
 
-        // define fieldtypes considered compatible with this module
-        $field = $modules->get("InputfieldAsmSelect");
-        $field->name = "compatible_fieldtypes";
-        $field->label = __("Compatible fieldtypes");
-        $field->description = __("Fieldtypes considered compatible with this module.");
-        $field->collapsed = Inputfield::collapsedYes;
-        $field->icon = 'list-alt';
-        $selectable_fieldtypes = $modules->find('className^=Fieldtype');
-        foreach ($selectable_fieldtypes as $key => $fieldtype) {
-            // remove native fieldtypes known to be incompatible
-            if ($fieldtype == "FieldtypePassword" || strpos($fieldtype->name, "FieldtypeFieldset") === 0) {
-                unset($selectable_fieldtypes[$key]);
-            }
-        }
-        $field->addOptions($selectable_fieldtypes->getArray());
-        $field->notes = __("Please note that selecting any fieldtypes not selected by default may result in various problems.");
-        if (isset($data['compatible_fieldtypes'])) $field->value = $data['compatible_fieldtypes'];
-        $fields->add($field);
-        
+        // fieldset: general settings
+        $fieldset = $modules->get("InputfieldFieldset");
+        $fieldset->label = __("General Settings");
+        $fieldset->icon = "cogs";
+        $fields->add($fieldset);
+
         // for which templates should we track values?
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "enabled_templates";
@@ -178,7 +160,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             if ($template->name != "language") $field->addOption($key, $template);
         }
         if (isset($data['enabled_templates'])) $field->value = $data['enabled_templates'];
-        $fields->add($field);
+        $fieldset->add($field);
         
         // for which fields should we track values?
         $field = $modules->get("InputfieldAsmSelect");
@@ -189,7 +171,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $types = implode($data['compatible_fieldtypes'], "|");
         $field->addOptions(wire('fields')->find("type=$types")->getArray());
         if (isset($data['enabled_fields'])) $field->value = $data['enabled_fields'];
-        $fields->add($field);
+        $fieldset->add($field);
 
         // for how long should collected data be retained?
         if ($modules->isInstalled("LazyCron")) {
@@ -210,7 +192,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field->label = __("For how long should we retain collected data?");
         $field->name = "data_max_age";
         $field->icon = "clock-o";
-        $fields->add($field);
+        $field->columnWidth = 50;
+        $fieldset->add($field);
 
         // should we limit the amount of revisions saved for each field + page combination?
         $field = $modules->get("InputfieldSelect");
@@ -219,8 +202,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field->addOptions(array(10 => '10', 20 => '20', 50 => '50', 100 => '100'));
         $field->notes = __("Leave empty to not limit stored revisions at all.");
         $field->icon = "random";
+        $field->columnWidth = 50;
         if (isset($data['data_row_limit'])) $field->value = $data['data_row_limit'];
-        $fields->add($field);
+        $fieldset->add($field);
 
         // display config options from the Process module
         if (wire('modules')->isInstalled('ProcessVersionControl')) {
@@ -247,6 +231,31 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $fields->add($p_fields);
         }
 
+        // fieldset: advanced settings
+        $fieldset = $modules->get("InputfieldFieldset");
+        $fieldset->label = __("Advanced Settings");
+        $fieldset->icon = "graduation-cap";
+        $fieldset->collapsed = Inputfield::collapsedYes;
+        $fields->add($fieldset);
+
+        // define fieldtypes considered compatible with this module
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "compatible_fieldtypes";
+        $field->label = __("Compatible fieldtypes");
+        $field->description = __("Fieldtypes considered compatible with this module.");
+        $field->icon = 'list-alt';
+        $selectable_fieldtypes = $modules->find('className^=Fieldtype');
+        foreach ($selectable_fieldtypes as $key => $fieldtype) {
+            // remove native fieldtypes known to be incompatible
+            if ($fieldtype == "FieldtypePassword" || strpos($fieldtype->name, "FieldtypeFieldset") === 0) {
+                unset($selectable_fieldtypes[$key]);
+            }
+        }
+        $field->addOptions($selectable_fieldtypes->getArray());
+        $field->notes = __("Please note that selecting any fieldtypes not selected by default may result in various problems.");
+        if (isset($data['compatible_fieldtypes'])) $field->value = $data['compatible_fieldtypes'];
+        $fieldset->add($field);
+        
         return $fields;
 
     }
