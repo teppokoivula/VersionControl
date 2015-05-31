@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.12.2',
+            'version' => '0.12.3',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -291,6 +291,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // add hooks that add additional scripts, styles and markup
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
             $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
+            $this->addHookAfter('ProcessPageEdit::getTabs', $this, 'addTabHistory');
             // add hooks that alter image and file inputfield output on the fly
             $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
             $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
@@ -958,11 +959,53 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $this->config->scripts->add($this->config->urls->$class . "HistoryTab.js?v=$version"); 
 
         // insert new tab to Page Edit form
-        $view = $form->children('id=ProcessPageEditView');
-        if (count($view)) $form->insertBefore($wrapper, $view->first());
-        else $form->append($wrapper);
+        $form->append($wrapper);
+        if (!method_exists($event->object, "getTabs")) {
+            // note: this works for ProcessWire < 2.4.18 and won't be reached
+            // after 2.5.14 at all; see addTabHistory() for more details.
+            $form->append($wrapper);
+            $siblings = $form->children('id=ProcessPageEditSettings|ProcessPageEditDelete|ProcessPageEditView');
+            if (count($siblings)) {
+                if ($siblings->first()->attr('id') == "ProcessPageEditSettings") {
+                    $form->insertAfter($wrapper, $siblings->first());
+                } else {
+                    $form->insertBefore($wrapper, $siblings->first());
+                }
+            }
+        }
         $event->return = $form;
 
+    }
+
+    /**
+     * Add History tab to ProcessPageEdit
+     * 
+     * This method defines the specific position for History tab by hooking
+     * into ProessPageEdit::getTabs() method introduced to fix issue #847.
+     * 
+     * Note: before 2.4.18 tabs were generated automatically, and that case
+     * is taken care of by our buildFormHistory() method. There's no (clean)
+     * way to specify tab order for ProcessWire 2.4.18 .. 2.5.14 AFAIK.
+     * 
+     * @param HookEvent $event
+     */
+    protected function addTabHistory(HookEvent $event) {
+        $pos = false;
+        $keys = array_keys($event->return);
+        if (($pos = array_search('ProcessPageEditSettings', $keys)) !== false) {
+            $pos += 1;
+        } else {
+            if (($pos = array_search('ProcessPageEditDelete', $keys)) === false) {;
+                $pos = array_search('ProcessPageEditView', $keys);
+            }
+        }
+        if ($pos !== false) {
+            $event->return = array_merge(
+                array_slice($event->return, 0, $pos, true),
+                array($this->className() . 'History' => __('History')), // Tab Label: History
+                array_slice($event->return, $pos, null, true)
+            );
+        }
     }
 
     /**
