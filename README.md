@@ -2,10 +2,11 @@ Version Control For ProcessWire CMS/CMF
 =======================================
 
 Version Control Module For ProcessWire CMS/CMF.
-Copyright (c) 2013-2014 Teppo Koivula
+Copyright (c) 2013-2015 Teppo Koivula
 
-This module uses hooks provided by ProcessWire to catch page edits, finds out
-which fields were changed and attempts to store those values for later use.
+This module uses hooks provided by ProcessWire to catch page edits and stores
+history data in a series of custom database tables, so that it can be later
+retrieved, reviewed, and restored.
 
 Note that at module settings you can define which specific fieldtypes and fields
 to track and for which templates tracking values should be enabled. Right out of
@@ -35,11 +36,16 @@ hashed values (password), should be supported by the time of this writing:
   * Module
   * File
   * Image
+  * Selector
   
-These fieldtypes are confirmed to work properly with this module. If fieldtype
-isn't listed here, it doesn't necessarily mean that it's not supported - just
-that it hasn't been tested yet. If you know a fieldtype which works properly
-but isn't included here, please inform the author of this module via GitHub.
+If a specific fieldtype isn't listed here, it doesn't necessarily mean that
+it's not supported; it just hasn't been tested yet. If you know a fieldtype
+that works properly with this module but isn't included here, please inform
+the author of this module via GitHub.
+
+You can enable support for any installed fieldtypes locally by modifying the
+"Compatible fieldtypes" setting, which can be found under "Advanced Settings"
+in module configuration screen.
 
 Following inputfields are confirmed to be supported:
 
@@ -50,6 +56,14 @@ Following inputfields are confirmed to be supported:
   * Select
   * File
   * Image
+  * Selector
+
+## Requirements
+
+Please note that this module requires ProcessWire 2.4.1 or a later version.
+If you're still running an earlier version of ProcessWire and would like to
+have a similar feature, please take a look at the Version Control for Text
+Fields module: https://github.com/teppokoivula/VersionControlForTextFields.
 
 ## Getting started
 
