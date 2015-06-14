@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.12.4',
+            'version' => '0.12.5',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -71,6 +71,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'FieldtypeOptions',
             ),
             'enabled_templates' => array(),
+            'cleanup_methods' => array(
+                'deleted_pages',
+                'deleted_fields',
+                'changed_template',
+                'removed_fieldgroup_fields',
+            ),
         );
     }
     
@@ -174,39 +180,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (isset($data['enabled_fields'])) $field->value = $data['enabled_fields'];
         $fieldset->add($field);
 
-        // for how long should collected data be retained?
-        if ($modules->isInstalled("LazyCron")) {
-            $field = $modules->get("InputfieldSelect");
-            $field->addOption('1 WEEK', __('1 week'));
-            $field->addOption('2 WEEK', __('2 weeks'));
-            $field->addOption('1 MONTH', __('1 month'));
-            $field->addOption('2 MONTH', __('2 months'));
-            $field->addOption('3 MONTH', __('3 months'));
-            $field->addOption('6 MONTH', __('6 months'));
-            $field->addOption('1 YEAR', __('1 year'));
-            $field->notes = __("Leave empty to disable automatic cleanup.");
-            if (isset($data['data_max_age'])) $field->value = $data['data_max_age'];
-        } else {
-            $field = $modules->get("InputfieldMarkup");
-            $field->description = __("Automatic cleanup requires Lazy Cron module.");
-        }
-        $field->label = __("For how long should we retain collected data?");
-        $field->name = "data_max_age";
-        $field->icon = "clock-o";
-        $field->columnWidth = 50;
-        $fieldset->add($field);
-
-        // should we limit the amount of revisions saved for each field + page combination?
-        $field = $modules->get("InputfieldSelect");
-        $field->name = "data_row_limit";
-        $field->label = __("Revisions retained for each field + page combination");
-        $field->addOptions(array(10 => '10', 20 => '20', 50 => '50', 100 => '100'));
-        $field->notes = __("Leave empty to not limit stored revisions at all.");
-        $field->icon = "random";
-        $field->columnWidth = 50;
-        if (isset($data['data_row_limit'])) $field->value = $data['data_row_limit'];
-        $fieldset->add($field);
-
         // display config options from the Process module
         if (wire('modules')->isInstalled('ProcessVersionControl')) {
             $p = wire('modules')->get('ProcessVersionControl');
@@ -231,6 +204,54 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
             $fields->add($p_fields);
         }
+
+        // fieldset: cleanup settings
+        $fieldset = $modules->get("InputfieldFieldset");
+        $fieldset->label = __("Cleanup Settings");
+        $fieldset->icon = "trash-o";
+        $fields->add($fieldset);
+        
+        // for how long should collected data be retained?
+        if ($modules->isInstalled("LazyCron")) {
+            $field = $modules->get("InputfieldSelect");
+            $field->addOption('1 WEEK', __('1 week'));
+            $field->addOption('2 WEEK', __('2 weeks'));
+            $field->addOption('1 MONTH', __('1 month'));
+            $field->addOption('2 MONTH', __('2 months'));
+            $field->addOption('3 MONTH', __('3 months'));
+            $field->addOption('6 MONTH', __('6 months'));
+            $field->addOption('1 YEAR', __('1 year'));
+            $field->notes = __("Leave empty to disable automatic time-based cleanup.");
+            if (isset($data['data_max_age'])) $field->value = $data['data_max_age'];
+        } else {
+            $field = $modules->get("InputfieldMarkup");
+            $field->description = __("Automatic cleanup requires Lazy Cron module.");
+        }
+        $field->label = __("For how long should we retain collected data?");
+        $field->name = "data_max_age";
+        $fieldset->add($field);
+
+        // should we limit the amount of revisions saved for each field + page combination?
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "data_row_limit";
+        $field->label = __("Revisions retained for each field + page combination");
+        $field->addOptions(array(10 => '10', 20 => '20', 50 => '50', 100 => '100'));
+        $field->notes = __("Leave empty to not impose limits for stored revisions.");
+        if (isset($data['data_row_limit'])) $field->value = $data['data_row_limit'];
+        $fieldset->add($field);
+
+        // which cleanup methods (or features) should we enable?
+        $field = $modules->get("InputfieldCheckboxes");
+        $field->name = "cleanup_methods";
+        $field->label = __("Additional cleanup methods");
+        $field->addOptions(array(
+            'deleted_pages' => __("Delete all stored data for deleted pages"),
+            'deleted_fields' => __("Delete all stored data for deleted fields"),
+            'changed_template' => __("Delete data stored for non-existing fields after template is changed"),
+            'removed_fieldgroup_fields' => __("Delete data stored for fields that are removed from page's fieldgroup"),
+        ));
+        if (isset($data['cleanup_methods'])) $field->value = $data['cleanup_methods'];
+        $fieldset->add($field);
 
         // fieldset: advanced settings
         $fieldset = $modules->get("InputfieldFieldset");
@@ -284,10 +305,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->addHookBefore('Pages::saveField', $this, 'gather');
             $this->addHookAfter('Pages::save', $this, 'insert');
             $this->addHookAfter('Pages::saveField', $this, 'insert');
-            // add hooks that clear obsolete or orphaned data
+            // add hooks that clear obsolete or orphaned data (cleanup)
             $this->addHookAfter('Pages::deleted', $this, 'cleanupDeletedPage');
-            $this->addHookBefore('Fieldgroups::save', $this, 'cleanupDeletedField');
+            $this->addHookBefore('Fields::delete', $this, 'cleanupDeletedField');
             $this->addHook('Pages::templateChanged', $this, 'cleanupChangedTemplate');
+            $this->addHookBefore('Fieldgroups::save', $this, 'cleanupRemovedFieldgroupFields');
             // add hooks that add additional scripts, styles and markup
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
             $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
@@ -314,8 +336,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function cleanup() {
 
+        // check if this cleanup method is disabled
         if (!$this->data_max_age) return;
-
+        
         // prepare params
         $t1 = self::TABLE_REVISIONS;
         $t2 = self::TABLE_DATA;
@@ -402,33 +425,80 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * Remove previously stored data for deleted page
+     * 
+     * Note that this is the only cleanup method that can delete revisions in
+     * addition to data. This is intentional, since revisions are always tied
+     * to pages.
      *
      * @param HookEvent $event
      */
     protected function cleanupDeletedPage(HookEvent $event) {
+        
+        // check if this cleanup method is disabled
+        if (!in_array('deleted_pages', $this->cleanup_methods)) return;
+        
         $page = $event->arguments[0];
         $t1 = self::TABLE_REVISIONS;
         $t2 = self::TABLE_DATA;
-        $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id = :pages_id AND $t2.revisions_id = $t1.id");
+        $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1 LEFT OUTER JOIN $t2 ON $t2.revisions_id = $t1.id WHERE $t1.pages_id = :pages_id");
         $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
         $stmt->execute();
         $this->cleanupFiles();
+        
     }
 
     /**
-     * Remove previously stored data for deleted/removed field
-     *
-     * Note that revisions related to changes for these fields are not deleted.
-     * This is intentional; those changes happened whether or any data remains.
+     * Remove previously stored data for deleted field
      * 
      * @param HookEvent $event
      */
     protected function cleanupDeletedField(HookEvent $event) {
+        
+        // check if this cleanup method is disabled
+        if (!in_array('deleted_fields', $this->cleanup_methods)) return;
 
+        $field = $event->arguments[0];
+        $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id = :fields_id");
+        $stmt->bindValue(':fields_id', (int) $field->id, PDO::PARAM_INT);
+        $stmt->execute();
+        $this->cleanupFiles();
+        
+    }
+
+    /**
+     * Remove obsoleted data after template change
+     * 
+     * @param HookEvent $event
+     */
+    protected function cleanupChangedTemplate(HookEvent $event) {
+        
+        // check if this cleanup method is disabled
+        if (!in_array('changed_template', $this->cleanup_methods)) return;
+        
+        $page = $event->arguments[0];
+        $fields = implode(",", array_keys($page->template->fields->getArray()));
+        $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
+        $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
+        $stmt->execute();
+        $this->cleanupFiles();
+        
+    }
+
+    /**
+     * Remove previously stored data for fields removed from fieldgroups
+     * 
+     * @param HookEvent $event
+     */
+    protected function cleanupRemovedFieldgroupFields(HookEvent $event) {
+        
+        // check if this cleanup method is disabled
+        if (!in_array('removed_fieldgroup_fields', $this->cleanup_methods)) return;
+        
         // find out if fields are actually going to be removed (permanent/global
         // flags can result in WireExceptions, terminating removal entirely) and
         // which of those (if any) can have rows in version control data table
         $removed_fields = array();
+        $removed_fields_by_template = array();
         $item = $event->arguments[0];
         if ($item->id && $item->removedFields) {
             $removed_fields = $item->removedFields->getArray();
@@ -439,33 +509,27 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     if ($field->flags & Field::flagPermanent) return;
                     if (!in_array($field->type, $this->compatible_fieldtypes)) unset($removed_fields[$id]);
                     if (count($this->enabled_fields) && !in_array($id, $this->enabled_fields)) unset($removed_fields[$id]);
+                    if (!isset($removed_fields_by_template[$template->id])) $removed_fields_by_template[$template->id] = array();
+                    $removed_fields_by_template[$template->id][] = (int) $field->id;
                 }
                 if (!count($removed_fields)) return;
             }
         }
-
+        
         // if we got this far and removed fields were found, delete data rows
         if (count($removed_fields)) {
-            $fields = implode(",", array_keys($removed_fields));
-            $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id IN ($fields)");
-            $stmt->execute();
+            foreach ($removed_fields_by_template as $template_id => $field_ids) {
+                if ($field_count = count($field_ids)) {
+                    $page_ids = array_values($this->pages->find("template={$template_id}, include=all")->getArray());
+                    if ($page_count = count($page_ids)) {
+                        $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id IN (" . rtrim(str_repeat('?, ', $field_count), ', ') . ") AND revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . "))");
+                        $stmt->execute(array_merge($field_ids, $page_ids));
+                    }
+                }
+            }
             $this->cleanupFiles();
         }
-
-    }
-
-    /**
-     * Remove obsoleted data after template change
-     * 
-     * @param HookEvent $event
-     */
-    protected function cleanupChangedTemplate(HookEvent $event) {
-        $page = $event->arguments[0];
-        $fields = implode(",", array_keys($page->template->fields->getArray()));
-        $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
-        $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
-        $stmt->execute();
-        $this->cleanupFiles();
+        
     }
 
     /**
@@ -634,7 +698,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * 
      * @param HookEvent|Page $object
      * @todo consider adding support for automatically compressing file data
-     * @todo consider alternative storage methods for data (files on disk etc.)
      */
     protected function insert($object) {
 
@@ -1318,12 +1381,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             foreach ($old_templates as $template) {
                 $template = wire('templates')->get($template);
                 $page_ids = array_values($this->pages->find("template={$template}, include=all")->getArray());
-                if ($count = count($page_ids)) {
-                    $page_ids = implode(",", $page_ids);
-                    $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id IN(" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND $t2.revisions_id = $t1.id");
+                if ($page_count = count($page_ids)) {
+                    $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . ") AND $t2.revisions_id = $t1.id");
                     $stmt->execute($page_ids);
                     $this->cleanupFiles();
-                    $this->message(sprintf(_n("Removed stored data for %d page using template %s", "Removed stored data for %d pages using template %s", $count), $count, $template));
+                    $this->message(sprintf(_n("Removed stored data for %d page using template %s", "Removed stored data for %d pages using template %s", $page_count), $page_count, $template));
                 }
             }
         }
