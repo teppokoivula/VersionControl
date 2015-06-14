@@ -4,7 +4,7 @@ $(function() {
     var moduleConfig = config.VersionControl;
 
     // edit comment feature
-    $('.edit-comment').bind('click', function() {
+    $('.InputfieldWrapper#VersionControlHistory').on('click', '.edit-comment', function() {
         var $container = $(this).parent('td').prev('td');
         var revision = $(this).data('revision');
         var comment = prompt(moduleConfig.i18n.commentPrompt, $container.text());
@@ -17,7 +17,7 @@ $(function() {
     });
 
     // update GET params when history filters are toggled
-    $('#history_filters select').bind('change', function() {
+    $('.InputfieldWrapper#VersionControlHistory').on('change', '#history_filters select', function() {
         var params = "";
         $(this).parents('#history_filters:first').find('input, select').each(function() {
             if (params) params += "&";
@@ -33,7 +33,7 @@ $(function() {
     }
 
     // remove history filters from Page Edit form on submit
-    $('form#ProcessPageEdit').bind('submit', function() {
+    $('form#ProcessPageEdit').on('submit', function() {
         $(this).find('#history_filters').remove();
     });
 
