@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Basic version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.12.5',
+            'version' => '0.12.6',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -77,6 +77,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'changed_template',
                 'removed_fieldgroup_fields',
             ),
+            'enable_all_templates' => false,
         );
     }
     
@@ -161,8 +162,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // for which templates should we track values?
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "enabled_templates";
-        $field->label = __("Enable history for these templates");
+        $field->label = __("Enable version control for these templates");
         $field->icon = "file-o";
+        if (isset($data['enable_all_templates']) && $data['enable_all_templates']) {
+            $field->collapsed = Inputfield::collapsedLocked;
+            $field->notes = __("This setting has no effect because version control is currently enabled for all templates via Advanced Settings.");
+        }
         foreach (wire('templates')->getAll() as $key => $template) {
             if ($template->name != "language") $field->addOption($key, $template);
         }
@@ -172,7 +177,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // for which fields should we track values?
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "enabled_fields";
-        $field->label = __("Enable history for these fields");
+        $field->label = __("Enable version control for these fields");
         $field->notes = __("Only fields of compatible fieldtypes can be selected. If no fields are selected, all fields of compatible fieldtypes are considered enabled.");
         $field->icon = "file-text-o";
         $types = implode($data['compatible_fieldtypes'], "|");
@@ -278,6 +283,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (isset($data['compatible_fieldtypes'])) $field->value = $data['compatible_fieldtypes'];
         $fieldset->add($field);
         
+        // enable version control for *all* templates
+        $field = $modules->get("InputfieldCheckbox");
+        $field->name = "enable_all_templates";
+        $field->label = __("Enable version control for all templates");
+        $field->description = __("If this option is selected, Version Control will track changes to all templates.");
+        $field->notes = __("This could result in very large amounts of collected data, and cause other unexpected side effects!");
+        $field->attr('checked', isset($data['enable_all_templates']) && $data['enable_all_templates']);
+        $fieldset->add($field);
+        
         return $fields;
 
     }
@@ -298,7 +312,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // regenerate base data when enabled templates change
         $this->addHookAfter('Modules::saveModuleConfigData', $this, 'regenerateData');
 
-        if (count($this->enabled_templates)) {
+        if ($this->enable_all_templates || count($this->enabled_templates)) {
             // add hooks that gather and store data
             $this->addHookBefore('Pages::saveReady', $this, 'restoreFiles');
             $this->addHook('Pages::saveReady', $this, 'gather'); 
@@ -502,8 +516,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $item = $event->arguments[0];
         if ($item->id && $item->removedFields) {
             $removed_fields = $item->removedFields->getArray();
-            $enabled_templates = implode("|", $this->enabled_templates);
-            foreach ($this->templates->find("id={$enabled_templates}, fieldgroups_id={$item->id}") as $template) {
+            $enabled_templates = $this->enable_all_templates ? "" : "id=" . implode("|", $this->enabled_templates) . ", ";
+            foreach ($this->templates->find("{$enabled_templates}fieldgroups_id={$item->id}") as $template) {
                 foreach ($removed_fields as $id => $field) {
                     if (($field->flags & Field::flagGlobal) && !$template->noGlobal) return;
                     if ($field->flags & Field::flagPermanent) return;
@@ -644,9 +658,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // check if tracking values has been enabled for template of current
         // page or (in case of repeater pages) template of containing page
-        $template_id = $page->template->id;
-        if ($page instanceof RepeaterPage) $template_id = $page->getForPage()->template->id;
-        if (!$object instanceof Page && !in_array($template_id, $this->enabled_templates)) return;
+        $template = $page->template;
+        if ($page instanceof RepeaterPage) $template = $page->getForPage()->template;
+        if (!$object instanceof Page && !$this->isEnabledTemplate($template)) return;
 
         if ($object instanceof Page || $page->isChanged()) {
             foreach ($page->template->fields as $field) {
@@ -836,7 +850,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // make sure that value tracking is enabled for template of
         // the page currently being edited
         if ($this->input->get->id) $page = $this->pages->get((int) $this->input->get->id);
-        if (!$page || !$page->id || !in_array($page->template->id, $this->enabled_templates)) return;
+        if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) return;
 
         // inject scripts and styles
         $class = $this->className();
@@ -874,7 +888,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         $form = $event->return;
         $page = $this->pages->get($form->id->value);
-        if (!in_array($page->template->id, $this->enabled_templates)) return;
+        if (!$this->isEnabledTemplate($page->template)) return;
 
         // should date formatting occur?
         $defaults = ProcessVersionControl::getDefaultData();
@@ -1102,7 +1116,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function versionControlRevision(HookEvent $event) {
 
         $page = $event->object;
-        if (!in_array($page->template->id, $this->enabled_templates)) return;
+        if (!$this->isEnabledTemplate($page->template)) return;
 
         $revision = (int) $page->_version_control_revision;
         if (!$revision) {
@@ -1139,7 +1153,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function versionControlRevisions(HookEvent $event) {
 
         $page = $event->object;
-        if (!in_array($page->template->id, $this->enabled_templates)) return;
+        if (!$this->isEnabledTemplate($page->template)) return;
 
         // limit argument defines how many revisions can be returned
         $limit = null;
@@ -1347,13 +1361,30 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // this only applies to settings of current module
         if ($event->arguments[0] !== $this->className()) return;
-        $enabled_templates = $event->arguments[1]['enabled_templates'];
 
+        // find out which templates are going to be enabled
+        $new_templates = $event->arguments[1]['enabled_templates'];
+        if ($event->arguments[1]['enable_all_templates']) {
+            $new_templates = array();
+            foreach (wire('templates')->getAll() as $key => $template) {
+                if ($template->name != "language") $new_templates[] = $key;
+            }
+        }
+
+        // find out which templates are currently enabled
+        $old_templates = $this->enabled_templates;
+        if ($this->enable_all_templates) {
+            $old_templates = array();
+            foreach (wire('templates')->getAll() as $key => $template) {
+                if ($template->name != "language") $old_templates[] = $key;
+            }
+        }
+        
         // find out which (if any) templates were added and populate data
-        $new_templates = array_diff($enabled_templates, $this->enabled_templates);
-        if (count($new_templates)) {
+        $added_templates = array_diff($new_templates, $old_templates);
+        if (count($added_templates)) {
             $cache_items = 0;
-            foreach ($new_templates as $template) {
+            foreach ($added_templates as $template) {
                 $count = 0;
                 $template = wire('templates')->get($template);
                 foreach ($this->pages->find("template={$template}, include=all") as $page) {
@@ -1374,11 +1405,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
 
         // find out which (if any) templates were removed and cleanup data
-        $old_templates = array_diff($this->enabled_templates, $enabled_templates);
-        if (count($old_templates)) {
+        $removed_templates = array_diff($old_templates, $new_templates);
+        if (count($removed_templates)) {
             $t1 = self::TABLE_REVISIONS;
             $t2 = self::TABLE_DATA;
-            foreach ($old_templates as $template) {
+            foreach ($removed_templates as $template) {
                 $template = wire('templates')->get($template);
                 $page_ids = array_values($this->pages->find("template={$template}, include=all")->getArray());
                 if ($page_count = count($page_ids)) {
@@ -1449,6 +1480,20 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         
         return $out;
 
+    }
+    
+    /**
+     * Check if version control is enabled for specific template
+     * 
+     * @param Template $template
+     * @return bool
+     */
+    protected function isEnabledTemplate(Template $template) {
+        $enabled = false;
+        if ($template->name == "language") $enabled = false;
+        else if ($this->enable_all_templates) $enabled = true;
+        else if (in_array($template->id, $this->enabled_templates)) $enabled = true;
+        return $enabled;
     }
 
     /**
