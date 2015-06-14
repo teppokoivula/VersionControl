@@ -17,11 +17,12 @@ $(function() {
     });
 
     // update GET params when history filters are toggled
-    $('.InputfieldWrapper#VersionControlHistory').on('change', '#history_filters select', function() {
+    $('.InputfieldWrapper#VersionControlHistory').on('change', '#history_filters select', function(event) {
         var params = "";
         $(this).parents('#history_filters:first').find('input, select').each(function() {
             if (params) params += "&";
             params += $(this).attr('name') + "=" + $(this).val();
+            event.stopPropagation();
         });
         window.location.search = params;
     });
