@@ -22,10 +22,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     public static function getModuleInfo() {
         return array(
             'title' => 'Process Version Control',
-            'summary' => 'Provides interface required by Version Control.',
+            'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.11.1',
+            'version' => '1.0.0',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',

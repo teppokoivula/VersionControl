@@ -11,7 +11,7 @@
  *
  * @copyright Copyright (c) 2013-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @todo regenerate data when new fields are added to template
+ * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
 class VersionControl extends WireData implements Module, ConfigurableModule {
 
@@ -23,10 +23,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     public static function getModuleInfo() {
         return array(
             'title' => 'Version Control',
-            'summary' => 'Basic version control features for page content.',
+            'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '0.12.7',
+            'version' => '1.0.0',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
