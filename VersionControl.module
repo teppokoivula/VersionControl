@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.0',
+            'version' => '1.0.1',
             'singular' => true,
             'autoload' => true,
             'installs' => array(

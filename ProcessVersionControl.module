@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.0',
+            'version' => '1.0.1',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -44,6 +44,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     static public function getDefaultData() {
         return array(
             'date_format' => 'Y-m-d H:i:s',
+            'user_name_format' => '{name}',
             'diff_timeout' => 1,
             'diff_efficiency_cleanup_edit_cost' => 4,
         );
@@ -117,6 +118,16 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $field->notes = __("See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.");
         $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
         $field->icon = "clock-o";
+        $fieldset->add($field);
+        
+        // user name format
+        $field = $modules->get("InputfieldText");
+        $field->name = "user_name_format";
+        $field->label = __("User Name Format");
+        $field->description = __("This defines the format and field(s) used to represent user names.");
+        $field->notes = __("This string is passed to wirePopulateStringTags() function. Example: {name} ({email}).");
+        $field->value = $data[$field->name];
+        $field->icon = "user";
         $fieldset->add($field);
 
         // fieldset: diff settings
@@ -608,11 +619,17 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             if (count($field_data)) {
                 $markup .= "<ul class='ui-widget-content'>";
                 foreach ($field_data as $row) {
+                    $user_name = "";
+                    if ($this->user_name_format && $this->user_name_format != "{name}") {
+                        $user = wire('users')->get((int) $row['users_id']);
+                        if ($user->id) $user_name = wirePopulateStringTags($this->user_name_format, $user);
+                    }
+                    if (!$user_name) $user_name = $row['username'];
                     $markup .= "<li><a"
                              . " data-revision='{$row['revision']}'"
                              . " data-date='{$row['date']}'"
                              . " href='#'>"
-                             . "<span>{$row['date']}</span> <em>{$row['username']}</em>"
+                             . "<span class='date'>{$row['date']}</span> <span class='user'>{$user_name}</span>"
                              . "</a></li>";
                 }
                 $markup .= "</ul>";

@@ -44,6 +44,9 @@ $(function() {
         $('body')
             .append('<div id="preview-overlay"></div>')
             .append('<div id="preview"><iframe src="' + $a.attr('href') + '" seamless></iframe></div>');
+        $('#preview iframe').on('load', function() {
+            $('#preview').addClass('loaded');
+        });
         $('#preview-overlay').fadeIn();
         $('#preview')
             .show()

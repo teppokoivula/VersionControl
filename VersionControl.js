@@ -37,11 +37,11 @@ $(function() {
                 toggle_class += " inactive";
                 toggle_title = " title='"+$(this).siblings('.field-revisions').text()+"'";
             }
-            var revisions_toggle = '<a '+toggle_title+'class="'+toggle_class+'"><span class="ui-icon ui-icon-clock"></span></a>';
-            if ($(this).find('.ui-icon').length) {
-                $(this).find('.ui-icon').after(revisions_toggle);
+            var revisions_toggle = '<a '+toggle_title+'class="'+toggle_class+'"><i class="fa fa-clock-o"></i></a>';
+            if ($(this).find('.toggle-icon').length) {
+                $(this).find('.toggle-icon').after(revisions_toggle);
             } else {
-                $(this).prepend(revisions_toggle);
+                $(this).append(revisions_toggle);
             }
         });
         

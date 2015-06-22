@@ -25,6 +25,12 @@ textarea.version_control_filedata {
     position: relative;
 }
 
+.field-revisions-toggle {
+    float: right;
+    padding-right: 1em;
+    position: relative;
+}
+
 .field-revisions-toggle.inactive * {
     cursor: help;
     opacity: 0.25;
@@ -46,7 +52,7 @@ textarea.version_control_filedata {
     overflow-y: auto;
     max-height: 350px;
     border-radius: 2px;
-    padding: 14px 8px 10px 8px;
+    padding: 16px 12px 12px 12px;
     box-shadow: 1px 2px 2px rgba(0,0,0,0.1), inset 0 0 3px rgba(255,255,255,0.5);
 }
 
@@ -67,8 +73,14 @@ textarea.version_control_filedata {
     text-shadow: 0 1px 0 rgba(255,255,255,0.5);
 }
 
-.field-revisions a em {
+.field-revisions a .user {
     padding-left: 2em;
+}
+
+.compare-revisions > a::before {
+    content: '\f074';
+    padding-right: 0.5em;
+    font-family: FontAwesome;
 }
 
 .field-revisions a:hover {
@@ -99,7 +111,7 @@ body.template-admin .field-revisions .ui-state-active {
 
 .compare-revisions {
     right: 96%;
-    padding: 2px;
+    padding: 6px;
     background: #fff;
     max-height: 350px;
     border-radius: 1px;
@@ -152,6 +164,10 @@ body.preview {
     background-position: center center;
     background-image: url('loading.gif');
     box-shadow: -4px 0 3px rgba(0, 0, 0, 0.25);
+}
+
+#preview.loaded {
+    background-image: none;
 }
 
 #preview iframe {
