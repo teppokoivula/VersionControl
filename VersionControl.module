@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.1',
+            'version' => '1.0.2',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -452,12 +452,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!in_array('deleted_pages', $this->cleanup_methods)) return;
         
         $page = $event->arguments[0];
-        $t1 = self::TABLE_REVISIONS;
-        $t2 = self::TABLE_DATA;
-        $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1 LEFT OUTER JOIN $t2 ON $t2.revisions_id = $t1.id WHERE $t1.pages_id = :pages_id");
-        $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
-        $stmt->execute();
-        $this->cleanupFiles();
+        if ($page instanceof Page) {
+            $t1 = self::TABLE_REVISIONS;
+            $t2 = self::TABLE_DATA;
+            $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1 LEFT OUTER JOIN $t2 ON $t2.revisions_id = $t1.id WHERE $t1.pages_id = :pages_id");
+            $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
+            $stmt->execute();
+            $this->cleanupFiles();
+        }
         
     }
 
@@ -472,10 +474,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!in_array('deleted_fields', $this->cleanup_methods)) return;
 
         $field = $event->arguments[0];
-        $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id = :fields_id");
-        $stmt->bindValue(':fields_id', (int) $field->id, PDO::PARAM_INT);
-        $stmt->execute();
-        $this->cleanupFiles();
+        if ($field instanceof Field) {
+            $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id = :fields_id");
+            $stmt->bindValue(':fields_id', (int) $field->id, PDO::PARAM_INT);
+            $stmt->execute();
+            $this->cleanupFiles();
+        }
         
     }
 
@@ -490,11 +494,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!in_array('changed_template', $this->cleanup_methods)) return;
         
         $page = $event->arguments[0];
-        $fields = implode(",", array_keys($page->template->fields->getArray()));
-        $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
-        $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
-        $stmt->execute();
-        $this->cleanupFiles();
+        if ($page instanceof Page) {
+            $fields = implode(",", array_keys($page->template->fields->getArray()));
+            $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
+            $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
+            $stmt->execute();
+            $this->cleanupFiles();
+        }
         
     }
 
@@ -514,7 +520,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $removed_fields = array();
         $removed_fields_by_template = array();
         $item = $event->arguments[0];
-        if ($item->id && $item->removedFields) {
+        if ($item instanceof Fieldgroup && $item->id && $item->removedFields) {
             $removed_fields = $item->removedFields->getArray();
             $enabled_templates = $this->enable_all_templates ? "" : "id=" . implode("|", $this->enabled_templates) . ", ";
             foreach ($this->templates->find("{$enabled_templates}fieldgroups_id={$item->id}") as $template) {
