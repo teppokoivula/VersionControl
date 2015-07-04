@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.2',
+            'version' => '1.0.3',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -931,14 +931,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // gather WHERE rules (page, filters)
         $where = array();
-        $where['pages_id = :pages_id'] = array(':pages_id', $page->id, PDO::PARAM_INT);
+        $where['r.pages_id = :pages_id'] = array(':pages_id', $page->id, PDO::PARAM_INT);
         if ($users_id = (int) $this->input->get->users_id) {
-            $where['users_id = :users_id'] = array(':users_id', $users_id, PDO::PARAM_INT);
+            $where['r.users_id = :users_id'] = array(':users_id', $users_id, PDO::PARAM_INT);
         }
         $where_str = "WHERE " . implode(" AND ", array_keys($where));
 
         // total count of rows in database table
-        $stmt = $this->database->prepare("SELECT COUNT(*) AS total FROM " . self::TABLE_REVISIONS . " $where_str");
+        $stmt = $this->database->prepare("SELECT COUNT(*) AS total FROM " . self::TABLE_REVISIONS . " r $where_str");
         foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
         $stmt->execute();
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -963,10 +963,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // fetch and parse history rows
         $stmt = $this->database->prepare("
-        SELECT id, users_id, username, timestamp, comment
-        FROM " . self::TABLE_REVISIONS . "
+        SELECT r.id, r.users_id, r.username, GROUP_CONCAT(CONCAT_WS(':', d.fields_id, d.property)) changes, r.timestamp, r.comment
+        FROM " . self::TABLE_REVISIONS . " r
+        LEFT OUTER JOIN " . self::TABLE_DATA . " d
+        ON d.revisions_id = r.id
         $where_str
-        ORDER BY timestamp DESC, id DESC
+        GROUP BY r.id
+        ORDER BY r.timestamp DESC, r.id DESC
         LIMIT :start, :limit
         ");
         foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
@@ -974,6 +977,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
         $rows = array();
+        $properties = array();
         $process_id = wire('modules')->getModuleID("ProcessVersionControl");
         $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
         $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "'></i></a>";
@@ -983,9 +987,31 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             if ($date_format) $row['timestamp'] = date($date_format, strtotime($row['timestamp']));
             $toggle_preview = $page->viewable() ? sprintf($preview, $row['timestamp'], $row['id']) : '';
             $toggle_restore = $page->editable() ? sprintf($restore, $row['id']) : '';
+            if ($row['changes']) {
+                $changes = array();
+                $changes_fields = explode(",", $row['changes']);
+                foreach ($changes_fields as $changes_field) {
+                    list($field_id, $property) = explode(":", $changes_field);
+                    if ($field = $this->fields->get((int) $field_id)) {
+                        $changes[$changes_field] = $field->get('label|name');
+                        if (strpos($property, "data") === 0 && $property != 'data') {
+                            if (!isset($properties[$property])) {
+                                $language_id = (int) substr($property, 4);
+                                $language = $this->languages->get($language_id);
+                                $properties[$property] = $language->id ? $language->get('title|name') : '';
+                            }
+                            if (isset($properties[$property]) && $properties[$property]) {
+                                $changes[$changes_field] .= " (" . $properties[$property] . ")";
+                            }
+                        }
+                    }
+                }
+                $row['changes'] = implode(', ', $changes);
+            }
             $rows[] = array(
                 $row['id'], 
                 $users[$row['users_id']],
+                $row['changes'],
                 $row['timestamp'],
                 $row['comment'],
                 sprintf($comment, $row['id']) . $toggle_preview . ($start || count($rows) ? $toggle_restore : '<span></span>'),
@@ -998,6 +1024,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $table->headerRow(array(
             __('Revision'),
             __('Author'),
+            __('Changes'),
             __('Timestamp'),
             __('Comment'),
             '', // placeholder
