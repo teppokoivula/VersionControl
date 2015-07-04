@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.3',
+            'version' => '1.0.4',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -992,6 +992,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $changes_fields = explode(",", $row['changes']);
                 foreach ($changes_fields as $changes_field) {
                     list($field_id, $property) = explode(":", $changes_field);
+                    if (strpos($property, ".") !== false) {
+                        // extra dot only applies to file fields (0.data, 1.data, etc.)
+                        list($count, $property) = explode(".", $property);
+                        $changes_field = $field_id . ":" . $property;
+                    }
                     if ($field = $this->fields->get((int) $field_id)) {
                         $changes[$changes_field] = $field->get('label|name');
                         if (strpos($property, "data") === 0 && $property != 'data') {
