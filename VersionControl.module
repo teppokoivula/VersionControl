@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.4',
+            'version' => '1.0.5',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -998,16 +998,20 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $changes_field = $field_id . ":" . $property;
                     }
                     if ($field = $this->fields->get((int) $field_id)) {
-                        $changes[$changes_field] = $field->get('label|name');
-                        if (strpos($property, "data") === 0 && $property != 'data') {
-                            if (!isset($properties[$property])) {
-                                $language_id = (int) substr($property, 4);
-                                $language = $this->languages->get($language_id);
-                                $properties[$property] = $language->id ? $language->get('title|name') : '';
+                        if (wire('modules')->isInstalled('LanguageSupport')) {
+                            if (strpos($property, "data") === 0 && $property != 'data') {
+                                if (!isset($properties[$property])) {
+                                    $language_id = (int) substr($property, 4);
+                                    $language = $this->languages->get($language_id);
+                                    if (!$language->id) continue;
+                                    $properties[$property] = $language->get('title|name');
+                                }
                             }
-                            if (isset($properties[$property]) && $properties[$property]) {
-                                $changes[$changes_field] .= " (" . $properties[$property] . ")";
-                            }
+                            $label = 'label' . ($this->user->language->isDefault() ? '' : $this->user->language->id);
+                            $changes[$changes_field] = $field->get($label . "|name") . (isset($properties[$property]) ? " (" . $properties[$property] . ")" : "");
+                        } else {
+                            if (strpos($property, "data") === 0 && $property != 'data') continue;
+                            $changes[$changes_field] = $field->get("label|name");
                         }
                     }
                 }
