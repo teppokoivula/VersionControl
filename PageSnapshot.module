@@ -29,7 +29,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.19',
+            'version' => '1.1.20',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -111,12 +111,15 @@ class PageSnapshot extends WireData implements Module {
                             }
                             $page->$field = $value;
                         }
-                    } else if ($language = $this->languages->get((int) $language)) {
-                        // language value (data1001 etc.) and language exists
-                        if ($page->$field->getLanguageValue($language) != $value) {
-                            // update field value only if existing value differs
-                            // from new value (note: based on loose comparison)
-                            $page->$field->setLanguageValue($language, $value);
+                    } else {
+                        $language = $this->languages->get((int) $language);
+                        if ($language->id) {
+                            // language value (data1001 etc.) and language exists
+                            if ($page->$field->getLanguageValue($language) != $value) {
+                                // update field value only if existing value differs
+                                // from new value (note: based on loose comparison)
+                                $page->$field->setLanguageValue($language, $value);
+                            }
                         }
                     }
                 }
