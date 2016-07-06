@@ -345,9 +345,20 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt->execute();
 
         // render output
+        $field = $this->fields->get($field_name);
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
-            echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
+            echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>";
+            if($field instanceof InputfieldPage) {
+                echo $row['data'];
+            } else {
+                $items = explode('|', $row['data']);
+                foreach($items as &$item) {
+                    $item = $this->pages->get((int)$item)->getMarkup($field->labelFieldFormat) . ' (' . $item . ')';
+                }
+                echo implode(", ", $items);
+            }
+            echo "</textarea>";
         }
         ?>
         <div id='diff'></div>
