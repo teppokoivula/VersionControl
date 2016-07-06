@@ -346,6 +346,16 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // render output
         $field = $this->fields->get($field_name);
+
+        if($field->labelFieldName == '.') {
+            $labelFieldFormat = $field->labelFieldFormat;
+            $labelFieldName = 'title|name';
+        } else {
+            $labelFieldFormat = '';
+            $labelFieldName = $field->labelFieldName ? $field->labelFieldName : 'title';
+            $labelFieldName .= "|name";
+        }
+
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
             echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>";
@@ -354,7 +364,13 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             } else {
                 $items = explode('|', $row['data']);
                 foreach($items as &$item) {
-                    $item = $this->pages->get((int)$item)->getMarkup($field->labelFieldFormat) . ' (' . $item . ')';
+                    $p = $this->pages->get((int)$item);
+
+                    $of = $p->of();
+                    $p->of(true);
+                    $item = $labelFieldFormat ? $p->getMarkup($labelFieldFormat) : $p->get($labelFieldName);
+                    if(!strlen($item)) $v = $p->get('name');
+                    $p->of($of);
                 }
                 echo implode(", ", $items);
             }
