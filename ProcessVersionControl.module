@@ -9,7 +9,7 @@
  *
  * For more details, see the README.md file distributed with this module.
  *
- * @copyright Copyright (c) 2013-2015, Teppo Koivula
+ * @copyright Copyright (c) 2013-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessVersionControl extends Process implements ConfigurableModule {
@@ -202,7 +202,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * for fields with no stored data) and 'render' (selecting render method).
      * 
      * @throws WireException if GET param pages_id is missing
-     * @return revision data rendered with one of available render methods
+     * @return string revision data rendered with one of available render methods
      */
     public function executePage() {
         
