@@ -9,7 +9,7 @@
  * 
  * For more details, see the README.md file distributed with this module.
  *
- * @copyright Copyright (c) 2013-2015, Teppo Koivula
+ * @copyright Copyright (c) 2013-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.6',
+            'version' => '1.1.0',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -88,7 +88,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected $page_data = array();
 
     /**
-     * Array for storing local variables
+     * Container for local variables
      *
      */
     protected $data = array();
@@ -98,6 +98,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      */
     protected $hash_map = array();
+
+    /**
+     * Container for runtime user information cache
+     *
+     */
+    protected $users_cache = array();
 
     /**
      * Names of database tables used by this module
@@ -832,6 +838,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             unset($this->page_data[$page->id]);
             $this->cleanupExcessRows($page->id, $fields_id);
 
+            // clear revision cache
+            $page->_version_control_revisions = null;
+
         }
         
     }
@@ -892,34 +901,26 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // make sure that current user has version-control permission
         if (!$this->user->hasPermission('version-control')) return;
 
+        // define start and limit
+        $limit = 25;
+        $start = $this->input->get->page ? ($this->input->get->page-1)*$limit : 0;
+
+        // fetch page history
         $form = $event->return;
         $page = $this->pages->get($form->get('id')->value);
-        if (!$this->isEnabledTemplate($page->template)) return;
-
-        // should date formatting occur?
-        $defaults = ProcessVersionControl::getDefaultData();
-        $processModule = $this->modules->get('ProcessVersionControl');
-        $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
-
-        // cache usernames for later use
-        $stmt = $this->database->prepare("SELECT DISTINCT users_id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id");
-        $stmt->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
-        $stmt->execute();
-        $users = array();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $user = wire('users')->get($row['users_id']);
-            if ($user->id) {
-                $users[$user->name] = $user->id;
-            } else {
-                $stmt = $this->database->prepare("SELECT username FROM " . self::TABLE_REVISIONS . " WHERE users_id = :users_id LIMIT 1");
-                $stmt->bindValue(':users_id', $row['users_id'], PDO::PARAM_INT);
-                $stmt->execute();
-                $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                $users[$user['username']] = $row['users_id'];
-            }
+        $data = $this->getHistory($page, $start, $limit, array(
+            'users_id' => $this->input->get->users_id,
+        ));
+        if (!$data) return;
+        
+        // pager markup
+        $pager = "";
+        if ($data['total'] > $data['limit']) {
+            $pager_links = 20;
+            $pager_page = (int) $data['start']/$data['limit']+1;
+            $pager_pages = ceil($data['total']/$data['limit']);
+            $pager = $this->renderPager($pager_links, $pager_page, $pager_pages);
         }
-        ksort($users);
-        $users = array_flip($users);
 
         // wrapper element (history tab)
         $wrapper = new InputfieldWrapper;
@@ -929,103 +930,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $wrapper->attr('data-active', true);
         }
 
-        // gather WHERE rules (page, filters)
-        $where = array();
-        $where['r.pages_id = :pages_id'] = array(':pages_id', $page->id, PDO::PARAM_INT);
-        if ($users_id = (int) $this->input->get->users_id) {
-            $where['r.users_id = :users_id'] = array(':users_id', $users_id, PDO::PARAM_INT);
-        }
-        $where_str = "WHERE " . implode(" AND ", array_keys($where));
-
-        // total count of rows in database table
-        $stmt = $this->database->prepare("SELECT COUNT(*) AS total FROM " . self::TABLE_REVISIONS . " r $where_str");
-        foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $total = $result['total'];
-
-        // put together LIMIT clause
-        $start = 0;
-        $limit = 25;
-        if ($total > $limit) {
-            if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
-            if ($start > $total) $start = $total-$limit;
-        }
-
-        // pager markup
-        $pager = "";
-        if ($total > $limit) {
-            $pager_links = 20;
-            $pager_page = (int) $start/$limit+1;
-            $pager_pages = ceil($total/$limit);
-            $pager = $this->renderPager($pager_links, $pager_page, $pager_pages);
-        }
-
-        // fetch and parse history rows
-        $stmt = $this->database->prepare("
-        SELECT r.id, r.users_id, r.username, GROUP_CONCAT(CONCAT_WS(':', d.fields_id, d.property)) changes, r.timestamp, r.comment
-        FROM " . self::TABLE_REVISIONS . " r
-        LEFT OUTER JOIN " . self::TABLE_DATA . " d
-        ON d.revisions_id = r.id
-        $where_str
-        GROUP BY r.id
-        ORDER BY r.timestamp DESC, r.id DESC
-        LIMIT :start, :limit
-        ");
-        foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
-        $stmt->bindValue(':start', $start, PDO::PARAM_INT);
-        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = array();
-        $properties = array();
-        $process_id = wire('modules')->getModuleID("ProcessVersionControl");
-        $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
-        $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "'></i></a>";
-        $restore = "<a class='restore' href='{$process_page}restore/?pages_id={$page->id}&revision=%d'><i class='fa fa-undo' title='" . __("Restore revision") . "'></i></a>";
-        $preview = "<a class='preview' target='_blank' data-date='%s' href='{$process_page}preview/?pages_id={$page->id}&revision=%d'><i class='fa fa-eye' title='" . __("Preview revision") . "'></i></a>";
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            if ($date_format) $row['timestamp'] = date($date_format, strtotime($row['timestamp']));
-            $toggle_preview = $page->viewable() ? sprintf($preview, $row['timestamp'], $row['id']) : '';
-            $toggle_restore = $page->editable() ? sprintf($restore, $row['id']) : '';
-            if ($row['changes']) {
-                $changes = array();
-                $changes_fields = explode(",", $row['changes']);
-                foreach ($changes_fields as $changes_field) {
-                    list($field_id, $property) = explode(":", $changes_field);
-                    if (strpos($property, ".") !== false) {
-                        // extra dot only applies to file fields (0.data, 1.data, etc.)
-                        list($count, $property) = explode(".", $property);
-                        $changes_field = $field_id . ":" . $property;
-                    }
-                    if ($field = $this->fields->get((int) $field_id)) {
-                        if (wire('modules')->isInstalled('LanguageSupport')) {
-                            if (strpos($property, "data") === 0 && $property != 'data') {
-                                if (!isset($properties[$property])) {
-                                    $language_id = (int) substr($property, 4);
-                                    $language = $this->languages->get($language_id);
-                                    if (!$language->id) continue;
-                                    $properties[$property] = $language->get('title|name');
-                                }
-                            }
-                            $label = 'label' . ($this->user->language->isDefault() ? '' : $this->user->language->id);
-                            $changes[$changes_field] = $field->get($label . "|name") . (isset($properties[$property]) ? " (" . $properties[$property] . ")" : "");
-                        } else {
-                            if (strpos($property, "data") === 0 && $property != 'data') continue;
-                            $changes[$changes_field] = $field->get("label|name");
-                        }
-                    }
-                }
-                $row['changes'] = implode(', ', $changes);
-            }
-            $rows[] = array(
-                $row['id'], 
-                $users[$row['users_id']],
-                $row['changes'],
-                $row['timestamp'],
-                $row['comment'],
-                sprintf($comment, $row['id']) . $toggle_preview . ($start || count($rows) ? $toggle_restore : '<span></span>'),
-            );
-        }
+        // define date format
+        $defaults = ProcessVersionControl::getDefaultData();
+        $processModule = $this->modules->get('ProcessVersionControl');
+        $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
         // setup datatable and append it to history tab
         $table = $this->modules->get("MarkupAdminDataTable");
@@ -1038,14 +946,28 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             __('Comment'),
             '', // placeholder
         ));
-        foreach ($rows as $row) $table->row($row);
+        $process_id = wire('modules')->getModuleID("ProcessVersionControl");
+        $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
+        $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "'></i></a>";
+        $restore = "<a class='restore' href='{$process_page}restore/?pages_id={$page->id}&revision=%d'><i class='fa fa-undo' title='" . __("Restore revision") . "'></i></a>";
+        $preview = "<a class='preview' target='_blank' data-date='%s' href='{$process_page}preview/?pages_id={$page->id}&revision=%d'><i class='fa fa-eye' title='" . __("Preview revision") . "'></i></a>";
+        $counter = 0;
+        foreach ($data['data'] as $row) {
+            unset($row['users_id']);
+            if ($date_format) $row['timestamp'] = date($date_format, strtotime($row['timestamp']));
+            $toggle_preview = $page->viewable() ? sprintf($preview, $row['timestamp'], $row['id']) : '';
+            $toggle_restore = $page->editable() ? sprintf($restore, $row['id']) : '';
+            $row['buttons'] = sprintf($comment, $row['id']) . $toggle_preview . ($data['start'] || $counter ? $toggle_restore : '<span></span>');
+            $table->row(array_values($row));
+            ++$counter;
+        }
         $field = $this->modules->get("InputfieldMarkup");
         $field->value = $table->render() . $pager;
         $field->label = __("History");
         $wrapper->append($field);
 
         // filters
-        if (count($rows) > 1) {
+        if (count($data['data']) > 1) {
 
             $fieldset = $this->modules->get("InputfieldFieldset");
             $fieldset->attr('id+name', 'history_filters');
@@ -1062,7 +984,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $field = $this->modules->get("InputfieldSelect");
             $field->attr('id+name', 'users_id');
             $field->addOption('', __('All'));
-            $field->addOptions($users);
+            $field->addOptions($this->users_cache);
             $field->value = $this->input->get->users_id;
             $field->label = __('Filter by Author');
             $field->description = __('When selected, only revisions authored by specific user will be shown.');
@@ -1109,6 +1031,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param HookEvent $event
      */
     protected function addTabHistory(HookEvent $event) {
+
+        // make sure that current user has version-control permission
+        if (!$this->user->hasPermission('version-control')) return;
+
         $pos = false;
         $keys = array_keys($event->return);
         if (($pos = array_search('ProcessPageEditSettings', $keys)) !== false) {
@@ -1125,6 +1051,153 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 array_slice($event->return, $pos, null, true)
             );
         }
+
+    }
+
+    /**
+     * Get full history of a specific page as an array
+     * 
+     * This method is similar to $page->versionControlRevisions(), but in this
+     * case the return value includes more information, supports pagination,
+     * and also takes possible filters into account.
+     * 
+     * While $start and $limit are optional, omitting limit is not recommended.
+     * Without a sensible limit the result set could be massive, consuming vast
+     * amounts of memory, *and* it could take a very long time to retrieve.
+     * 
+     * @param Page $page
+     * @param int $start
+     * @param int $limit
+     * @param array $filters array of filters, currently only possible key being "users_id"
+     * @return array|null null on failure, array consisting of keys "data", "total", "start", and "limit" on success
+     */
+    public function getHistory(Page $page, $start = null, $limit = null, array $filters = array()) {
+
+        // return null in case of a disabled template
+        if (!$this->isEnabledTemplate($page->template)) return;
+
+        // cache usernames for later use
+        if (!count($this->users_cache)) $this->generateUsersCache($page);
+
+        // gather WHERE rules (page, filters)
+        $where = array();
+        $where['r.pages_id = :pages_id'] = array(':pages_id', $page->id, PDO::PARAM_INT);
+        if (isset($filters['users_id']) && $filters['users_id'] == (int) $filters['users_id']) {
+            $where['r.users_id = :users_id'] = array(':users_id', $filters['users_id'], PDO::PARAM_INT);
+        }
+        $where_str = "WHERE " . implode(" AND ", array_keys($where));
+
+        // total count of rows in database table
+        $stmt = $this->database->prepare("SELECT COUNT(*) AS total FROM " . self::TABLE_REVISIONS . " r $where_str");
+        foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $total = (int) $result['total'];
+
+        // put together LIMIT clause
+        if ($limit) {
+            $limit = (int) $limit;
+            $start = (int) $start;
+            if ($start > $total) {
+                $start = $total-$limit;
+                if ($start < 0) $start = 0;
+            }
+        }
+
+        // fetch and parse history rows
+        $sql = "
+        SELECT r.id, r.users_id, r.username, GROUP_CONCAT(CONCAT_WS(':', d.fields_id, d.property)) changes, r.timestamp, r.comment
+        FROM " . self::TABLE_REVISIONS . " r
+        LEFT OUTER JOIN " . self::TABLE_DATA . " d
+        ON d.revisions_id = r.id
+        $where_str
+        GROUP BY r.id
+        ORDER BY r.timestamp DESC, r.id DESC
+        ";
+        if ($limit) $sql .= " LIMIT :start, :limit";
+        $stmt = $this->database->prepare($sql);
+        foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
+        if ($limit) {
+            $stmt->bindValue(':start', $start, PDO::PARAM_INT);
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        $data = array();
+        $properties = array();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['changes']) {
+                $changes = array();
+                $changes_fields = explode(",", $row['changes']);
+                foreach ($changes_fields as $changes_field) {
+                    list($field_id, $property) = explode(":", $changes_field);
+                    if (strpos($property, ".") !== false) {
+                        // extra dot only applies to file fields (0.data, 1.data, etc.)
+                        list($count, $property) = explode(".", $property);
+                        $changes_field = $field_id . ":" . $property;
+                    }
+                    if ($field = $this->fields->get((int) $field_id)) {
+                        if (wire('modules')->isInstalled('LanguageSupport')) {
+                            if (strpos($property, "data") === 0 && $property != 'data') {
+                                if (!isset($properties[$property])) {
+                                    $language_id = (int) substr($property, 4);
+                                    $language = $this->languages->get($language_id);
+                                    if (!$language->id) continue;
+                                    $properties[$property] = $language->get('title|name');
+                                }
+                            }
+                            $label = 'label' . ($this->user->language->isDefault() ? '' : $this->user->language->id);
+                            $changes[$changes_field] = $field->get($label . "|name") . (isset($properties[$property]) ? " (" . $properties[$property] . ")" : "");
+                        } else {
+                            if (strpos($property, "data") === 0 && $property != 'data') continue;
+                            $changes[$changes_field] = $field->get("label|name");
+                        }
+                    }
+                }
+                $row['changes'] = implode(', ', $changes);
+            }
+            $data[] = array(
+                'id' => (int) $row['id'],
+                'users_id' => (int) $row['users_id'],
+                'username' => isset($this->users_cache[$row['users_id']]) ? $this->users_cache[$row['users_id']] : $row['username'],
+                'changes' => $row['changes'],
+                'timestamp' => $row['timestamp'],
+                'comment' => $row['comment'],
+            );
+        }
+
+        return array(
+            'data' => $data,
+            'total' => $total,
+            'start' => $start,
+            'limit' => $limit,
+        );
+
+    }
+
+    /**
+     * Generate runtime users cache
+     * 
+     * @param Page $page
+     */
+    protected function generateUsersCache(Page $page) {
+        $users = array();
+        $stmt = $this->database->prepare("SELECT DISTINCT users_id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id");
+        $stmt->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $user = wire('users')->get($row['users_id']);
+            if ($user->id) {
+                $users[$user->name] = $user->id;
+            } else {
+                $stmt = $this->database->prepare("SELECT username FROM " . self::TABLE_REVISIONS . " WHERE users_id = :users_id LIMIT 1");
+                $stmt->bindValue(':users_id', $row['users_id'], PDO::PARAM_INT);
+                $stmt->execute();
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                $users[$user['username']] = $row['users_id'];
+            }
+        }
+        ksort($users);
+        $this->users_cache = array_flip($users);
     }
 
     /**
@@ -1194,6 +1267,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function versionControlRevisions(HookEvent $event) {
 
+        // return null in case of a disabled template
         $page = $event->object;
         if (!$this->isEnabledTemplate($page->template)) return;
 
@@ -1202,8 +1276,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (isset($event->arguments[0]) && (int) $event->arguments[0] > 0) {
             $limit = (int) $event->arguments[0];
         }
-        
+    
+        // placeholder
         $revisions = null;
+        
         // attempt to fetch revisions from cache
         if (is_array($page->_version_control_revisions)) {
             $cache = $page->_version_control_revisions;
