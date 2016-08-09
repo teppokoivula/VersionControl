@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.2',
+            'version' => '1.1.0',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -312,6 +312,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if GET param field is missing
      * @throws WireException if GET param revisions is missing
      * @throws WireException if GET param revisions is invalid
+     * @throws WireException if requested field is not found
      */
     public function executeDiff() {
         
@@ -319,11 +320,26 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $defaults = self::getDefaultData();
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
-        // get field and revision ids
+        // get field name and revision ids
         $field_name = $this->sanitizer->fieldName($this->input->get->field);
         if (!$field_name) throw new WireException("Missing required GET param field");
         $revisions = isset($this->input->get->revisions) ? $this->input->get->revisions : null;
         if (!$revisions) throw new WireException("Missing required GET param revisions");
+
+        // get field object and label format (if applicable)
+        $field = $this->fields->get("name=" . $field_name);
+        if (!$field) throw new WireException("Field not found");
+        $labelFieldName = "";
+        $labelFieldFormat = "";
+        if ($field->type == "FieldtypePage") {
+            if ($field->labelFieldName == '.') {
+                // custom format
+                $labelFieldName = 'title|name';
+                $labelFieldFormat = $field->labelFieldFormat ?: $labelFieldName;
+            } else {
+                $labelFieldName = ($field->labelFieldName ?: 'title') . "|name";
+            }
+        }
 
         // separate revision ids
         list($r1, $r2) = explode(":", $revisions);
@@ -345,13 +361,50 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt->execute();
 
         // render output
+        $data = array();
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
-            echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
+            if ($field->type == "FieldtypePage") {
+                $data[$id] = array();
+                if (preg_match("/^(?:[1-9][0-9]*\|?)*(?<!\|)$/", $row['data'])) {
+                    $items = $this->pages->find('id=' . $row['data'] . ', include=all');
+                    if ($items->count()) {
+                        $item_ids = explode("|", $row['data']);
+                        $use_get_markup = method_exists($items->first(), "___getMarkup");
+                        foreach ($item_ids as $item_id) {
+                            // note that if Page has been removed it is disregarded;
+                            // restoring removed pages is currently not in our scope
+                            $item = $items->get('id=' . (int) $item_id);
+                            if ($item && $item->id) {
+                                $of = $item->of();
+                                $item->of(true);
+                                $data_row = $labelFieldFormat && $use_get_markup ? $item->getMarkup($labelFieldFormat) : $item->get($labelFieldName);
+                                if (!mb_strlen($data_row)) $data_row = $item->name;
+                                $data[$id][] = array($item->id, $data_row);
+                                $item->of($of);
+                            }
+                        }
+                    }
+                }
+            } else {
+                echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
+            }
         }
         ?>
-        <div id='diff'></div>
         <style type='text/css'>
+         #diff .page-diff,
+         #diff .page-diff li,
+         #diff .page-diff li * {
+             box-shadow: none;
+             display: block;
+             padding: 0;
+             margin: 0;
+             border: 0;
+         }
+         #diff .page-diff li * {
+             margin-bottom: 1px;
+             padding: 0.25em;
+         }
         .revision {
             display: none !important;
         }
@@ -363,6 +416,33 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             background-color: #ffc6c6;
         }
         </style>
+        <?php
+        if ($field->type == "FieldtypePage") {
+            // in the case of a Page field comparing strings makes little sense;
+            // comparing values manually yields improved results and flexibility
+            $items = array();
+            foreach ($data['r2'] as $key => $item) {
+                if (isset($data['r1'][$key])) {
+                    if ($data['r1'][$key][0] == $item[0]) {
+                        $items[] = "<span title='#{$item[0]}'>{$item[1]}</span>";
+                    } else {
+                        $items[] = "<del title='#{$data['r1'][$key][0]}'>{$data['r1'][$key][1]}</del>";
+                        $items[] = "<ins title='#{$item[0]}'>{$item[1]}</ins>";
+                    }
+                    unset($data['r1'][$key]);
+                } else {
+                    $items[] = "<ins title='{$item[0]}'>{$item[1]}</ins>";
+                }
+            }
+            if (count($data['r1'])) {
+                foreach ($data['r1'] as $item) {
+                    $items[] = "<del title='#{$item[0]}'>{$item[1]}</del>";
+                }
+            }
+            echo "<div id='diff'><ul class='page-diff'><li>" . implode('</li><li>', $items) . "</li></ul></div>";
+        } else {
+        ?>
+        <div id='diff'></div>
         <script src='<?php echo $this->config->urls->{$this->className()}; ?>diff_match_patch_20121119/javascript/diff_match_patch.js' type='text/javascript'></script>
         <script type='text/javascript'>
         var dmp = new diff_match_patch();
@@ -390,7 +470,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         launch();
         </script>
         <?php
-
+        }
+        
+        exit();
+        
     }
 
     /**
