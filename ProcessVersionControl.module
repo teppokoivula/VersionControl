@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.0',
+            'version' => '1.2.0',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -390,33 +390,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                 echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
             }
         }
-        ?>
-        <style type='text/css'>
-         #diff .page-diff,
-         #diff .page-diff li,
-         #diff .page-diff li * {
-             box-shadow: none;
-             display: block;
-             padding: 0;
-             margin: 0;
-             border: 0;
-         }
-         #diff .page-diff li * {
-             margin-bottom: 1px;
-             padding: 0.25em;
-         }
-        .revision {
-            display: none !important;
-        }
-        ins {
-            background-color: #c6ffc6;
-            text-decoration: none;
-        }
-        del {
-            background-color: #ffc6c6;
-        }
-        </style>
-        <?php
         if ($field->type == "FieldtypePage") {
             // in the case of a Page field comparing strings makes little sense;
             // comparing values manually yields improved results and flexibility
@@ -441,35 +414,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             }
             echo "<div id='diff'><ul class='page-diff'><li>" . implode('</li><li>', $items) . "</li></ul></div>";
         } else {
-        ?>
-        <div id='diff'></div>
-        <script src='<?php echo $this->config->urls->{$this->className()}; ?>diff_match_patch_20121119/javascript/diff_match_patch.js' type='text/javascript'></script>
-        <script type='text/javascript'>
-        var dmp = new diff_match_patch();
-        function launch() {
-
-            var r1 = document.getElementById('r1').value;
-            var r2 = document.getElementById('r2').value;
-            dmp.Diff_Timeout = <?php echo (int) $this->diff_timeout; ?>;
-            dmp.Diff_EditCost = <?php echo (int) $this->diff_efficiency_cleanup_edit_cost; ?>;
-
-            var ms_start = (new Date()).getTime();
-            var d = dmp.diff_main(r1, r2);
-            var ms_end = (new Date()).getTime();
-            var s = (ms_end - ms_start) / 1000 + 's';
-
-            <?php if ($this->diff_cleanup) { ?>
-            dmp.diff_cleanup<?php echo ucfirst($this->diff_cleanup); ?>(d);
-            <?php } ?>
-
-            var ds = dmp.diff_prettyHtml(d);
-
-            document.getElementById('diff').innerHTML = ds;
-
-        }
-        launch();
-        </script>
-        <?php
+            echo "<div id='diff'></div>";
         }
         
         exit();

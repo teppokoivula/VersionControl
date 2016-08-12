@@ -208,6 +208,24 @@ $(function() {
             $(this).parent().hide();
         });
 
+        // enable Diff Match Patch if/when required
+        var enableDiffMatchPatch = function() {
+            var dmp = new diff_match_patch();
+            var r1 = document.getElementById('r1').value;
+            var r2 = document.getElementById('r2').value;
+            dmp.Diff_Timeout = moduleConfig.diff.timeout;
+            dmp.Diff_EditCost = moduleConfig.diff.editCost;
+            var ms_start = (new Date()).getTime();
+            var d = dmp.diff_main(r1, r2);
+            var ms_end = (new Date()).getTime();
+            var s = (ms_end - ms_start) / 1000 + 's';
+            if (moduleConfig.diff.cleanup) {
+                dmp['diff_cleanup' + moduleConfig.diff.cleanup](d);
+            }
+            var ds = dmp.diff_prettyHtml(d);
+            document.getElementById('diff').innerHTML = ds;
+        }
+        
         // when mouse cursor is moved on a revision link, show compare/diff
         // link, which -- when clicked -- loads a text diff for displaying
         // differences between selected revision and current revision.
@@ -225,7 +243,7 @@ $(function() {
                     $(this).before('<div class="compare-revisions"><a class="diff-trigger" href="'+href+'">'+label+'</a></div>');
                 }
             })
-            .on('click', '.compare-revisions > a', function() {
+            .on('click', '.compare-revisions > a.diff-trigger', function() {
                 var $parent = $(this).parent();
                 var $loading = $('<span class="field-revisions-loading"></span>').hide().css({
                     height: $parent.innerHeight()+'px',
@@ -233,6 +251,23 @@ $(function() {
                 });
                 $parent.prepend($loading.fadeIn(250)).load($(this).attr('href'), function() {
                     $(this).find('a.diff-trigger').remove();
+                    if ($parent.find('ul.page-diff').length) {
+                        if (typeof enableDiffSwitch != 'function') {
+                            $.getScript(moduleConfig.moduleDir+"diff_switch.js", function() {
+                                enableDiffSwitch(moduleConfig);
+                            });
+                        } else {
+                            enableDiffSwitch(moduleConfig);
+                        }
+                    } else {
+                        if (typeof diff_match_patch != 'function') {
+                            $.getScript(moduleConfig.moduleDir+"diff_match_patch_20121119/javascript/diff_match_patch.js", function() {
+                                enableDiffMatchPatch();
+                            });
+                        } else {
+                            enableDiffMatchPatch();
+                        }
+                    }
                     $(this).animate({
                         width: '400px',
                         padding: '14px'

@@ -77,8 +77,20 @@ textarea.version_control_filedata {
     padding-left: 2em;
 }
 
-.compare-revisions > a::before {
+.compare-revisions > a.diff-trigger::before {
     content: '\f074';
+    padding-right: 0.5em;
+    font-family: FontAwesome;
+}
+
+.compare-revisions > a.diff-switch::before {
+    content: '\f0db';
+    padding-right: 0.5em;
+    font-family: FontAwesome;
+}
+
+.compare-revisions > a.diff-switch.diff-switch-list::before {
+    content: '\f039';
     padding-right: 0.5em;
     font-family: FontAwesome;
 }
@@ -185,4 +197,75 @@ body.preview {
     opacity: 0.25;
     position: fixed;
     background: #000;
+}
+
+#diff .page-diff,
+#diff .page-diff li,
+#diff .page-diff li *,
+#diff-table,
+#diff-table td * {
+    box-shadow: none;
+    display: block;
+    padding: 0;
+    margin: 0 !important;
+    border: 0;
+}
+
+#diff-table {
+    border-collapse: collapse;
+    display: table;
+    width: 100%;
+}
+
+.diff-switch {
+    margin-bottom: 0.75em !important;
+    display: block;
+}
+
+#diff .page-diff li * {
+    margin-bottom: 1px !important;
+    padding: 0.25em;
+}
+
+#diff-table td {
+    box-sizing: border-box;
+    border: 1px solid #ddd;
+    vertical-align: top;
+    padding: 0;
+    width: 50%;
+}
+
+#diff-table td * {
+    padding: 0.275em 0.25em;
+}
+
+.revision {
+    display: none !important;
+}
+
+#diff-table td.diff-col-ins,
+ins {
+    background-color: #c6ffc6;
+    text-decoration: none;
+}
+
+#diff-table td.diff-col-del,
+del {
+    background-color: #ffc6c6;
+}
+
+#diff-table del {
+    text-decoration: none;
+}
+
+#diff-table ins::before {
+    content: '+\00a0';
+}
+
+#diff-table del::before {
+    content: '-\00a0';
+}
+
+#diff-table span::before {
+    content: '\00a0\00a0';
 }
