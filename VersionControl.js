@@ -253,7 +253,7 @@ $(function() {
                     $(this).find('a.diff-trigger').remove();
                     if ($parent.find('ul.page-diff').length) {
                         if (typeof enableDiffSwitch != 'function') {
-                            $.getScript(moduleConfig.moduleDir+"diff_switch.js", function() {
+                            $.getScript(moduleConfig.moduleDir+"diff_switch.min.js", function() {
                                 enableDiffSwitch(moduleConfig);
                             });
                         } else {
