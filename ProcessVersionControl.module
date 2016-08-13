@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.1',
+            'version' => '1.2.2',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -323,7 +323,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // get field name and revision ids
         $field_name = $this->sanitizer->fieldName($this->input->get->field);
         if (!$field_name) throw new WireException("Missing required GET param field");
-        $revisions = isset($this->input->get->revisions) ? $this->input->get->revisions : null;
+        $revisions = $this->input->get->revisions ?: null;
         if (!$revisions) throw new WireException("Missing required GET param revisions");
 
         // get field object and label format (if applicable)
