@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.0',
+            'version' => '1.2.1',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -214,7 +214,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $settings = $this->input->get->settings;
 
         // get page
-        $pages_id = isset($this->input->get->pages_id) ? (int) $this->input->get->pages_id : null;
+        $pages_id = $this->input->get->pages_id ? (int) $this->input->get->pages_id : null;
         if (!$pages_id) throw new WireException("Missing required GET param pages_id");
         $page = $this->pages->get($pages_id);
         $page_ids = array($pages_id);
