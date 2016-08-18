@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.4',
+            'version' => '1.2.5',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -727,6 +727,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function insert($object) {
 
+        // return if no page data exists
+        if (!$this->page_data) return;
+
+        // fetch page object
         if ($object instanceof HookEvent) $page = $object->arguments[0];
         else if ($object instanceof Page) $page = $object;
         else throw new WireException("Wrong param type: expecting HookEvent or Page");
@@ -734,9 +738,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // return if current page is repeater parent (for-page-n or for-field-n)
         if ($page->template == "admin" && strpos($page->name, "for-") === 0) return;
 
-        $parent = $page->_version_control_parent;
-        $users_id = $this->user->id;
-        $username = $this->user->name;
+        // fetch page data
         if (!isset($this->page_data[$page->id]) && isset($this->page_data[0])) {
             // handle new pages; '0' is a placeholder required if we want to
             // store even the initial values of fields under version control
@@ -744,9 +746,21 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             unset($this->page_data[0]);
         }
         $page_data = isset($this->page_data[$page->id]) ? $this->page_data[$page->id] : null;
-
-        // return if no data exists
+        if ($object instanceof HookEvent && $object->method == "saveField") {
+            // if method is saveField, save data for that specific field only
+            $field = $object->arguments[1];
+            if (!$field instanceof Field) {
+                $field = $this->fields->get('name=' . $this->sanitizer->fieldName($field));
+                if (!$field instanceof Field) return;
+            }
+            $page_data = isset($page_data[$field->id]) ? array($field->id => $page_data[$field->id]) : null;
+        }
         if (!$page_data) return;
+
+        // fetch current revision (parent) and user details
+        $parent = $page->_version_control_parent;
+        $users_id = $this->user->id;
+        $username = $this->user->name;
 
         // revision ID placeholder
         $revisions_id = 0;
@@ -834,8 +848,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
             }
 
-            // clear page data and enforce row limit setting
-            unset($this->page_data[$page->id]);
+            // remove processed items from page data
+            unset($this->page_data[$page->id][$fields_id]);
+            if (!$this->page_data[$page->id]) unset($this->page_data[$page->id]);
+
+            // enforce row limit setting
             $this->cleanupExcessRows($page->id, $fields_id);
 
             // clear revision cache
