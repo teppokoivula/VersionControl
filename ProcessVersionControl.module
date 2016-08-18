@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.2',
+            'version' => '1.2.3',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -247,9 +247,18 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         ");
         $stmt->execute($page_ids);
 
+        // fetch enabled fields
+        $enabled_fields = array();
+        if (count($page->template->versionControlFields)) {
+            foreach ($page->template->versionControlFields as $field) {
+                $enabled_fields[] = $field->name;
+            }
+        }
+        
         // parse data
         $data = array();
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (!in_array($row['field_name'], $enabled_fields)) continue;
             $item = array(
                 'users_id' => null,
                 'username' => isset($row['username']) ? $this->sanitizer->name($row['username']) : null,
@@ -272,11 +281,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // add empty containers for fields with no data?
         if (isset($settings['empty']) && $settings['empty']) {
-            $fields = $page->template->versionControlFields;
             $fields_with_data = array_keys($data);
-            foreach ($fields as $field) {
-                if (!in_array($field->name, $fields_with_data)) {
-                    $data[$field->name] = array();
+            foreach ($enabled_fields as $enabled_field) {
+                if (!in_array($enabled_field, $fields_with_data)) {
+                    $data[$enabled_field] = array();
                 }
             }
             foreach ($repeater_fields as $repeater_field) {
