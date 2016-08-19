@@ -26,7 +26,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.5',
+            'version' => '1.2.6',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -173,6 +173,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (isset($data['enable_all_templates']) && $data['enable_all_templates']) {
             $field->collapsed = Inputfield::collapsedLocked;
             $field->notes = __("This setting has no effect because version control is currently enabled for all templates via Advanced Settings.");
+        } else {
+            $field->notes = __("Removing a template from here will also remove any data stored for it.");
         }
         foreach (wire('templates')->getAll() as $key => $template) {
             if ($template->name != "language") $field->addOption($key, $template);
@@ -184,7 +186,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "enabled_fields";
         $field->label = __("Enable version control for these fields");
-        $field->notes = __("Only fields of compatible fieldtypes can be selected. If no fields are selected, all fields of compatible fieldtypes are considered enabled.");
+        $field->notes = __("Only fields of compatible fieldtypes can be selected. If no fields are selected, all fields of compatible fieldtypes are considered enabled. Removing a field from here will also remove any data stored for it.");
         $field->icon = "file-text-o";
         $types = implode($data['compatible_fieldtypes'], "|");
         $field->addOptions(wire('fields')->find("type=$types")->getArray());
@@ -1496,7 +1498,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Regenerate data when enabled templates change
+     * Regenerate data when enabled templates and/or fields change
      *
      * @param HookEvent $event
      */
@@ -1505,7 +1507,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // this only applies to settings of current module
         if ($event->arguments[0] !== $this->className()) return;
 
-        // find out which templates are going to be enabled
+        // find out which new templates have been enabled
         $new_templates = $event->arguments[1]['enabled_templates'];
         if ($event->arguments[1]['enable_all_templates']) {
             $new_templates = array();
@@ -1514,7 +1516,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // find out which templates are currently enabled
+        // find out which templates were already enabled
         $old_templates = $this->enabled_templates;
         if ($this->enable_all_templates) {
             $old_templates = array();
@@ -1523,17 +1525,60 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
         
-        // make sure that enabled fields are up to date
-        // @todo regenerate data for enabled and/or disabled fields
-        $this->enabled_fields = $event->arguments[1]['enabled_fields'];
+        // fetch a list of enabled fields (old and new) plus all fields in case
+        // that no fields are enabled (which means that all fields are enabled)
+        $new_fields = $event->arguments[1]['enabled_fields'];
+        $old_fields = $this->enabled_fields;
+        $all_fields = array();
+        $all_new_fields = array();
+        $all_old_fields = array();
+        if (!$new_fields && $old_fields || $new_fields && !$old_fields) {
+            // as a minor optimization if both are undefined we never come this
+            // far since there have obviously been no changes to enabled fields
+            foreach ($this->templates->find('id=' . implode('|', array_unique(array_merge($old_templates, $new_templates)))) as $template) {
+                foreach ($template->fields as $field) {
+                    if (in_array($field->type, $this->compatible_fieldtypes)) {
+                        if (!in_array($field->id, $all_fields)) {
+                            $all_fields[] = $field->id;
+                            if (in_array($template->id, $new_templates)) {
+                                $all_new_fields[] = $field->id;
+                            }
+                            if (in_array($template->id, $old_templates)) {
+                                $all_old_fields[] = $field->id;
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-        // find out which (if any) templates were added and populate data
-        $added_templates = array_diff($new_templates, $old_templates);
-        if (count($added_templates)) {
+        // make sure that enabled fields are up to date
+        $this->enabled_fields = $new_fields;
+
+        // find out which (if any) templates were added and need regenerating
+        $regenerate_templates = array_diff($new_templates, $old_templates);
+        
+        // fetch a list of templates containing at least one newly enabled field
+        $added_fields = array_diff($new_fields ?: $all_new_fields, $old_fields ?: $all_old_fields);
+        if ($added_fields) {
+            foreach ($new_templates as $template) {
+                if (in_array($template, $regenerate_templates)) continue;
+                $template = $this->templates->get((int) $template);
+                foreach ($added_fields as $field) {
+                    if ($template->hasField((int) $field)) {
+                        $regenerate_templates[] = $template->id;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // populate new data
+        if ($regenerate_templates) {
             $cache_items = 0;
-            foreach ($added_templates as $template) {
+            foreach ($regenerate_templates as $template) {
                 $count = 0;
-                $template = wire('templates')->get($template);
+                $template = $this->templates->get((int) $template);
                 foreach ($this->pages->find("template={$template}, include=all") as $page) {
                     $this->gather($page);
                     $this->insert($page);
@@ -1553,17 +1598,40 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // find out which (if any) templates were removed and cleanup data
         $removed_templates = array_diff($old_templates, $new_templates);
-        if (count($removed_templates)) {
+        if ($removed_templates) {
             $t1 = self::TABLE_REVISIONS;
             $t2 = self::TABLE_DATA;
             foreach ($removed_templates as $template) {
-                $template = wire('templates')->get($template);
+                $template = $this->templates->get((int) $template);
                 $page_ids = array_values($this->pages->find("template={$template}, include=all")->getArray());
                 if ($page_count = count($page_ids)) {
                     $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . ") AND $t2.revisions_id = $t1.id");
                     $stmt->execute($page_ids);
                     $this->cleanupFiles();
                     $this->message(sprintf(_n("Removed stored data for %d page using template %s", "Removed stored data for %d pages using template %s", $page_count), $page_count, $template));
+                }
+            }
+        }
+        
+        // find out which (if any) fields were removed and cleanup data
+        if ($new_fields) {
+            // note that if we no longer specify enabled fields and thus all
+            // fields are now enabled, there's no need to clean up anything
+            $removed_fields = array_diff($old_fields ?: $all_old_fields, $new_fields ?: $all_new_fields);
+            if ($removed_fields) {
+                foreach ($removed_fields as $fields_id) {
+                    if ((int) $fields_id == $fields_id) {
+                        $field = $this->fields->get($fields_id);
+                        if ($field instanceof Field) {
+                            // if field doesn't exist this shouldn't be reached;
+                            // data for removed fields is cleaned up elsewhere
+                            $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id = :fields_id");
+                            $stmt->bindValue(':fields_id', $fields_id, PDO::PARAM_INT);
+                            $stmt->execute();
+                            $this->cleanupFiles();
+                            $this->message(sprintf(__("Removed stored data for field %s"), $field->name));
+                        }
+                    }
                 }
             }
         }
