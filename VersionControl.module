@@ -2,14 +2,16 @@
 
 /**
  * Version Control
- *
- * This module uses hooks provided by ProcessWire to catch page edits and stores
- * history data in a series of custom database tables, so that it can be later
- * retrieved, reviewed, and restored.
  * 
- * For more details, see the README.md file distributed with this module.
- *
- * @copyright Copyright (c) 2013-2016, Teppo Koivula
+ * Together with the accompanied Process module, Process Version Control, this
+ * module makes it possible to review and restore earlier values for specific
+ * fields, and even entire pages.
+ * 
+ * Behind the scenes this hooks provided by ProcessWire are used to capture any
+ * changes to individual fields and store them in a series of database tables,
+ * along with required metadata, such as revision numbers.
+ * 
+ * @copyright 2013-2016 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
@@ -26,7 +28,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.6',
+            'version' => '1.2.7',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -83,44 +85,65 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     
     /**
      * Container for field data
-     *
+     * 
+     * @var array
      */
     protected $page_data = array();
 
     /**
      * Container for local variables
-     *
+     * 
+     * @var array
      */
     protected $data = array();
 
     /**
      * Container for hash format filenames within image inputfields
-     *
+     * 
+     * @var array
      */
     protected $hash_map = array();
 
     /**
      * Container for runtime user information cache
-     *
+     * 
+     * @var array
      */
     protected $users_cache = array();
 
     /**
-     * Names of database tables used by this module
-     *
-     * Revisions table handles system-wide revision numbers and stores dates,
-     * user and page id's etc. (metadata) while data table stores actual data
-     * (content).
+     * Name of the revisions database table
      * 
-     * Files table stores data for individual files and data files junction
-     * table connects files with data. Separate file tables make tasks such
-     * as mime type checking, fetching file sizes and hashes etc. fast and
-     * also make it easier and more efficient to clean up orphaned files.
+     * Revisions table keeps track of revision numbers, which are system wide,
+     * and stores important metadata, such as dates, user ID's, and page ID's.
      * 
+     * @var string
      */
     const TABLE_REVISIONS = 'version_control__revisions';
+    
+    /**
+     * Name of the database table containing actual field values
+     * 
+     * @var string
+     */
     const TABLE_DATA = 'version_control__data';
+    
+    /**
+     * Name of the databae table containing metadata for stored files
+     * 
+     * Having file metadata stored in the database makes tasks such as mime
+     * type checking and fetching file sizes and file hashes fast. Another
+     * benefit is easier and more efficient cleanup for orphaned files.
+     * 
+     * @var string
+     */
     const TABLE_FILES = 'version_control__files';
+    
+    /**
+     * Name of the database table connecting file metadata with field values
+     * 
+     * @var string
+     */
     const TABLE_DATA_FILES = 'version_control__data_files';
 
     /**
