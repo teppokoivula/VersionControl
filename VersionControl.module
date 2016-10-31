@@ -1012,7 +1012,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             ++$counter;
         }
         $field = $this->modules->get("InputfieldMarkup");
-        $field->value = $table->render() . $pager;
+        $table = $table->render() . $pager;
+        if (empty($table)) {
+            $field->value = __("No history of changes found.");
+        } else {
+            $field->value = $table;
+        }
         $field->label = __("History");
         $wrapper->append($field);
 
