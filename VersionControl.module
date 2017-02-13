@@ -28,7 +28,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.7',
+            'version' => '1.2.8',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -841,9 +841,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     } else {
                         if (!is_dir($dir)) wireMkdir($dir . "variations", true);
                         copy($data['original_filename'], $file);
-                        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                        $mime_type = finfo_file($finfo, $file);
-                        finfo_close($finfo);
+                        $mime_type = '';
+                        if ($this->use_fileinfo) {
+                            // PECL fileinfo extension is not enabled by
+                            // default in Windows, so we check first
+                            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                            $mime_type = finfo_file($finfo, $file);
+                            finfo_close($finfo);
+                        } else if ($this->use_mime_content_type) {
+                            $mime_type = mime_content_type($file);
+                        }
                         $size = filesize($file);
                         if (!$size) $size = 0;
                         $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_FILES . " (filename, mime_type, size) VALUES (:filename, :mime_type, :size)");
@@ -1740,11 +1747,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Custom getter mainly for path and url variables
-     *
-     * We're using files directory of our process module as file storage; fetch
-     * and cache locally it's path and URL. If directory doesn't exist, create.
-     * If key is unrecognized, pass the request to parent class.
+     * Custom getter for caching runtime variables. If a key is unrecognized,
+     * we pass the request to the parent class.
+     * 
+     * We're using the files directory of our process module as file storage;
+     * main feature of this method is fetching and caching it's path and URL.
+     * If this directory doesn't exist, we create it when first requested.
      * 
      * @param string $key
      * @return mixed
@@ -1762,6 +1770,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
             }
             return isset($this->data[$key]) ? $this->data[$key] : null;
+        } else if ($key == "use_fileinfo") {
+            if (!array_key_exists($key, $this->data)) {
+                $this->data[$key] = extension_loaded('fileinfo') && function_exists('finfo_open');
+            }
+            return $this->data[$key];
+        } else if ($key == "use_mime_content_type") {
+            if (!array_key_exists($key, $this->data)) {
+                $this->data[$key] = function_exists('mime_content_type');
+            }
+            return $this->data[$key];
         }
         return parent::__get($key);
     }
