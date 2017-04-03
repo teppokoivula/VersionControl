@@ -3,15 +3,16 @@
 /**
  * Version Control
  * 
- * Together with the accompanied Process module, Process Version Control, this
- * module makes it possible to review and restore earlier values for specific
- * fields, and even entire pages.
+ * This module makes it possible to store, review, and restore earlier values
+ * of specific fields or even entire pages. Changes are automatically tracked
+ * for enabled fields and templates and earlier versions can be reviews and
+ * restored either via Page Edit GUI or the API.
  * 
- * Behind the scenes this hooks provided by ProcessWire are used to capture any
- * changes to individual fields and store them in a series of database tables,
- * along with required metadata, such as revision numbers.
+ * Behind the scenes the hooks provided by ProcessWire are used to capture any
+ * changes to individual fields and store them in a series of custom database
+ * tables, along with required metadata, such as a running revision number.
  * 
- * @copyright 2013-2016 Teppo Koivula
+ * @copyright 2013-2017 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
