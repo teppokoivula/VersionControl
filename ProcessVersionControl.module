@@ -240,11 +240,11 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // find values
         $stmt = $this->database->prepare("
-        SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, d.property, d.data
+        SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, MIN(DISTINCT d.property), MIN(DISTINCT d.data)
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
         WHERE r.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
-        ORDER BY f.id, d.id DESC
+        ORDER BY f.id, MIN(DISTINCT d.id) DESC
         ");
         $stmt->execute($page_ids);
 
