@@ -3,15 +3,16 @@
 /**
  * Version Control
  * 
- * Together with the accompanied Process module, Process Version Control, this
- * module makes it possible to review and restore earlier values for specific
- * fields, and even entire pages.
+ * This module makes it possible to store, review, and restore earlier values
+ * of specific fields or even entire pages. Changes are automatically tracked
+ * for enabled fields and templates and earlier versions can be reviews and
+ * restored either via Page Edit GUI or the API.
  * 
- * Behind the scenes this hooks provided by ProcessWire are used to capture any
- * changes to individual fields and store them in a series of database tables,
- * along with required metadata, such as revision numbers.
+ * Behind the scenes the hooks provided by ProcessWire are used to capture any
+ * changes to individual fields and store them in a series of custom database
+ * tables, along with required metadata, such as a running revision number.
  * 
- * @copyright 2013-2016 Teppo Koivula
+ * @copyright 2013-2017 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
@@ -28,7 +29,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.8',
+            'version' => '1.2.9',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -358,7 +359,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // add hooks that add additional scripts, styles and markup
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
             $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
-            $this->addHookAfter('ProcessPageEdit::getTabs', $this, 'addTabHistory');
             // add hooks that alter image and file inputfield output on the fly
             $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
             $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
@@ -975,17 +975,24 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // make sure that current user has version-control permission
         if (!$this->user->hasPermission('version-control')) return;
 
-        // define start and limit
+        // fetch the page being edited
+        $form = $event->return;
+        $page = $this->pages->get((int) $form->get('id')->value);
+        
+        // make sure that version control is enabled for the template of the
+        // page being edited
+        if (!$this->isEnabledTemplate($page->template)) return;
+        
+        // fetch history data for the page being edited
         $limit = 25;
         $start = $this->input->get->page ? ($this->input->get->page-1)*$limit : 0;
-
-        // fetch page history
-        $form = $event->return;
-        $page = $this->pages->get($form->get('id')->value);
         $data = $this->getHistory($page, $start, $limit, array(
             'users_id' => $this->input->get->users_id,
         ));
         if (!$data) return;
+        
+        // define history tab position
+        $this->addHookAfter('ProcessPageEdit::getTabs', $this, 'addTabHistory');
         
         // pager markup
         $pager = "";
