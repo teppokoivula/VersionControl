@@ -246,7 +246,7 @@ class PageSnapshot extends WireData implements Module {
         }
 
         // find values
-        $where = $revision_id ? "t1.id = ? AND " : "";
+        $where = $revision_id ? "t1.id <= ? AND " : "";
         $stmt = $this->database->prepare($sql = "
         SELECT t1.pages_id, t1.id AS revision, t2.fields_id, t2.property, t2.data
         FROM (
