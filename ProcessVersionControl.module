@@ -240,11 +240,11 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // find values
         $stmt = $this->database->prepare("
-        SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, d.property, d.data
+        SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, GROUP_CONCAT(d.property) AS propertylist, MIN(DISTINCT d.data)
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
         WHERE r.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
-        ORDER BY f.id, d.id DESC
+        ORDER BY f.id, MIN(DISTINCT d.id) DESC
         ");
         $stmt->execute($page_ids);
 
@@ -265,6 +265,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                 'username' => isset($row['username']) ? $this->sanitizer->name($row['username']) : null,
                 'revision' => isset($row['revisions_id']) ? $row['revisions_id'] : null,
                 'date' => isset($row['timestamp']) ? $row['timestamp'] : null,
+                'propertylist' => isset($row['propertylist']) ? $row['propertylist'] : null,
                 'data' => isset($row['data']) ? $row['data'] : null
             );
             if (isset($row['users_id']) && $user = $this->users->get((int) $row['users_id'])) {
@@ -356,11 +357,20 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $r2 = (int) $r2;
         if (!$r1 || !$r2) throw new WireException("Revisions need to be provided in following format: 123:124");
 
+        $data = array();
+        $propertyselect = null;
+        $propertywhere = null;
+        if ($this->input->get->property!='undefined') {
+            $propertyselect = ', d.property';
+            $propertywhere = ' AND d.property=\''.$this->input->get->property.'\'';
+            $data = array();
+
+        }
         // find values
         $stmt = $this->database->prepare("
-        SELECT r.id, d.data
+        SELECT r.id, d.data$propertyselect
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
-        WHERE r.id IN(:r1, :r2) AND d.revisions_id = r.id AND f.name = :field_name AND d.fields_id = f.id
+        WHERE r.id IN(:r1, :r2) AND d.revisions_id = r.id AND f.name = :field_name AND d.fields_id = f.id$propertywhere
         ORDER BY r.id ASC
         LIMIT 2
         ");
@@ -370,8 +380,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt->execute();
 
         // render output
-        $data = array();
+        $rowcount = 0;
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $rowcount++;
             $id = $row['id'] == $r1 ? "r1" : "r2";
             if ($field->type == "FieldtypePage") {
                 $data[$id] = array();
@@ -398,6 +409,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             } else {
                 echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
             }
+        }
+        // if the query only returns one revision, then we add a warning for the missing rivision (r1) - this is only a tempoary solution 
+        if ($rowcount==1) {
+            echo "<textarea id='r1' class='revision' data-revision='{$r1}'>" . __("Active revision not defined in this language") . "</textarea>";
         }
         if ($field->type == "FieldtypePage") {
             // in the case of a Page field comparing strings makes little sense;
@@ -662,12 +677,32 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                         if ($user->id) $user_name = wirePopulateStringTags($this->user_name_format, $user);
                     }
                     if (!$user_name) $user_name = $row['username'];
-                    $markup .= "<li><a"
-                             . " data-revision='{$row['revision']}'"
-                             . " data-date='{$row['date']}'"
-                             . " href='#'>"
-                             . "<span class='date'>{$row['date']}</span> <span class='user'>{$user_name}</span>"
-                             . "</a></li>";
+                    $langs = null;
+                    if (isset($row['propertylist'])  and ($row['propertylist']!='data')) {
+                        $languages = wire('languages');
+                        if (isset($languages)) {
+                            $propertylist = array_flip(explode(',',$row['propertylist']));
+                            $lids = array();
+                            $markup .= "<li><span class='date'>{$row['date']}</span> ";
+                            foreach ($languages as $language) {
+                                $propertyidx = 'data'.$language->id;
+                                $markup .= isset($propertylist[$propertyidx]) 
+                                    ? "<a data-revision='{$row['revision']}'"
+                                        . " data-date='{$row['date']}'"
+                                        . " data-property='$propertyidx'"
+                                        . " href='#'>"
+                                        . "<span class='language'>$language->title</span></a> "
+                                    : "<span class='language'>&nbsp;</span> ";
+                            }
+                            $markup .= "<span class='user'>{$user_name}</span></li>";
+                        }
+                    } else
+                        $markup .= "<li><a"
+                                 . " data-revision='{$row['revision']}'"
+                                 . " data-date='{$row['date']}'"
+                                 . " href='#'>"
+                                 . "<span class='date'>{$row['date']}</span> <span class='user'>{$user_name}</span>"
+                                 . "</a></li>";
                 }
                 $markup .= "</ul>";
             } else {

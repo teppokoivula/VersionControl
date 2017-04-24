@@ -238,7 +238,8 @@ $(function() {
                     var field = $(this).parents('.field-revisions:first').data('field');
                     var r1 = $(this).parents('.field-revisions:first').find('.ui-state-active').data('revision');
                     var r2 = $(this).data('revision');
-                    var href = moduleConfig.processPage+'diff/?revisions='+r1+':'+r2+'&field='+field;
+                    var property = $(this).data('property');
+                    var href = moduleConfig.processPage+'diff/?revisions='+r1+':'+r2+'&field='+field+'&property='+property;
                     var label = moduleConfig.i18n.compareWithCurrent;
                     $(this).before('<div class="compare-revisions"><a class="diff-trigger" href="'+href+'">'+label+'</a></div>');
                 }

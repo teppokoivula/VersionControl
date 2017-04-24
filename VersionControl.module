@@ -730,7 +730,24 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         }
                         if (!count($data_array)) $data_array['0.data'] = null;
                     } else if ($data instanceof LanguagesPageFieldValue) {
-                        foreach ($data->getChanges() as $key) {
+                        // There are two cases to be considered
+                        // 1) We read the data from the fields of a page already existing at module installation
+                        // 2) We read the data from a field modified after the module was installed
+                        if ($object instanceof Page) {
+                            // 1) Page/fields already exist at time of module installation
+                            // we need to save the corresponding value for each language installed as a reference for 
+                            // future changes
+                            $data_keys = array();
+                            foreach (wire('languages') as $language) {
+                                $data_keys[] = 'data'.$language->id;
+                            }
+                        } else {
+                            // 2) We need to save the new values of fields modified on the page
+                            // The function getChanges() prefectly returns these values 
+                            $data_keys = $data->getChanges(); 
+                        }
+                        // loop over the page/field data for each of the keys found above
+                        foreach ($data_keys as $key) {
                             if ($key == 'data') continue;
                             $data_array[$key] = $data->getLanguageValue(str_replace('data', '', $key));
                         }
