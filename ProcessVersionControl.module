@@ -9,7 +9,7 @@
  *
  * For more details see the README.md file distributed with this module.
  *
- * @copyright 2013-2016 Teppo Koivula
+ * @copyright 2013-2017 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessVersionControl extends Process implements ConfigurableModule {
@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.4',
+            'version' => '1.2.5',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -239,9 +239,12 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         }
 
         // find values
+        // - MIN() function calls are required in order to avoid errors when
+        //   MySQL is using SQL mode ONLY_FULL_GROUP_BY
+        // - some MIN() function calls may not be necessary for MySQL 5.7.5+
         $stmt = $this->database->prepare("
-        SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, d.property, d.data
-        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
+        SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
+        FROM fields f, " . VersionControl::TABLE_REVISIONS . " r, " . VersionControl::TABLE_DATA . " d
         WHERE r.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
         ORDER BY f.id, d.id DESC
