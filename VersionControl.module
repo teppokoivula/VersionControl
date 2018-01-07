@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * Version Control
@@ -12,8 +12,8 @@
  * changes to individual fields and store them in a series of custom database
  * tables, along with required metadata, such as a running revision number.
  * 
- * @copyright 2013-2017 Teppo Koivula
- * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ * @copyright 2013-2018 Teppo Koivula
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
 class VersionControl extends WireData implements Module, ConfigurableModule {
@@ -27,9 +27,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'Version Control',
             'summary' => 'Version control features for page content.',
-            'href' => 'http://modules.processwire.com/modules/version-control/',
+            'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.9',
+            'version' => '2.0.0',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -38,7 +38,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'ProcessVersionControl',
             ),
             'requires' => array(
-                'ProcessWire>=2.4.1',
+                'ProcessWire>=3.0.62',
             ),
         ); 
     }
@@ -331,7 +331,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Initialization function
      *
-     * @todo storing files on delete (requires core changes)
      */
     public function init() {
 
@@ -411,7 +410,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $stmt = $this->database->prepare("SELECT * FROM " . self::TABLE_FILES . " WHERE id NOT IN (SELECT DISTINCT files_id from " . self::TABLE_DATA_FILES . ")");
         $stmt->execute();
         $stmt_del = null;
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             // remove file
             $dir = $this->path . substr($row['filename'], 0, 2) . "/";
             $file = $dir . $row['filename'];
@@ -428,7 +427,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             if (count(scandir($dir)) == 1) wireRmdir($dir, true);
             // delete related row from files database table
             if (!$stmt_del) $stmt_del = $this->database->prepare("DELETE FROM " . self::TABLE_FILES . " WHERE id = :id");
-            $stmt_del->bindValue(':id', (int) $row['id'], PDO::PARAM_INT);
+            $stmt_del->bindValue(':id', (int) $row['id'], \PDO::PARAM_INT);
             $stmt_del->execute();
         }
 
@@ -450,15 +449,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $t1 = self::TABLE_REVISIONS;
         $t2 = self::TABLE_DATA;
         $stmt = $this->database->prepare("SELECT COUNT(*) AS count FROM $t1, $t2 WHERE $t1.pages_id = :pages_id AND $t2.fields_id = :fields_id AND $t2.revisions_id = $t1.id");
-        $stmt->bindValue(':pages_id', (int) $pages_id, PDO::PARAM_INT);
-        $stmt->bindValue(':fields_id', (int) $fields_id, PDO::PARAM_INT);
+        $stmt->bindValue(':pages_id', (int) $pages_id, \PDO::PARAM_INT);
+        $stmt->bindValue(':fields_id', (int) $fields_id, \PDO::PARAM_INT);
         $stmt->execute();
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         if ($row['count'] > $this->data_row_limit) {
             $stmt = $this->database->prepare("SELECT id FROM $t1 ORDER BY timestamp LIMIT :limit");
-            $stmt->bindValue(':limit', (int) ($row['count']-$this->data_row_limit), PDO::PARAM_INT);
+            $stmt->bindValue(':limit', (int) ($row['count']-$this->data_row_limit), \PDO::PARAM_INT);
             $stmt->execute();
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
                 $ids .= ($ids) ? ", " . $row['id'] : $row['id'];
             }
             $this->database->query("DELETE FROM $t1 WHERE id IN ($ids)");
@@ -487,7 +486,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $t1 = self::TABLE_REVISIONS;
             $t2 = self::TABLE_DATA;
             $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1 LEFT OUTER JOIN $t2 ON $t2.revisions_id = $t1.id WHERE $t1.pages_id = :pages_id");
-            $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
+            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
             $stmt->execute();
             $this->cleanupFiles();
         }
@@ -507,7 +506,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field = $event->arguments[0];
         if ($field instanceof Field) {
             $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id = :fields_id");
-            $stmt->bindValue(':fields_id', (int) $field->id, PDO::PARAM_INT);
+            $stmt->bindValue(':fields_id', (int) $field->id, \PDO::PARAM_INT);
             $stmt->execute();
             $this->cleanupFiles();
         }
@@ -528,7 +527,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if ($page instanceof Page) {
             $fields = implode(",", array_keys($page->template->fields->getArray()));
             $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
-            $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
+            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
             $stmt->execute();
             $this->cleanupFiles();
         }
@@ -592,7 +591,24 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $item = $event->arguments[0];
         if ($item->_version_control_basename) {
             if (!isset($this->hash_map[">$item->basename<"])) {
-                $this->hash_map[">$item->basename<"] = ">$item->_version_control_basename<";
+                // full filename
+                $this->hash_map[">{$item->basename}<"] = ">{$item->_version_control_basename}<";
+                // filename without extension (for image inputfield)
+                $basename = mb_substr($item->basename, 0, mb_strrpos($item->basename, "."));
+                $version_control_basename = mb_substr($item->_version_control_basename, 0, mb_strrpos($item->_version_control_basename, "."));
+                $this->hash_map[">{$basename}<"] = ">{$version_control_basename}<";
+                // shortened filename (for file inputfield)
+                // note: this does the same thing as the getDisplayBasename method
+                // of InputfieldFile, and should probably be removed at some point
+                if (!$event->object->noShortName && mb_strlen($item->basename) > 25) {
+                    $ext = ".{$item->ext}";
+                    $basename = mb_substr(basename($item->basename, $ext), 0, 25-(mb_strlen($ext)+1)) . "&hellip;" . ltrim($ext, '.');
+                    $version_control_basename = $item->_version_control_basename;
+                    if (mb_strlen($version_control_basename) > 25) {
+                        $version_control_basename = mb_substr(basename($version_control_basename, $ext), 0, 25-(mb_strlen($ext)+1)) . "&hellip;" . ltrim($ext, '.');
+                    }
+                    $this->hash_map[">{$basename}<"] = ">{$version_control_basename}<";
+                }
             }
         }
     }
@@ -651,12 +667,19 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     // remove old files from disk and then from field itself
                     foreach ($page_current->$field as $file) $file->unlink();
                     $page->$field->deleteAll();
+                    // note: saving the field at this point helps avoid naming
+                    // conflicts between old and new files, and prevents newly
+                    // restored files from being accidentally removed
+                    $this->pages->___saveField($page, $field, array(
+                        'quiet' => true,
+                        'noHooks' => true,
+                    ));
                     // insert new files into field (field copies files to correct
                     // location itself, but we'll have to rename them to original
                     // filename by removing hash prefixes added for storage)
                     if (is_array($items)) {
                         foreach ($items as $item) {
-                            $page->$field = $item['filename'];
+                            $page->$field->add($item['filename']);
                             $basename = basename($item['filename']);
                             $clean_basename = substr($basename, strpos($basename, '.')+1);
                             $page->$field->last()->rename(str_replace($basename, $clean_basename, $item['filename']));
@@ -664,12 +687,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             $page->$field->last()->modified = $item['modified'];
                             $page->$field->last()->created = $item['created'];
                             if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
-                        }
-                    }
-                    // remove hook responsible for native unlink behaviour
-                    foreach ($page->filesManager->getHooks() as $hook) {
-                        if (isset($hook['toObject']) && $hook['toObject'] instanceof Pagefiles && $hook['toObject']->field->name == $field) {
-                            $page->filesManager->removeHook($hook['id']);
                         }
                     }
                 }
@@ -741,7 +758,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
             }
         }
-        
+
     }
 
     /**
@@ -795,24 +812,24 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // if revision isn't assigned yet, get next available revision ID
             if (!$revisions_id) {
                 $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username) VALUES (:parent, :pages_id, :users_id, :username)");
-                $stmt->bindValue(':parent', $parent ? $parent : null, PDO::PARAM_INT);
-                $stmt->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
-                $stmt->bindValue(':users_id', $users_id, PDO::PARAM_INT);
-                $stmt->bindValue(':username', $username, PDO::PARAM_STR);
+                $stmt->bindValue(':parent', $parent ? $parent : null, \PDO::PARAM_INT);
+                $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
+                $stmt->bindValue(':users_id', $users_id, \PDO::PARAM_INT);
+                $stmt->bindValue(':username', $username, \PDO::PARAM_STR);
                 $stmt->execute();
                 $revisions_id = $this->database->lastInsertId();
                 $page->_version_control_revision = $revisions_id;
                 // if parent isn't assigned yet, use ID of previous revision
                 if (!$parent) {
                     $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id AND id < :revisions_id ORDER BY id DESC LIMIT 1");
-                    $stmt->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
-                    $stmt->bindValue(':revisions_id', $revisions_id, PDO::PARAM_INT);
+                    $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
+                    $stmt->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
                     $stmt->execute();
-                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $result = $stmt->fetch(\PDO::FETCH_ASSOC);
                     if ($result) {
                         $stmt = $this->database->prepare("UPDATE " . self::TABLE_REVISIONS . " SET parent = :parent WHERE id = :revisions_id");
-                        $stmt->bindValue(':parent', (int) $result['id'], PDO::PARAM_INT);
-                        $stmt->bindValue(':revisions_id', $revisions_id, PDO::PARAM_INT);
+                        $stmt->bindValue(':parent', (int) $result['id'], \PDO::PARAM_INT);
+                        $stmt->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
                         $stmt->execute();
                     }
                 }
@@ -834,9 +851,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     // otherwise store as a new file and add row to said table
                     if (is_file($file)) {
                         $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_FILES . " WHERE filename = :filename");
-                        $stmt->bindValue(':filename', $data['filename'], PDO::PARAM_STR);
+                        $stmt->bindValue(':filename', $data['filename'], \PDO::PARAM_STR);
                         $stmt->execute();
-                        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
                         $file_id = $result['id'];
                     } else {
                         if (!is_dir($dir)) wireMkdir($dir . "variations", true);
@@ -854,9 +871,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $size = filesize($file);
                         if (!$size) $size = 0;
                         $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_FILES . " (filename, mime_type, size) VALUES (:filename, :mime_type, :size)");
-                        $stmt->bindValue(':filename', $data['filename'], PDO::PARAM_STR);
-                        $stmt->bindValue(':mime_type', $mime_type, PDO::PARAM_STR);
-                        $stmt->bindValue(':size', $size, PDO::PARAM_INT);
+                        $stmt->bindValue(':filename', $data['filename'], \PDO::PARAM_STR);
+                        $stmt->bindValue(':mime_type', $mime_type, \PDO::PARAM_STR);
+                        $stmt->bindValue(':size', $size, \PDO::PARAM_INT);
                         $stmt->execute();
                         $file_id = $this->database->lastInsertId();
                     }
@@ -865,17 +882,17 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     $data = json_encode($data);
                 }
                 $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (:revisions_id, :fields_id, :property, :data)");
-                $stmt->bindValue(':revisions_id', $revisions_id, PDO::PARAM_INT);
-                $stmt->bindValue(':fields_id', $fields_id, PDO::PARAM_INT);
-                $stmt->bindValue(':property', $property, PDO::PARAM_STR);
-                $stmt->bindValue(':data', $data, PDO::PARAM_STR);
+                $stmt->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
+                $stmt->bindValue(':fields_id', $fields_id, \PDO::PARAM_INT);
+                $stmt->bindValue(':property', $property, \PDO::PARAM_STR);
+                $stmt->bindValue(':data', $data, \PDO::PARAM_STR);
                 $stmt->execute();
                 if ($file_id) {
                     // if data row is related to file, add row to junction table
                     $data_id = $this->database->lastInsertId();
                     $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_DATA_FILES . " (data_id, files_id) VALUES (:data_id, :file_id)");
-                    $stmt->bindValue(':data_id', $data_id, PDO::PARAM_INT);
-                    $stmt->bindValue(':file_id', $file_id, PDO::PARAM_INT);
+                    $stmt->bindValue(':data_id', $data_id, \PDO::PARAM_INT);
+                    $stmt->bindValue(':file_id', $file_id, \PDO::PARAM_INT);
                     $stmt->execute();
                 }
             }
@@ -889,6 +906,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
             // clear revision cache
             $page->_version_control_revisions = null;
+        
 
         }
         
@@ -1070,19 +1088,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // insert new tab to Page Edit form
         $form->append($wrapper);
-        if (!method_exists($event->object, "getTabs")) {
-            // note: this works for ProcessWire < 2.4.18 and won't be reached
-            // after 2.5.14 at all; see addTabHistory() for more details.
-            $form->append($wrapper);
-            $siblings = $form->children('id=ProcessPageEditSettings|ProcessPageEditDelete|ProcessPageEditView');
-            if (count($siblings)) {
-                if ($siblings->first()->attr('id') == "ProcessPageEditSettings") {
-                    $form->insertAfter($wrapper, $siblings->first());
-                } else {
-                    $form->insertBefore($wrapper, $siblings->first());
-                }
-            }
-        }
         $event->return = $form;
 
     }
@@ -1091,11 +1096,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * Add History tab to ProcessPageEdit
      * 
      * This method defines the specific position for History tab by hooking
-     * into ProessPageEdit::getTabs() method introduced to fix issue #847.
-     * 
-     * Note: before 2.4.18 tabs were generated automatically, and that case
-     * is taken care of by our buildFormHistory() method. There's no (clean)
-     * way to specify tab order for ProcessWire 2.4.18 .. 2.5.14 AFAIK.
+     * into the ProcessPageEdit::getTabs() method.
      * 
      * @param HookEvent $event
      */
@@ -1150,9 +1151,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // gather WHERE rules (page, filters)
         $where = array();
-        $where['r.pages_id = :pages_id'] = array(':pages_id', $page->id, PDO::PARAM_INT);
+        $where['r.pages_id = :pages_id'] = array(':pages_id', $page->id, \PDO::PARAM_INT);
         if (isset($filters['users_id']) && $filters['users_id'] == (int) $filters['users_id']) {
-            $where['r.users_id = :users_id'] = array(':users_id', $filters['users_id'], PDO::PARAM_INT);
+            $where['r.users_id = :users_id'] = array(':users_id', $filters['users_id'], \PDO::PARAM_INT);
         }
         $where_str = "WHERE " . implode(" AND ", array_keys($where));
 
@@ -1160,7 +1161,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $stmt = $this->database->prepare("SELECT COUNT(*) AS total FROM " . self::TABLE_REVISIONS . " r $where_str");
         foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
         $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
         $total = (int) $result['total'];
 
         // put together LIMIT clause
@@ -1187,13 +1188,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $stmt = $this->database->prepare($sql);
         foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
         if ($limit) {
-            $stmt->bindValue(':start', $start, PDO::PARAM_INT);
-            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->bindValue(':start', $start, \PDO::PARAM_INT);
+            $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
         }
         $stmt->execute();
         $data = array();
         $properties = array();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             if ($row['changes']) {
                 $changes = array();
                 $changes_fields = explode(",", $row['changes']);
@@ -1251,17 +1252,17 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function generateUsersCache(Page $page) {
         $users = array();
         $stmt = $this->database->prepare("SELECT DISTINCT users_id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id");
-        $stmt->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
+        $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
         $stmt->execute();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $user = wire('users')->get($row['users_id']);
             if ($user->id) {
                 $users[$user->name] = $user->id;
             } else {
                 $stmt = $this->database->prepare("SELECT username FROM " . self::TABLE_REVISIONS . " WHERE users_id = :users_id LIMIT 1");
-                $stmt->bindValue(':users_id', $row['users_id'], PDO::PARAM_INT);
+                $stmt->bindValue(':users_id', $row['users_id'], \PDO::PARAM_INT);
                 $stmt->execute();
-                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                $user = $stmt->fetch(\PDO::FETCH_ASSOC);
                 $users[$user['username']] = $row['users_id'];
             }
         }
@@ -1305,9 +1306,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $revision = (int) $page->_version_control_revision;
         if (!$revision) {
             $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id ORDER BY id DESC LIMIT 1");
-            $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
+            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
             $stmt->execute();
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
             if ($result) {
                 $revision = (int) $result['id'];
                 $page->_version_control_revision = $revision;
@@ -1364,10 +1365,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $sql = "SELECT id, timestamp FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id ORDER BY id DESC";
             if ($limit) $sql .= " LIMIT :limit";
             $stmt = $this->database->prepare($sql);
-            $stmt->bindValue(':pages_id', (int) $page->id, PDO::PARAM_INT);
-            if ($limit) $stmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
+            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
+            if ($limit) $stmt->bindValue(':limit', (int) $limit, \PDO::PARAM_INT);
             $stmt->execute();
-            $revisions = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            $revisions = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
             $page->_version_control_revisions = array(
                 'limit' => $limit,
                 'revisions' => $revisions,
@@ -1495,21 +1496,21 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $stmt_insert_data_row = $this->database->prepare("INSERT INTO " . self::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (:revisions_id, :fields_id, :property, :data)");
             $result = $this->database->query("SELECT * FROM version_control_for_text_fields");
             $parent = null;
-            while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
-                $stmt_insert_revision->bindValue(':parent', $parent, PDO::PARAM_INT);
-                $stmt_insert_revision->bindValue(':pages_id', (int) $row['pages_id'], PDO::PARAM_INT);
-                $stmt_insert_revision->bindValue(':users_id', (int) $row['users_id'], PDO::PARAM_INT);
-                $stmt_insert_revision->bindValue(':username', $row['username'], PDO::PARAM_STR);
-                $stmt_insert_revision->bindValue(':timestamp', $row['timestamp'], PDO::PARAM_STR);
+            while ($row = $result->fetch(\PDO::FETCH_ASSOC)) {
+                $stmt_insert_revision->bindValue(':parent', $parent, \PDO::PARAM_INT);
+                $stmt_insert_revision->bindValue(':pages_id', (int) $row['pages_id'], \PDO::PARAM_INT);
+                $stmt_insert_revision->bindValue(':users_id', (int) $row['users_id'], \PDO::PARAM_INT);
+                $stmt_insert_revision->bindValue(':username', $row['username'], \PDO::PARAM_STR);
+                $stmt_insert_revision->bindValue(':timestamp', $row['timestamp'], \PDO::PARAM_STR);
                 $stmt_insert_revision->execute();
                 $revisions_id = $this->database->lastInsertId();
-                $stmt_select_data_row->bindValue(':id', (int) $row['id'], PDO::PARAM_INT);
+                $stmt_select_data_row->bindValue(':id', (int) $row['id'], \PDO::PARAM_INT);
                 $stmt_select_data_row->execute();
-                while ($data_row = $stmt_select_data_row->fetch(PDO::FETCH_ASSOC)) {
-                    $stmt_insert_data_row->bindValue(':revisions_id', $revisions_id, PDO::PARAM_INT);
-                    $stmt_insert_data_row->bindValue(':fields_id', (int) $row['fields_id'], PDO::PARAM_INT);
-                    $stmt_insert_data_row->bindValue(':property', $data_row['property'], PDO::PARAM_STR);
-                    $stmt_insert_data_row->bindValue(':data', $data_row['data'], PDO::PARAM_STR);
+                while ($data_row = $stmt_select_data_row->fetch(\PDO::FETCH_ASSOC)) {
+                    $stmt_insert_data_row->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
+                    $stmt_insert_data_row->bindValue(':fields_id', (int) $row['fields_id'], \PDO::PARAM_INT);
+                    $stmt_insert_data_row->bindValue(':property', $data_row['property'], \PDO::PARAM_STR);
+                    $stmt_insert_data_row->bindValue(':data', $data_row['data'], \PDO::PARAM_STR);
                     $stmt_insert_data_row->execute();
                 }
                 $parent = $revisions_id;
@@ -1668,7 +1669,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             // if field doesn't exist this shouldn't be reached;
                             // data for removed fields is cleaned up elsewhere
                             $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id = :fields_id");
-                            $stmt->bindValue(':fields_id', $fields_id, PDO::PARAM_INT);
+                            $stmt->bindValue(':fields_id', $fields_id, \PDO::PARAM_INT);
                             $stmt->execute();
                             $this->cleanupFiles();
                             $this->message(sprintf(__("Removed stored data for field %s"), $field->name));

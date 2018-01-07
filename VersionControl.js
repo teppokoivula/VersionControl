@@ -11,13 +11,13 @@ $(function() {
     // fetch revision data for this page as HTML markup
     $.get(moduleConfig.processPage+'page', { pages_id: moduleConfig.pageID, settings: settings }, function(data) {
         
-        // prepend data (#text-field-history) to body
+        // prepend data (#version-control-data) to body
         $('body').prepend(data);
 
         // iterate through field specific revision containers and add their
         // contents to that fields header (.ui-widget-header) only if they
         // contain at least one revision other than what's currently used
-        $('#text-field-history > div').each(function() {
+        $('#version-control-data > div').each(function() {
             if ($(this).data('revision')) {
                 var $if = $('.Inputfield_'+$(this).data('field'));
                 $if.find('> label')
@@ -25,7 +25,8 @@ $(function() {
                     .before($(this));
                 $(this).find('a:first').addClass('ui-state-active');
                 if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
-                cache[$(this).data('field')+"."+$(this).data('revision')] = $if.find('div.ui-widget-content, .InputfieldContent').clone(true, true);
+                var $cacheobj = $if.find('.InputfieldContent') || $if.find('div.ui-widget-content');
+                cache[$(this).data('field')+"."+$(this).data('revision')] = $cacheobj.clone(true, true);
             }
         });
         
@@ -57,7 +58,7 @@ $(function() {
             $if.find('.field-revisions .ui-state-active').removeClass('ui-state-active');
             $this.addClass('ui-state-active');
             $('.compare-revisions').remove();
-            var $content = $if.find('div.ui-widget-content, .InputfieldContent');
+            var $content = $if.find('.InputfieldContent') || $if.find('div.ui-widget-content');
             var $loading = $('<span class="field-revisions-loading"></span>').hide().css({
                 height: $content.innerHeight()+'px',
                 backgroundColor: $content.css('background-color')
@@ -71,18 +72,13 @@ $(function() {
             if (cache[field+"."+revision]) {
                 if (settings.render != "JSON" && revision == $this.parents('.field-revisions:first').data('revision')) {
                     // current (latest) revision is the only one we've got
-                    // inputfield content cached as a jQuery object
+                    // inputfield content cached for as a jQuery object
                     $content.replaceWith(cache[field+"."+revision].clone(true, true));
                     if ($if.find('.InputfieldFileList').length) {
-                        // for file inputs we need to reload InputfieldFile.js
-                        // in order to reset the HTML5 AJAX file upload
-                        $.getScript(config.urls.modules+"Inputfield/InputfieldFile/InputfieldFile.js");
-                    }
-                    if ($if.hasClass('InputfieldImage')) {
-                        // for image inputs we need to reload InputfieldImage.js
-                        // in order to reset Magnific Popup
-                        $if.find('.InputfieldImageListToggle').remove();
-                        $.getScript(config.urls.modules+"Inputfield/InputfieldImage/InputfieldImage.js");
+                        // for file inputs we need to trigger 'reloaded' event
+                        // manually in order to (re-)enable HTML5 AJAX uploads
+                        $if.find('.InputfieldFileInit').removeClass('InputfieldFileInit');
+                        $if.trigger('reloaded');
                     }
                     if ($if.find('.InputfieldAsmSelect').length) {
                         var $select = $if.find('select[multiple=multiple]');
@@ -116,8 +112,8 @@ $(function() {
                 var after = $content.children('p.notes:first');
                 $content.html(data).prepend(before).append(after);
                 if ($if.hasClass('InputfieldImage') || $if.hasClass('InputfieldFile')) {
-                    // make sure that grid mode (for images) is not enabled
-                    $if.removeClass('InputfieldImageGrid');
+                    // trigger InputfieldImage() manually
+                    InputfieldImage($);
                     // image and file data isn't editable until it has been
                     // restored; we're using an overlay to avoid confusion
                     $content.prepend('<div class="version-control-overlay"></div>');

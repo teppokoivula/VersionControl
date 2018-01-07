@@ -2,7 +2,7 @@ Version Control module for ProcessWire
 ======================================
 
 Version Control Module For ProcessWire CMS/CMF.
-Copyright (c) 2013-2017 Teppo Koivula
+Copyright (c) 2013-2018 Teppo Koivula
 
 This module uses hooks provided by ProcessWire to catch page edits and store
 revision data in a series of custom database tables, so that it can be later
