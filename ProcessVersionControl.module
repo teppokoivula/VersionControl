@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '2.0.0',
+            'version' => '2.1.0',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -660,7 +660,16 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             $revision = count($field_data) ? " data-revision='{$field_data[0]['revision']}'" : "";
             $markup .= "<div class='field-revisions$diff' data-field='$field'$revision>";
             if (count($field_data)) {
-                $markup .= "<ul class='ui-widget-content'>";
+                $markup .= "<table>"
+                         . "<thead>"
+                         . "<tr>"
+                         . "<th></th>"
+                         . "<th>" . __("Timestamp", $this->config->paths->VersionControl . "VersionControl.module") . "</th>"
+                         . "<th>" . __("Author", $this->config->paths->VersionControl . "VersionControl.module") . "</th>"
+                         . "<th></th>"
+                         . "</tr>"
+                         . "</thead>"
+                         . "<tbody>";
                 foreach ($field_data as $row) {
                     $user_name = "";
                     if ($this->user_name_format && $this->user_name_format != "{name}") {
@@ -668,14 +677,19 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                         if ($user->id) $user_name = wirePopulateStringTags($this->user_name_format, $user);
                     }
                     if (!$user_name) $user_name = $row['username'];
-                    $markup .= "<li><a"
-                             . " data-revision='{$row['revision']}'"
-                             . " data-date='{$row['date']}'"
-                             . " href='#'>"
-                             . "<span class='date'>{$row['date']}</span> <span class='user'>{$user_name}</span>"
-                             . "</a></li>";
+                    $a_start = 
+                    $markup .= "<tr class='field-revision' data-revision='{$row['revision']}' data-date='{$row['date']}'>"
+                             . "<td class='field-revision-current'></td>"
+                             . "<td class='field-revision-date'>{$row['date']}</td>"
+                             . "<td class='field-revision-user'>{$user_name}</td>"
+                             . "<td>"
+                             . "<a class='field-revision-restore' href='#'>" . __("Restore") . "</a>"
+                             . ($diff ? "<a class='field-revision-diff' href='#'>" . __("Compare") . "</a>" : "")
+                             . "</td>"
+                             . "</tr>";
                 }
-                $markup .= "</ul>";
+                $markup .= "</tbody>"
+                         . "</table>";
             } else {
                 $markup .= htmlspecialchars(__("There are no earlier versions of this field available"));
             }
