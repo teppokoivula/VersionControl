@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '2.1.0',
+            'version' => '2.1.1',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -605,7 +605,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      */
     public function ___executePreview() {
-        exit($this->getPageRevision('view')->render());
+        $page = $this->getPageRevision('view');
+        exit($page->render());
     }
 
     /**

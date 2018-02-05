@@ -44,8 +44,12 @@ $(function() {
         $('body')
             .append('<div id="preview-overlay"></div>')
             .append('<div id="preview"><iframe src="' + $a.attr('href') + '" seamless></iframe></div>');
-        $('#preview iframe').on('load', function() {
+        $('#preview iframe').on('load', function(e) {
             $('#preview').addClass('loaded');
+            $(e.target.contentWindow).on('beforeunload', function(e) {
+                e.preventDefault();
+                closePreview($a);
+            });
         });
         $('#preview-overlay').fadeIn();
         $('#preview')
@@ -53,9 +57,6 @@ $(function() {
             .animate({ right: 0 }, 500, function() {
                 $('body').addClass('preview');
             });
-        $(window).on('blur.preview', function() {
-            closePreview($a);
-        });
         $(document)
             .on('keyup.preview', function() {
                 closePreview($a);

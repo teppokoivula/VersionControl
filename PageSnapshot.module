@@ -23,7 +23,7 @@ class PageSnapshot extends WireData implements Module {
             'summary' => 'Return page in the state it was at the given time.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '2.0.0',
+            'version' => '2.0.1',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
@@ -164,6 +164,7 @@ class PageSnapshot extends WireData implements Module {
     /**
      * Override Pageimage / Pagefile URL with custom one
      *
+     * @todo add support for variations (width(), height(), etc.)
      * @param HookEvent $event
      */
     protected function hookPagefileUrl(HookEvent $event) {
