@@ -29,7 +29,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '2.1.1',
+            'version' => '2.1.2',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -357,7 +357,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->addHookBefore('Fieldgroups::save', $this, 'cleanupRemovedFieldgroupFields');
             // add hooks that add additional scripts, styles and markup
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
-            $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
+            if (!$this->input->get->field && !$this->input->get->fields) {
+                // history tab shouldn't be added if we're editing specific
+                // field or fieldset only
+                $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
+            }
             // add hooks that alter image and file inputfield output on the fly
             $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
             $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
