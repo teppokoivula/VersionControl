@@ -181,29 +181,41 @@ $(function() {
         });
 
         // enable Diff Match Patch if/when required
-        var enableDiffMatchPatch = function() {
-            var dmp = new diff_match_patch();
-            var r1 = document.getElementById('r1').value;
-            var r2 = document.getElementById('r2').value;
-            dmp.Diff_Timeout = moduleConfig.diff.timeout;
-            dmp.Diff_EditCost = moduleConfig.diff.editCost;
-            var ms_start = (new Date()).getTime();
-            var d = dmp.diff_main(r1, r2);
-            var ms_end = (new Date()).getTime();
-            var s = (ms_end - ms_start) / 1000 + 's';
-            if (moduleConfig.diff.cleanup) {
-                dmp['diff_cleanup' + moduleConfig.diff.cleanup](d);
+        var enableDiffMatchPatch = function(r1, r2) {
+            var r1 = r1 || document.getElementById('r1').value;
+            var r2 = r2 || document.getElementById('r2').value;
+            var ds;
+            if (r1 == r2) {
+                ds = '<em>' + moduleConfig.i18n.noDiff + '</em>';
+            } else {
+                if (typeof diff_match_patch != 'function') {
+                    $.getScript(moduleConfig.moduleDir+"diff_match_patch_20121119/javascript/diff_match_patch.js", function() {
+                        enableDiffMatchPatch(r1, r2);
+                    });
+                    return false;
+                } else {
+                    var dmp = new diff_match_patch();
+                    dmp.Diff_Timeout = moduleConfig.diff.timeout;
+                    dmp.Diff_EditCost = moduleConfig.diff.editCost;
+                    var ms_start = (new Date()).getTime();
+                    var d = dmp.diff_main(r1, r2);
+                    var ms_end = (new Date()).getTime();
+                    var s = (ms_end - ms_start) / 1000 + 's';
+                    if (moduleConfig.diff.cleanup) {
+                        dmp['diff_cleanup' + moduleConfig.diff.cleanup](d);
+                    }
+                    ds = dmp.diff_prettyHtml(d);
+                }
             }
-            var ds = dmp.diff_prettyHtml(d);
             document.getElementById('diff').innerHTML = ds;
         }
         
-        // when mouse cursor is moved on a revision link, show compare/diff
-        // link, which -- when clicked -- loads a text diff for displaying
-        // differences between selected revision and current revision.
-        $('.field-revision-diff')
-            .on('click', function() {
+        // when compare/diff link is clicked, display the difference between
+        // selected revision and currently active revision
+        $('.field-revisions')
+            .on('click', '.field-revision-diff', function() {
                 $('.compare-revisions').remove();
+                $('.field-revision-diff').not(this).removeClass('active');
                 $(this).toggleClass('active');
                 if ($(this).hasClass('active')) {
                     // in this case r1 refers to current revision, r2 to selected
@@ -227,13 +239,7 @@ $(function() {
                                 enableDiffSwitch(moduleConfig);
                             }
                         } else {
-                            if (typeof diff_match_patch != 'function') {
-                                $.getScript(moduleConfig.moduleDir+"diff_match_patch_20121119/javascript/diff_match_patch.js", function() {
-                                    enableDiffMatchPatch();
-                                });
-                            } else {
-                                enableDiffMatchPatch();
-                            }
+                            enableDiffMatchPatch();
                         }
                         var $compare_revisions_close = $('<a class="compare-revisions-close fa fas fa-times"></a>')
                             .on('click', function() {

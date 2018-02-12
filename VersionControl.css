@@ -318,12 +318,14 @@ body.preview {
 .field-revisions ins {
     background-color: #3db997 !important;
     text-decoration: none;
+    line-height: 1.4rem;
     color: #fff;
 }
 
 #diff-table td.diff-col-del,
 .field-revisions del {
     background-color: #e93661 !important;
+    line-height: 1.4rem;
     color: #fff;
 }
 
