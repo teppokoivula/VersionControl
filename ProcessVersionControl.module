@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '2.1.1',
+            'version' => '2.1.2',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -327,6 +327,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if GET param field is missing
      * @throws WireException if GET param revisions is missing
      * @throws WireException if GET param revisions is invalid
+     * @throws WireException if GET param revisions includes same revision twice
      * @throws WireException if requested field is not found
      */
     public function executeDiff() {
@@ -361,6 +362,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $r1 = (int) $r1;
         $r2 = (int) $r2;
         if (!$r1 || !$r2) throw new WireException("Revisions need to be provided in following format: 123:124");
+        if ($r1 == $r2) throw new WireException("You need to provide separate source and target revisions");
 
         // find values
         $stmt = $this->database->prepare("
