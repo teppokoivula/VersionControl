@@ -175,6 +175,17 @@ $(function() {
                 $(this).addClass('active');
                 $revisions.addClass('sliding').slideDown('fast', function() {
                     $revisions.removeClass('sliding');
+                    if (!$revisions.hasClass('scroll-tip') && $revisions.width() < $revisions.find('table').outerWidth()) {
+                        var $scroll_tip = $('<div class="scroll-tip"><i class="fa fa-arrows-h" aria-hidden="true"></i></div>');
+                        $revisions.prepend($scroll_tip).addClass('scroll-tip');
+                        window.setTimeout(function() {
+                            $scroll_tip.animate({"left": "+=20px"}, "slow", function() {
+                                $(this).animate({"left": "-=20px"}, "slow", function() {
+                                    $(this).fadeOut(250);
+                                });
+                            });
+                        }, 250);
+                    }
                 });
             }
             return false;

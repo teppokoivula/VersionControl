@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '2.1.2',
+            'version' => '2.1.3',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -661,7 +661,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             if ($this->diff_disabled) $diff = "";
             if ($diff && wire('fields')->get($field)->type instanceof FieldtypeFile) $diff = "";
             $revision = count($field_data) ? " data-revision='{$field_data[0]['revision']}'" : "";
-            $markup .= "<div class='field-revisions$diff' data-field='$field'$revision>";
+            $markup .= "<div class='field-revisions$diff' data-field='$field'$revision><div>";
             if (count($field_data)) {
                 $markup .= "<table>"
                          . "<thead>"
@@ -696,7 +696,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             } else {
                 $markup .= htmlspecialchars(__("There are no earlier versions of this field available"));
             }
-            $markup .= "</div>";
+            $markup .= "</div></div>";
         }
 
         $markup = "<div id='version-control-data'>$markup</div>";

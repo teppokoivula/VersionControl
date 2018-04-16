@@ -43,12 +43,15 @@ textarea.version_control_filedata {
 
 .field-revisions {
     overflow: visible !important;
-    padding: 1em 1em 1.25em 1em !important;
+    padding: 1em 0 1.25em 0 !important;
     background: #1c2836;
     position: relative;
-    margin-top: 1px;
     background: linear-gradient(to right, #1c2836 0%,#293a4f 100%); /* W3C, IE10+, FF16+, Chrome26+, Opera12+, Safari7+ */
     display: none;
+}
+
+.field-revisions.scroll-tip {
+    cursor: ew-resize;
 }
 
 .field-revisions.sliding {
@@ -68,11 +71,31 @@ textarea.version_control_filedata {
     border-right: 8px solid transparent;
 }
 
+.field-revisions .scroll-tip {
+    text-align: center;
+    width: 100%;
+    opacity: 0.75;
+    position: absolute;
+    top: 50%;
+    transform: perspective(1px) translateY(-50%);
+}
+
+.field-revisions .scroll-tip .fa {
+    font-size: 8em !important;
+}
+
+.field-revisions > div {
+    overflow: scroll !important;
+    padding: 0 1em;
+}
+
 .field-revisions table {
-    margin: 0;
+    float: left;
+    margin: 0 1em 0 0;
     width: 100%;
     line-height: 1em;
     border-collapse: collapse;
+    border-right: 1em solid #293a4f;
 }
 
 .field-revisions tbody tr {
