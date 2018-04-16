@@ -170,11 +170,13 @@ $(function() {
                 $(this).removeClass('active');
                 $revisions.addClass('sliding').slideUp('fast', function() {
                     $revisions.removeClass('sliding');
+                    InputfieldColumnWidths();
                 });
             } else {
                 $(this).addClass('active');
                 $revisions.addClass('sliding').slideDown('fast', function() {
                     $revisions.removeClass('sliding');
+                    InputfieldColumnWidths();
                     if (!$revisions.hasClass('scroll-tip') && $revisions.width() < $revisions.find('table').outerWidth()) {
                         var $scroll_tip = $('<div class="scroll-tip"><i class="fa fa-arrows-h" aria-hidden="true"></i></div>');
                         $revisions.prepend($scroll_tip).addClass('scroll-tip');
