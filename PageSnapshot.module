@@ -1,19 +1,13 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * Return page in the state it was at the given time
  *
  * Original code for this module was posted by SteveB at the ProcessWire support forum:
- * http://processwire.com/talk/topic/2892-module-version-control-for-text-fields/?p=50438
+ * https://processwire.com/talk/topic/2892-module-version-control-for-text-fields/?p=50438
  *
- * @copyright Copyright (c) 2014, Teppo Koivula & SteveB
- * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- *
- * ProcessWire 2.x 
- * Copyright (C) 2013 by Ryan Cramer 
- * Licensed under GNU/GPL v2, see LICENSE.TXT
- * 
- * http://processwire.com
+ * @copyright 2014-2018 Teppo Koivula & SteveB
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
  */
 class PageSnapshot extends WireData implements Module {
@@ -27,14 +21,14 @@ class PageSnapshot extends WireData implements Module {
         return array(
             'title' => 'Page Snapshot',
             'summary' => 'Return page in the state it was at the given time.',
-            'href' => 'http://modules.processwire.com/modules/version-control/',
+            'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula, SteveB',
-            'version' => '1.1.20',
+            'version' => '2.0.1',
             'singular' => true,
             'autoload' => true,
             'requires' => array(
                 'VersionControl',
-                'ProcessWire>=2.4.1',
+                'ProcessWire>=3.0.62',
             ),
         ); 
     }
@@ -47,8 +41,6 @@ class PageSnapshot extends WireData implements Module {
     
     /**
      * Initialization function
-     *
-     * This function attachs required hooks.
      *
      */
     public function init() {
@@ -172,6 +164,7 @@ class PageSnapshot extends WireData implements Module {
     /**
      * Override Pageimage / Pagefile URL with custom one
      *
+     * @todo add support for variations (width(), height(), etc.)
      * @param HookEvent $event
      */
     protected function hookPagefileUrl(HookEvent $event) {
@@ -220,9 +213,9 @@ class PageSnapshot extends WireData implements Module {
         if ($revision_id) {
             if (!is_integer($revision_id)) throw new WireException("Revision ID must be an integer");
             $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
-            $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+            $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
             $stmt->execute();
-            $revision = $stmt->fetch(PDO::FETCH_ASSOC);
+            $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
             if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
             $page->_version_control_revision = $revision_id;
         }
@@ -267,7 +260,7 @@ class PageSnapshot extends WireData implements Module {
 
         // generate data (associative array)
         $data = array();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $field = $this->fields->get($row['fields_id']);
             if ($row['pages_id'] != $page->id) {
                 $repeater_page = $this->pages->get($row['pages_id']);

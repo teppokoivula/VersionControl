@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * Process Version Control
@@ -9,8 +9,8 @@
  *
  * For more details see the README.md file distributed with this module.
  *
- * @copyright 2013-2016 Teppo Koivula
- * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ * @copyright 2013-2018 Teppo Koivula
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessVersionControl extends Process implements ConfigurableModule {
     
@@ -23,13 +23,16 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         return array(
             'title' => 'Process Version Control',
             'summary' => 'Provides the interface required by Version Control.',
-            'href' => 'http://modules.processwire.com/modules/version-control/',
+            'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.4',
+            'version' => '2.1.3',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
-            'requires' => 'VersionControl',
+            'requires' => array(
+                'VersionControl',
+                'ProcessWire>=3.0.62',
+            ),
         ); 
     }
     
@@ -239,9 +242,12 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         }
 
         // find values
+        // - MIN() function calls are required in order to avoid errors when
+        //   MySQL is using SQL mode ONLY_FULL_GROUP_BY
+        // - some MIN() function calls may not be necessary for MySQL 5.7.5+
         $stmt = $this->database->prepare("
-        SELECT r.pages_id, f.name AS field_name, r.timestamp, r.users_id, r.username, d.revisions_id, GROUP_CONCAT(d.property) AS propertylist, MIN(DISTINCT d.data)
-        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
+        SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
+        FROM fields f, " . VersionControl::TABLE_REVISIONS . " r, " . VersionControl::TABLE_DATA . " d
         WHERE r.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
         ORDER BY f.id, MIN(DISTINCT d.id) DESC
@@ -258,7 +264,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         
         // parse data
         $data = array();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             if (!in_array($row['field_name'], $enabled_fields)) continue;
             $item = array(
                 'users_id' => null,
@@ -322,6 +328,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if GET param field is missing
      * @throws WireException if GET param revisions is missing
      * @throws WireException if GET param revisions is invalid
+     * @throws WireException if GET param revisions includes same revision twice
      * @throws WireException if requested field is not found
      */
     public function executeDiff() {
@@ -356,6 +363,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $r1 = (int) $r1;
         $r2 = (int) $r2;
         if (!$r1 || !$r2) throw new WireException("Revisions need to be provided in following format: 123:124");
+        if ($r1 == $r2) throw new WireException("You need to provide separate source and target revisions");
 
         $data = array();
         $propertyselect = null;
@@ -374,15 +382,14 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         ORDER BY r.id ASC
         LIMIT 2
         ");
-        $stmt->bindValue(':r1', $r1, PDO::PARAM_INT);
-        $stmt->bindValue(':r2', $r2, PDO::PARAM_INT);
-        $stmt->bindValue(':field_name', $field_name, PDO::PARAM_STR);
+        $stmt->bindValue(':r1', $r1, \PDO::PARAM_INT);
+        $stmt->bindValue(':r2', $r2, \PDO::PARAM_INT);
+        $stmt->bindValue(':field_name', $field_name, \PDO::PARAM_STR);
         $stmt->execute();
 
         // render output
-        $rowcount = 0;
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $rowcount++;
+        $data = array();
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
             if ($field->type == "FieldtypePage") {
                 $data[$id] = array();
@@ -471,15 +478,15 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
         WHERE f.name = :field_name AND r.id = :revision_id AND d.revisions_id = r.id AND d.fields_id = f.id
         ");
-        $stmt->bindValue(':field_name', $field_name, PDO::PARAM_STR);
-        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_STR);
+        $stmt->bindValue(':field_name', $field_name, \PDO::PARAM_STR);
+        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_STR);
         $stmt->execute();
 
         // generate data (associative array)
         $page = null;
         $field = null;
         $data = array();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             if (!$page) $page = $this->pages->get($row['pages_id']);
             if (!$field) $field = $this->fields->get($row['fields_id']);
             if ($field->type == "FieldtypeDatetime") {
@@ -614,7 +621,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      */
     public function ___executePreview() {
-        exit($this->getPageRevision('view')->render());
+        $page = $this->getPageRevision('view');
+        exit($page->render());
     }
 
     /**
@@ -634,9 +642,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // get and check revision
         $revision_id = (int) $this->input->post->revision;
         $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
-        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
         $stmt->execute();
-        $revision = $stmt->fetch(PDO::FETCH_ASSOC);
+        $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
 
         // sanitize and store comment text
@@ -644,8 +652,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
         $comment = $this->database->escapeStr($comment);
         $stmt = $this->database->prepare("UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = :comment WHERE id = :revision_id");
-        $stmt->bindValue(':comment', $comment, PDO::PARAM_STR);
-        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+        $stmt->bindValue(':comment', $comment, \PDO::PARAM_STR);
+        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
         $stmt->execute();
         
         // return comment text
@@ -667,9 +675,18 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             if ($this->diff_disabled) $diff = "";
             if ($diff && wire('fields')->get($field)->type instanceof FieldtypeFile) $diff = "";
             $revision = count($field_data) ? " data-revision='{$field_data[0]['revision']}'" : "";
-            $markup .= "<div class='field-revisions$diff' data-field='$field'$revision>";
+            $markup .= "<div class='field-revisions$diff' data-field='$field'$revision><div>";
             if (count($field_data)) {
-                $markup .= "<ul class='ui-widget-content'>";
+                $markup .= "<table>"
+                         . "<thead>"
+                         . "<tr>"
+                         . "<th></th>"
+                         . "<th>" . __("Timestamp", $this->config->paths->VersionControl . "VersionControl.module") . "</th>"
+                         . "<th>" . __("Author", $this->config->paths->VersionControl . "VersionControl.module") . "</th>"
+                         . "<th></th>"
+                         . "</tr>"
+                         . "</thead>"
+                         . "<tbody>";
                 foreach ($field_data as $row) {
                     $user_name = "";
                     if ($this->user_name_format && $this->user_name_format != "{name}") {
@@ -677,41 +694,26 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                         if ($user->id) $user_name = wirePopulateStringTags($this->user_name_format, $user);
                     }
                     if (!$user_name) $user_name = $row['username'];
-                    $langs = null;
-                    if (isset($row['propertylist'])  and ($row['propertylist']!='data')) {
-                        $languages = wire('languages');
-                        if (isset($languages)) {
-                            $propertylist = array_flip(explode(',',$row['propertylist']));
-                            $lids = array();
-                            $markup .= "<li><span class='date'>{$row['date']}</span> ";
-                            foreach ($languages as $language) {
-                                $propertyidx = 'data'.$language->id;
-                                $markup .= isset($propertylist[$propertyidx]) 
-                                    ? "<a data-revision='{$row['revision']}'"
-                                        . " data-date='{$row['date']}'"
-                                        . " data-property='$propertyidx'"
-                                        . " href='#'>"
-                                        . "<span class='language'>$language->title</span></a> "
-                                    : "<span class='language'>&nbsp;</span> ";
-                            }
-                            $markup .= "<span class='user'>{$user_name}</span></li>";
-                        }
-                    } else
-                        $markup .= "<li><a"
-                                 . " data-revision='{$row['revision']}'"
-                                 . " data-date='{$row['date']}'"
-                                 . " href='#'>"
-                                 . "<span class='date'>{$row['date']}</span> <span class='user'>{$user_name}</span>"
-                                 . "</a></li>";
+                    $a_start = 
+                    $markup .= "<tr class='field-revision' data-revision='{$row['revision']}' data-date='{$row['date']}'>"
+                             . "<td class='field-revision-current'></td>"
+                             . "<td class='field-revision-date'>{$row['date']}</td>"
+                             . "<td class='field-revision-user'>{$user_name}</td>"
+                             . "<td>"
+                             . "<a class='field-revision-restore' href='#'>" . __("Restore") . "</a>"
+                             . ($diff ? "<a class='field-revision-diff' href='#'>" . __("Compare") . "</a>" : "")
+                             . "</td>"
+                             . "</tr>";
                 }
-                $markup .= "</ul>";
+                $markup .= "</tbody>"
+                         . "</table>";
             } else {
                 $markup .= htmlspecialchars(__("There are no earlier versions of this field available"));
             }
-            $markup .= "</div>";
+            $markup .= "</div></div>";
         }
 
-        $markup = "<div id='text-field-history'>$markup</div>";
+        $markup = "<div id='version-control-data'>$markup</div>";
 
         return $markup;
 
@@ -756,9 +758,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if ($permission == "view" && !$page->viewable()) throw new WireException("Permission denied (not viewable)");
         if ($permission == "edit" && !$page->editable()) throw new WireException("Permission denied (not editable)");
         $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
-        $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
+        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
         $stmt->execute();
-        $revision = $stmt->fetch(PDO::FETCH_ASSOC);
+        $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
 
         // fetch snapshot of page at the time of given revision
