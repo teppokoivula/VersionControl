@@ -5,6 +5,15 @@
     "href": "https://modules.processwire.com/modules/version-control/",
     "author": "Teppo Koivula",
     "permission": "version-control",
+    "permissions": {
+        "version-control": "Access version control"
+    },
+    "page": {
+        "name": "version-control",
+        "parent": "setup",
+        "title": "Version Control",
+        "status": "hidden"
+    },
     "requires": [
         "VersionControl",
         "ProcessWire>=3.0.62",

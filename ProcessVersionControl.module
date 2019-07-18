@@ -32,13 +32,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule, Modul
     }
 
     /**
-     * Name of admin page created and used by this module
-     *
-     * @var string
-     */
-    const PAGE_NAME = 'version-control';
-
-    /**
      * Populate the default config data
      *
      * ProcessWire will automatically overwrite it with anything the user has specifically configured.
@@ -723,67 +716,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule, Modul
         $page->_version_control_parent = $revision_id;
 
         return $page;
-    }
-
-    /**
-     * Called only when this module is installed
-     *
-     * Creates new page with this Process module assigned and new database
-     * table for storing history data.
-     */
-    public function install() {
-
-        // create a page for this module
-        $page = new Page();
-        $page->template = 'admin';
-        $page->name = self::PAGE_NAME; 
-        $page->process = $this; 
-        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
-        $page->title = $this->modules->getModuleInfoProperty(
-            $this->className(),
-            'title'
-        );
-        $page->addStatus(Page::statusHidden);
-        $page->save();
-
-        // tell user that we've created a new page
-        $this->message("Created Page: {$page->path}"); 
-
-        // create version-control permission
-        $permission = $this->permissions->get("version-control");
-        if (!$permission->id) {
-            $permission = new Permission();
-            $permission->name = "version-control";
-            $permission->title = $this->_("Access version control");
-            $permission->save();
-            $this->message("Created Permission: {$permission->name}");
-        }
-    }
-
-    /**
-     * Called only when this module is uninstalled
-     *
-     * Removes page associated with this Process module and also drops related table.
-     */
-    public function uninstall() {
-
-        // find and delete the page we installed
-        $moduleID = $this->modules->getModuleID($this); 
-        $page = $this->pages->get("template=admin, process=$moduleID, name=" . self::PAGE_NAME); 
-
-        // delete page
-        if ($page->id) {
-            if (PagefilesManager::hasPath($page)) wireRmdir($page->filesManager->path, true);
-            $page->delete();
-            $this->message("Deleted Page: {$page->path}"); 
-        }
-
-        // delete version-control permission
-        $permission = $this->permissions->get("version-control");
-        if ($permission->id) {
-            $permission->delete();
-            $this->message("Deleted Permission: {$permission->name}");
-        }
     }
 
 }

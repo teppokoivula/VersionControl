@@ -1412,7 +1412,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $this->dropTable(self::TABLE_DATA);
         $this->dropTable(self::TABLE_FILES);
         $this->dropTable(self::TABLE_DATA_FILES);
-        if (is_dir($this->path)) wireRmdir($this->path, true);
+        if (is_dir($this->path)) {
+            wireRmdir($this->path, true);
+        }
     }
 
     /**
@@ -1735,7 +1737,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             if (!array_key_exists($key, $this->data)) {
                 $processModuleID = wire('modules')->getModuleID("ProcessVersionControl");
                 if ($processModuleID) {
-                    $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=" . ProcessVersionControl::PAGE_NAME); 
+                    $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=version-control");
                     $pagefilesManager = new PagefilesManager($processPage);
                     $this->data['path'] = $pagefilesManager->path();
                     $this->data['url'] = $pagefilesManager->url();
