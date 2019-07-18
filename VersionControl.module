@@ -1738,10 +1738,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $processModuleID = wire('modules')->getModuleID("ProcessVersionControl");
                 if ($processModuleID) {
                     $processPage = wire('pages')->get("template=admin, process=$processModuleID, name=version-control");
-                    $pagefilesManager = new PagefilesManager($processPage);
-                    $this->data['path'] = $pagefilesManager->path();
-                    $this->data['url'] = $pagefilesManager->url();
-                    if (!is_dir($this->data['path'])) wireMkdir($this->data['path']);
+                    if ($processPage->id) {
+                        $pagefilesManager = new PagefilesManager($processPage);
+                        $this->data['path'] = $pagefilesManager->path();
+                        $this->data['url'] = $pagefilesManager->url();
+                        if (!is_dir($this->data['path'])) {
+                            wireMkdir($this->data['path']);
+                        }
+                    }
                 }
             }
             return isset($this->data[$key]) ? $this->data[$key] : null;
