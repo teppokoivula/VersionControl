@@ -4,8 +4,7 @@
  * Process Version Control
  *
  * This module acts as an interface for Version Control module by generating
- * markup it requires based on GET params and making itself available via a
- * ProcessWire Admin page.
+ * markup based on GET params and making itself available via an Admin page.
  *
  * For more details see the README.md file distributed with this module.
  *
@@ -614,57 +613,88 @@ class ProcessVersionControl extends Process implements ConfigurableModule, Modul
      * Render HTML markup based on input array
      *
      * @param array $data
-     * @return string|null
+     * @return string
      */
     protected function renderHTML(array $data) {
 
-        $markup = "";
+        // Rendering templates.
+        $templates = [
+            'outer_container' => '<div id="version-control-data">%s</div>',
+            'field_container' => '<div class="field-revisions%s" data-field="%s" data-revision="%s"><div>%s</div></div>',
+            'table_container' => '<table>%s</table>',
+            'table_head' => '<thead><tr><th></th><th>%s</th><th>%s</th></tr></thead>',
+            'table_body' => '<tbody>%s</tbody>',
+            'table_item' => '<tr class="field-revision" data-revision="%1$s" data-date="%2$s">'
+                         . '<td class="field-revision-current"></td>'
+                         . '<td class="field-revision-date">%2$s</td>'
+                         . '<td class="field-revision-user">%3$s</td>'
+                         . '<td>%4$s%5$s</td>'
+                         . '</tr>',
+        ];
+
+        // Action buttons.
+        $buttons = [
+            'restore' => '<a class="field-revision-restore" href="#">' . $this->_('Restore') . '</a>',
+            'compare' => '<a class="field-revision-diff" href="#">' . $this->_('Compare') . '</a>',
+        ];
+
+        $dataset = [];
         foreach ($data as $field => $field_data) {
-            $diff = " diff";
-            if ($this->diff_disabled) $diff = "";
-            if ($diff && wire('fields')->get($field)->type instanceof FieldtypeFile) $diff = "";
-            $revision = count($field_data) ? " data-revision='{$field_data[0]['revision']}'" : "";
-            $markup .= "<div class='field-revisions$diff' data-field='$field'$revision><div>";
-            if (count($field_data)) {
-                $markup .= "<table>"
-                         . "<thead>"
-                         . "<tr>"
-                         . "<th></th>"
-                         . "<th>" . __("Timestamp", $this->config->paths->VersionControl . "VersionControl.module") . "</th>"
-                         . "<th>" . __("Author", $this->config->paths->VersionControl . "VersionControl.module") . "</th>"
-                         . "<th></th>"
-                         . "</tr>"
-                         . "</thead>"
-                         . "<tbody>";
+
+            // Check if diff can and should be enabled, and try to read revision from field data.
+            $has_diff = !$this->diff_disabled && !$this->wire('fields')->get($field)->type instanceof FieldtypeFile;
+            $revision = !empty($field_data) ? $field_data[0]['revision'] : '';
+
+            $table = [];
+            if (!empty($field_data)) {
+
+                // Data table heading row.
+                $table['head'] = sprintf(
+                    $templates['table_head'],
+                    $this->_('Timestamp', $this->config->paths->VersionControl . 'VersionControl.module'),
+                    $this->_('Author', $this->config->paths->VersionControl . 'VersionControl.module')
+                );
+
+                $table['body'] = [];
                 foreach ($field_data as $row) {
+
+                    // Get user name for this row of data.
                     $user_name = "";
-                    if ($this->user_name_format && $this->user_name_format != "{name}") {
-                        $user = wire('users')->get((int) $row['users_id']);
-                        if ($user->id) $user_name = wirePopulateStringTags($this->user_name_format, $user);
+                    if ($this->user_name_format && $this->user_name_format !== "{name}") {
+                        $user = $this->wire('users')->get((int) $row['users_id']);
+                        if ($user->id) {
+                            $user_name = wirePopulateStringTags($this->user_name_format, $user);
+                        }
                     }
-                    if (!$user_name) $user_name = $row['username'];
-                    $a_start = 
-                    $markup .= "<tr class='field-revision' data-revision='{$row['revision']}' data-date='{$row['date']}'>"
-                             . "<td class='field-revision-current'></td>"
-                             . "<td class='field-revision-date'>{$row['date']}</td>"
-                             . "<td class='field-revision-user'>{$user_name}</td>"
-                             . "<td>"
-                             . "<a class='field-revision-restore' href='#'>" . __("Restore") . "</a>"
-                             . ($diff ? "<a class='field-revision-diff' href='#'>" . __("Compare") . "</a>" : "")
-                             . "</td>"
-                             . "</tr>";
+                    $user_name = $user_name ?: $row['username'];
+
+                    // Markup for a single data row.
+                    $table['body'][] = sprintf(
+                        $templates['table_item'],
+                        $row['revision'],
+                        $row['date'],
+                        $user_name,
+                        $buttons['restore'],
+                        $has_diff ? $buttons['compare'] : '',
+                    );
                 }
-                $markup .= "</tbody>"
-                         . "</table>";
-            } else {
-                $markup .= htmlspecialchars(__("There are no earlier versions of this field available"));
+                $table['body'] = sprintf($templates['table_body'], implode($table['body']));
             }
-            $markup .= "</div></div>";
+            $dataset[] = sprintf(
+                $templates['field_container'],
+                $has_diff ? ' diff' : '',
+                $field,
+                $revision,
+                sprintf($templates['table_container'], implode($table))
+            );
         }
 
-        $markup = "<div id='version-control-data'>$markup</div>";
-
-        return $markup;
+        return sprintf(
+            $templates['outer_container'],
+            !empty($dataset) ? implode($dataset) : htmlspecialchars(
+                $this->_('There are no earlier versions of this field available')
+            )
+        );
     }
 
     /**
