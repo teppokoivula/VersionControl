@@ -183,10 +183,10 @@ $(function() {
                         window.setTimeout(function() {
                             $scroll_tip.animate({"left": "+=20px"}, "slow", function() {
                                 $(this).animate({"left": "-=20px"}, "slow", function() {
-                                    $(this).fadeOut(250);
+                                    $(this).fadeOut(200);
                                 });
                             });
-                        }, 250);
+                        }, 200);
                     }
                 });
             }
