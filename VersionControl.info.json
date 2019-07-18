@@ -1,0 +1,18 @@
+{
+    "title": "Version Control",
+    "summary": "Version control features for page content.",
+    "version": "2.2.0",
+    "href": "https://modules.processwire.com/modules/version-control/",
+    "author": "Teppo Koivula",
+    "installs": [
+        "LazyCron",
+        "PageSnapshot",
+        "ProcessVersionControl"
+    ],
+    "requires": [
+        "ProcessWire>=3.0.62",
+        "PHP>=5.4"
+    ],
+    "singular": true,
+    "autoload": true
+}

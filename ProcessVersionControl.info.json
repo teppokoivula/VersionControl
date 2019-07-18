@@ -1,0 +1,15 @@
+{
+    "title": "Process Version Control",
+    "summary": "Provides the interface required by Version Control.",
+    "version": "2.2.0",
+    "href": "https://modules.processwire.com/modules/version-control/",
+    "author": "Teppo Koivula",
+    "permission": "version-control",
+    "requires": [
+        "VersionControl",
+        "ProcessWire>=3.0.62",
+        "PHP>=5.4"
+    ],
+    "singular": true,
+    "autoload": false
+}

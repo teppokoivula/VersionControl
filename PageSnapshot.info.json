@@ -1,0 +1,14 @@
+{
+    "title": "Page Snapshot",
+    "summary": "Return page in the state it was at the given time.",
+    "version": "2.1.0",
+    "href": "https://modules.processwire.com/modules/version-control/",
+    "author": "Teppo Koivula, SteveB",
+    "requires": [
+        "VersionControl",
+        "ProcessWire>=3.0.62",
+        "PHP>=5.4"
+    ],
+    "singular": true,
+    "autoload": true
+}

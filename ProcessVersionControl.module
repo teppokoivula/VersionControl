@@ -9,32 +9,10 @@
  *
  * For more details see the README.md file distributed with this module.
  *
- * @copyright 2013-2018 Teppo Koivula
+ * @copyright 2013-2019 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
-class ProcessVersionControl extends Process implements ConfigurableModule {
-    
-    /**
-     * Return information about this module (required)
-     *
-     * @return array
-     */
-    public static function getModuleInfo() {
-        return array(
-            'title' => 'Process Version Control',
-            'summary' => 'Provides the interface required by Version Control.',
-            'href' => 'https://modules.processwire.com/modules/version-control/',
-            'author' => 'Teppo Koivula',
-            'version' => '2.1.3',
-            'singular' => true,
-            'autoload' => false,
-            'permission' => 'version-control',
-            'requires' => array(
-                'VersionControl',
-                'ProcessWire>=3.0.62',
-            ),
-        ); 
-    }
+class ProcessVersionControl extends Process implements ConfigurableModule, Module {
     
     /**
      * Default configuration for this module
@@ -45,17 +23,17 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @return array
      */
     static public function getDefaultData() {
-        return array(
+        return [
             'date_format' => 'Y-m-d H:i:s',
             'user_name_format' => '{name}',
             'diff_timeout' => 1,
             'diff_efficiency_cleanup_edit_cost' => 4,
-        );
+        ];
     }
-    
+
     /**
      * Name of admin page created and used by this module
-     * 
+     *
      * @var string
      */
     const PAGE_NAME = 'version-control';
@@ -66,18 +44,17 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * ProcessWire will automatically overwrite it with anything the user has specifically configured.
      * This is done in construct() rather than init() because ProcessWire populates config data after
      * construct(), but before init().
-     *
      */
     public function __construct() {
-        foreach(self::getDefaultData() as $key => $value) {
+        foreach (self::getDefaultData() as $key => $value) {
             $this->$key = $value;
         }
-        wire('modules')->setModuleConfigData($this->className);
+        $this->wire('modules')->setModuleConfigData($this->className);
     }
 
     /**
      * Module configuration
-     * 
+     *
      * Note: this module isn't meant to be configurable in the usual way. While
      * native features are used to define config inputfields, and user-provided
      * config settings are stored just like regular config settings, the user
@@ -123,7 +100,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
         $field->icon = "clock-o";
         $fieldset->add($field);
-        
+
         // user name format
         $field = $modules->get("InputfieldText");
         $field->name = "user_name_format";
@@ -164,11 +141,11 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $field->label = __("Post-diff Cleanup");
         $field->description = __("Post-diff cleanup algorithms attempt to filter out irrelevant small commonalities, thus enhancing final output.");
         $field->notes = __("See [Diff Demo](https://neil.fraser.name/software/diff_match_patch/svn/trunk/demos/demo_diff.html) for examples and detailed descriptions.");
-        $field->addOptions(array(
+        $field->addOptions([
                 '' => __("No Cleanup"),
                 'semantic' => __("Semantic Cleanup"),
                 'efficiency' => __("Efficiency Cleanup"),
-        ));
+        ]);
         $field->showIf = "diff_disabled=0";
         if (isset($data[$field->name])) $field->value = $data[$field->name];
         $fieldset->add($field);
@@ -183,7 +160,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $fieldset->add($field);
 
         return $fields;
-
     }
 
     /**
@@ -209,7 +185,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @return string revision data rendered with one of available render methods
      */
     public function executePage() {
-        
+
         // should date formatting occur?
         $defaults = self::getDefaultData();
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
@@ -221,10 +197,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $pages_id = $this->input->get->pages_id ? (int) $this->input->get->pages_id : null;
         if (!$pages_id) throw new WireException("Missing required GET param pages_id");
         $page = $this->pages->get($pages_id);
-        $page_ids = array($pages_id);
+        $page_ids = [$pages_id];
 
         // include repeater pages
-        $repeater_fields = array();
+        $repeater_fields = [];
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
@@ -255,24 +231,24 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt->execute($page_ids);
 
         // fetch enabled fields
-        $enabled_fields = array();
+        $enabled_fields = [];
         if (count($page->template->versionControlFields)) {
             foreach ($page->template->versionControlFields as $field) {
                 $enabled_fields[] = $field->name;
             }
         }
-        
+
         // parse data
-        $data = array();
+        $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             if (!in_array($row['field_name'], $enabled_fields)) continue;
-            $item = array(
+            $item = [
                 'users_id' => null,
                 'username' => isset($row['username']) ? $this->sanitizer->name($row['username']) : null,
                 'revision' => isset($row['revisions_id']) ? $row['revisions_id'] : null,
                 'date' => isset($row['timestamp']) ? $row['timestamp'] : null,
                 'data' => isset($row['data']) ? $row['data'] : null
-            );
+            ];
             if (isset($row['users_id']) && $user = $this->users->get((int) $row['users_id'])) {
                 $item['users_id'] = $user->id;
                 $item['username'] = $user->name;
@@ -282,7 +258,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             }
             $field_name = wire('sanitizer')->fieldName($row['field_name']);
             if ($row['pages_id'] != $page->id) $field_name .= "_repeater" . $row['pages_id'];
-            if (!isset($data[$field_name])) $data[$field_name] = array();
+            if (!isset($data[$field_name])) $data[$field_name] = [];
             $data[$field_name][] = $item;
         }
 
@@ -291,12 +267,12 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             $fields_with_data = array_keys($data);
             foreach ($enabled_fields as $enabled_field) {
                 if (!in_array($enabled_field, $fields_with_data)) {
-                    $data[$enabled_field] = array();
+                    $data[$enabled_field] = [];
                 }
             }
             foreach ($repeater_fields as $repeater_field) {
                 if (!in_array($repeater_field, $fields_with_data)) {
-                    $data[$repeater_field] = array();
+                    $data[$repeater_field] = [];
                 }
             }
         }
@@ -308,15 +284,13 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                 $render = "render".$settings['render'];
             }
         }
-        
-        // return output
-        return $this->$render($data);
 
+        return $this->$render($data);
     }
 
     /**
      * Render diff of two given revisions
-     * 
+     *
      * Revisions are defined by GET param 'revisions', which should contain two
      * revisions separated by colon ('?revisions=41:42'). Field is also defined
      * with GET param ('field').
@@ -331,7 +305,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @throws WireException if requested field is not found
      */
     public function executeDiff() {
-        
+
         // should date formatting occur?
         $defaults = self::getDefaultData();
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
@@ -378,11 +352,11 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt->execute();
 
         // render output
-        $data = array();
+        $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
             if ($field->type == "FieldtypePage") {
-                $data[$id] = array();
+                $data[$id] = [];
                 if (preg_match("/^(?:[1-9][0-9]*\|?)*(?<!\|)$/", $row['data'])) {
                     $items = $this->pages->find('id=' . $row['data'] . ', include=all');
                     if ($items->count()) {
@@ -397,7 +371,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                                 $item->of(true);
                                 $data_row = $labelFieldFormat && $use_get_markup ? $item->getMarkup($labelFieldFormat) : $item->get($labelFieldName);
                                 if (!mb_strlen($data_row)) $data_row = $item->name;
-                                $data[$id][] = array($item->id, $data_row);
+                                $data[$id][] = [
+                                    $item->id,
+                                    $data_row,
+                                ];
                                 $item->of($of);
                             }
                         }
@@ -410,7 +387,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if ($field->type == "FieldtypePage") {
             // in the case of a Page field comparing strings makes little sense;
             // comparing values manually yields improved results and flexibility
-            $items = array();
+            $items = [];
             foreach ($data['r2'] as $key => $item) {
                 if (isset($data['r1'][$key])) {
                     if ($data['r1'][$key][0] == $item[0]) {
@@ -433,9 +410,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         } else {
             echo "<div id='diff'></div>";
         }
-        
+
         exit();
-        
     }
 
     /**
@@ -471,7 +447,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // generate data (associative array)
         $page = null;
         $field = null;
-        $data = array();
+        $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             if (!$page) $page = $this->pages->get($row['pages_id']);
             if (!$field) $field = $this->fields->get($row['fields_id']);
@@ -487,7 +463,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if (isset($settings['render']) && $settings['render'] == "Input") {
             $input = $field->getInputfield($page);
             if (isset($data['data'])) $input->value = $data['data'];
-            $filedata = array();
+            $filedata = [];
             $files = null;
             foreach ($data as $key => $value) {
                 if (strpos($key, ".")) {
@@ -531,7 +507,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         } else {
             exit($this->renderJSON($data));
         }
-        
     }
 
     /**
@@ -566,7 +541,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
     /**
      * Move resized pageimages (thumbs) to custom location
-     * 
+     *
      * @param HookEvent $event
      */
     protected function hookPageimageSize(HookEvent $event) {
@@ -583,7 +558,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      *
      * Revision is defined with GET param 'revision', page with GET param
      * 'pages_id'. Afterwards redirect user to page edit.
-     *
      */
     public function executeRestore() {
 
@@ -596,15 +570,13 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $revision_id = (int) $this->input->get->revision;
         $this->session->message(sprintf(__("Page reverted to revision #%d"), $revision_id));
         $this->session->redirect($this->config->urls->admin . "page/edit/?id=" . $page->id, false);
-        
     }
-    
+
     /**
      * Preview specific page in given revision
      *
      * Revision is defined with GET param 'revision', page with GET param
      * 'pages_id'. Afterwards redirect user to page edit.
-     *
      */
     public function ___executePreview() {
         $page = $this->getPageRevision('view');
@@ -613,7 +585,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
     /**
      * Set revision comment text
-     * 
+     *
      * Revision is defined by POST param 'revision' and comment text by POST
      * param 'comment'.
      *
@@ -621,7 +593,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
      * @return null|string Comment text or null
      */
     public function executeComment() {
-        
+
         // this only applies to POST requests
         if ($_SERVER['REQUEST_METHOD'] !== "POST") return;
 
@@ -641,10 +613,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt->bindValue(':comment', $comment, \PDO::PARAM_STR);
         $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
         $stmt->execute();
-        
-        // return comment text
-        return $comment;
 
+        return $comment;
     }
 
     /**
@@ -702,7 +672,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $markup = "<div id='version-control-data'>$markup</div>";
 
         return $markup;
-
     }
 
     /**
@@ -754,15 +723,13 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $page->_version_control_parent = $revision_id;
 
         return $page;
-
     }
-    
+
     /**
      * Called only when this module is installed
      *
      * Creates new page with this Process module assigned and new database
      * table for storing history data.
-     *
      */
     public function install() {
 
@@ -772,8 +739,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $page->name = self::PAGE_NAME; 
         $page->process = $this; 
         $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
-        $info = self::getModuleInfo();
-        $page->title = $info['title'];
+        $page->title = $this->modules->getModuleInfoProperty(
+            $this->className(),
+            'title'
+        );
         $page->addStatus(Page::statusHidden);
         $page->save();
 
@@ -789,14 +758,12 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             $permission->save();
             $this->message("Created Permission: {$permission->name}");
         }
-
     }
 
     /**
      * Called only when this module is uninstalled
      *
      * Removes page associated with this Process module and also drops related table.
-     *
      */
     public function uninstall() {
 
@@ -817,7 +784,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             $permission->delete();
             $this->message("Deleted Permission: {$permission->name}");
         }
-
     }
-    
+
 }

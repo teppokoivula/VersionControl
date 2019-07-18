@@ -6,38 +6,15 @@
  * Original code for this module was posted by SteveB at the ProcessWire support forum:
  * https://processwire.com/talk/topic/2892-module-version-control-for-text-fields/?p=50438
  *
- * @copyright 2014-2018 Teppo Koivula & SteveB
+ * @copyright 2014-2019 Teppo Koivula & SteveB
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- *
  */
 class PageSnapshot extends WireData implements Module {
 
     /**
-     * Return information about this module (required)
-     *
-     * @return array
-     */
-    public static function getModuleInfo() {
-        return array(
-            'title' => 'Page Snapshot',
-            'summary' => 'Return page in the state it was at the given time.',
-            'href' => 'https://modules.processwire.com/modules/version-control/',
-            'author' => 'Teppo Koivula, SteveB',
-            'version' => '2.0.1',
-            'singular' => true,
-            'autoload' => true,
-            'requires' => array(
-                'VersionControl',
-                'ProcessWire>=3.0.62',
-            ),
-        ); 
-    }
-
-    /**
      * Array for storing IDs of hooks altering Pagefile behaviour
-     * 
      */
-    protected $pagefile_hooks = array();
+    protected $pagefile_hooks = [];
     
     /**
      * Initialization function
@@ -65,7 +42,7 @@ class PageSnapshot extends WireData implements Module {
 
         $of = $page->of();
         $page->of(false);
-        $filedata = array();
+        $filedata = [];
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 foreach ($value as $subkey => $subvalue) {
@@ -83,7 +60,7 @@ class PageSnapshot extends WireData implements Module {
                     if (is_null($value)) {
                         $filedata[$field] = null;
                     } else if ($value) {
-                        if (!isset($filedata[$field])) $filedata[$field] = array();
+                        if (!isset($filedata[$field])) $filedata[$field] = [];
                         $value = json_decode($value, true);
                         $filedata[$field][$count] = $value;
                     }
@@ -142,7 +119,7 @@ class PageSnapshot extends WireData implements Module {
                     }
                 }
             }
-            $page->_version_control_filedata = array(json_encode($filedata));
+            $page->_version_control_filedata = [json_encode($filedata)];
         }
         $page->of($of);
         
@@ -224,7 +201,7 @@ class PageSnapshot extends WireData implements Module {
         if (empty($time)) $time = $revision_id ? strtotime($revision['timestamp']) : time();
         
         // include repeater pages
-        $page_ids = array($page->id);
+        $page_ids = [$page->id];
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
@@ -253,13 +230,13 @@ class PageSnapshot extends WireData implements Module {
         GROUP BY t1.pages_id, t2.fields_id, t2.property
         ORDER BY revision ASC
         ");
-        $input_parameters = $where ? array($revision_id) : array();
+        $input_parameters = $where ? [$revision_id] : [];
         $input_parameters = array_merge($input_parameters, $page_ids);
         $input_parameters[] = $time;
         $stmt->execute($input_parameters);
 
         // generate data (associative array)
-        $data = array();
+        $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $field = $this->fields->get($row['fields_id']);
             if ($row['pages_id'] != $page->id) {
