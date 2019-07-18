@@ -130,7 +130,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * construct(), but before init().
      */
     public function __construct() {
-        foreach(self::getDefaultData() as $key => $value) {
+        foreach (self::getDefaultData() as $key => $value) {
             $this->$key = $value;
         }
     }
@@ -535,7 +535,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     if (!isset($removed_fields_by_template[$template->id])) $removed_fields_by_template[$template->id] = [];
                     $removed_fields_by_template[$template->id][] = (int) $field->id;
                 }
-                if (!count($removed_fields)) return;
+                if (empty($removed_fields)) {
+                    return;
+                }
             }
         }
 
@@ -721,7 +723,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             $data_array[$count.'.data'] = json_encode($data_item);
                             ++$count;
                         }
-                        if (!count($data_array)) $data_array['0.data'] = null;
+                        if (empty($data_array)) {
+                            $data_array['0.data'] = null;
+                        }
                     } else if ($data instanceof LanguagesPageFieldValue) {
                         foreach ($data->getChanges() as $key) {
                             if ($key == 'data') continue;
@@ -905,30 +909,29 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // make sure that current user has version-control permission
         if (!$this->user->hasPermission('version-control')) return;
 
-        // make sure that value tracking is enabled for template of
-        // the page currently being edited
+        // make sure that value tracking is enabled for template of the page currently being edited
         if ($this->input->get->id) $page = $this->pages->get((int) $this->input->get->id);
         if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) return;
 
         // inject scripts and styles
-        $class = $this->className();
-        $version = $this->modules->getModuleInfoProperty($class, 'version');
-        $this->config->styles->add($this->config->urls->$class . "$class.min.css?v=$version"); 
-        $this->config->scripts->add($this->config->urls->$class . "$class.min.js?v=$version"); 
+        $moduleURL = $this->config->urls->get('VersionControl');
+        $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
+        $this->config->styles->add($moduleURL . 'resources/css/VersionControl.min.css?v=' . $version); 
+        $this->config->scripts->add($moduleURL . 'resources/js/VersionControl.min.js?v=' . $version); 
 
         // inject settings and translations
-        $process = $this->modules->getModuleID("ProcessVersionControl");
-        $processPage = $this->pages->get("process=$process");
-        $this->config->js($class, [
+        $process = $this->modules->getModuleID('ProcessVersionControl');
+        $processPage = $this->pages->get('process=' . $process);
+        $this->config->js('VersionControl', [
             'i18n' => [
-                'compareWithCurrent' => __("Compare with current"),
-                'editDisabled' => __("Editing this data is currently disabled. Restore it by saving the page or switch to current version first."),
-                'commentPrompt' => __("Type in comment text for this revision (max 255 characters)"),
-                'closePreview' => __("This is the page as it appeared on %s. Click here to close the preview."),
-                'confirmRestore' => __("Are you sure that you want to revert this page to an earlier revision?"),
-                'diffSideBySide' => __("Show side by side"),
-                'diffList' => __("Show as a list"),
-                'noDiff' => __("There is no difference between these revisions."),
+                'compareWithCurrent' => $this->_('Compare with current'),
+                'editDisabled' => $this->_('Editing this data is currently disabled. Restore it by saving the page or switch to current version first.'),
+                'commentPrompt' => $this->_('Type in comment text for this revision (max 255 characters)'),
+                'closePreview' => $this->_('This is the page as it appeared on %s. Click here to close the preview.'),
+                'confirmRestore' => $this->_('Are you sure that you want to revert this page to an earlier revision?'),
+                'diffSideBySide' => $this->_('Show side by side'),
+                'diffList' => $this->_('Show as a list'),
+                'noDiff' => $this->_('There is no difference between these revisions.'),
             ],
             'diff' => [
                 'timeout' => (int) $this->diff_timeout,
@@ -982,7 +985,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // wrapper element (history tab)
         $wrapper = new InputfieldWrapper;
         $wrapper->attr('id', $this->className() . 'History');
-        $wrapper->attr('title', __('History')); // Tab Label: History
+        $wrapper->attr('title', $this->_('History')); // Tab Label: History
         if (isset($this->input->get->users_id) || isset($this->input->get->page)) {
             $wrapper->attr('data-active', true);
         }
@@ -993,21 +996,21 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
         // setup datatable and append it to history tab
-        $table = $this->modules->get("MarkupAdminDataTable");
+        $table = $this->modules->get('MarkupAdminDataTable');
         $table->setEncodeEntities(false);
         $table->headerRow([
-            __('Revision'),
-            __('Author'),
-            __('Changes'),
-            __('Timestamp'),
-            __('Comment'),
+            $this->_('Revision'),
+            $this->_('Author'),
+            $this->_('Changes'),
+            $this->_('Timestamp'),
+            $this->_('Comment'),
             '', // placeholder
         ]);
-        $process_id = wire('modules')->getModuleID("ProcessVersionControl");
-        $process_page = wire('pages')->get("template=admin, process={$process_id}")->url;
-        $comment = "<a class='edit-comment' data-revision='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment") . "'></i></a>";
-        $restore = "<a class='restore' href='{$process_page}restore/?pages_id={$page->id}&revision=%d'><i class='fa fa-undo' title='" . __("Restore revision") . "'></i></a>";
-        $preview = "<a class='preview' target='_blank' data-date='%s' href='{$process_page}preview/?pages_id={$page->id}&revision=%d'><i class='fa fa-eye' title='" . __("Preview revision") . "'></i></a>";
+        $process_id = wire('modules')->getModuleID('ProcessVersionControl');
+        $process_page = wire('pages')->get('template=admin, process=' . $process_id)->url;
+        $comment = '<a class="edit-comment" data-revision="%d" href="#"><i class="fa fa-edit" title="' . $this->_('Edit comment') . '"></i></a>';
+        $restore = '<a class="restore" href="' . $process_page . 'restore/?pages_id=' . $page->id . '&revision=%d"><i class="fa fa-undo" title="' . $this->_('Restore revision') . '"></i></a>';
+        $preview = '<a class="preview" target="_blank" data-date="%s" href="' . $process_page . 'preview/?pages_id=' . $page->id . '&revision=%d"><i class="fa fa-eye" title="' . $this->_('Preview revision') . '"></i></a>';
         $counter = 0;
         foreach ($data['data'] as $row) {
             unset($row['users_id']);
@@ -1018,48 +1021,51 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $table->row(array_values($row));
             ++$counter;
         }
-        $field = $this->modules->get("InputfieldMarkup");
+        $field = $this->modules->get('InputfieldMarkup');
         $table = $table->render() . $pager;
         if (empty($table)) {
-            $field->value = __("No history of changes found.");
+            $field->value = $this->_('No history of changes found.');
         } else {
             $field->value = $table;
         }
-        $field->label = __("History");
+        $field->label = $this->_('History');
         $wrapper->append($field);
 
         // filters
         if (count($data['data']) > 1) {
 
-            $fieldset = $this->modules->get("InputfieldFieldset");
+            $fieldset = $this->modules->get('InputfieldFieldset');
             $fieldset->attr('id+name', 'history_filters');
-            $fieldset->label = __("Filters");
-            $fieldset->icon = "filter";
-            if (!$this->input->get->users_id) $fieldset->collapsed = Inputfield::collapsedYes;
+            $fieldset->label = $this->_('Filters');
+            $fieldset->icon = 'filter';
+            if (!$this->input->get->users_id) {
+                $fieldset->collapsed = Inputfield::collapsedYes;
+            }
             $wrapper->prepend($fieldset);
 
-            $field = $this->modules->get("InputfieldHidden");
+            $field = $this->modules->get('InputfieldHidden');
             $field->name = 'id';
             $field->value = $page->id;
             $fieldset->add($field);
 
-            $field = $this->modules->get("InputfieldSelect");
+            $field = $this->modules->get('InputfieldSelect');
             $field->attr('id+name', 'users_id');
-            $field->addOption('', __('All'));
+            $field->addOption('', $this->_('All'));
             $field->addOptions($this->users_cache);
             $field->value = $this->input->get->users_id;
-            $field->label = __('Filter by Author');
-            $field->description = __('When selected, only revisions authored by specific user will be shown.');
-            if (!$this->input->get->users_id) $field->collapsed = Inputfield::collapsedYes;
+            $field->label = $this->_('Filter by Author');
+            $field->description = $this->_('When selected, only revisions authored by specific user will be shown.');
+            if (!$this->input->get->users_id) {
+                $field->collapsed = Inputfield::collapsedYes;
+            }
             $fieldset->add($field);
         }
 
         // scripts
-        $class = $this->className();
-        $version = $this->modules->getModuleInfoProperty($class, 'version');
-        $this->config->scripts->add($this->config->urls->$class . "HistoryTab.min.js?v=$version"); 
+        $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
+        $this->config->scripts->add($moduleURL . 'resources/js/HistoryTab.min.js?v=' . $version); 
 
-        // insert new tab to Page Edit form
+        // insert new tab to the Page Edit form
         $form->prepend($wrapper);
         $event->return = $form;
     }
@@ -1090,7 +1096,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $event->return = array_merge(
                 array_slice($event->return, 0, $pos, true),
                 [
-                    $this->className() . 'History' => __('History'), // Tab Label: History
+                    $this->className() . 'History' => $this->_('History'), // Tab Label: History
                 ],
                 array_slice($event->return, $pos, null, true)
             );
@@ -1120,7 +1126,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!$this->isEnabledTemplate($page->template)) return;
 
         // cache usernames for later use
-        if (!count($this->users_cache)) $this->generateUsersCache($page);
+        if (empty($this->users_cache)) {
+            $this->generateUsersCache($page);
+        }
 
         // gather WHERE rules (page, filters)
         $where = [];
@@ -1252,7 +1260,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function versionControlFields(HookEvent $event) {
 
         $template = $event->object;
-        if (!count($this->enabled_fields)) return $event->return = $template->fields;
+        if (empty($this->enabled_fields)) {
+            return $event->return = $template->fields;
+        }
         $fields = new Fieldgroup();
         foreach ($this->enabled_fields as $field) {
             if ($template->hasField($field)) {
@@ -1603,7 +1613,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     }
                 }
                 if ($count) {
-                    $this->message(sprintf(_n("Populated data for %d page using template %s", "Populated data for %d pages using template %s", $count), $count, $template));
+                    $this->message(sprintf(
+                        _n("Populated data for %d page using template %s", "Populated data for %d pages using template %s", $count),
+                        $count,
+                        $template
+                    ));
                 }
             }
         }
@@ -1620,7 +1634,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . ") AND $t2.revisions_id = $t1.id");
                     $stmt->execute($page_ids);
                     $this->cleanupFiles();
-                    $this->message(sprintf(_n("Removed stored data for %d page using template %s", "Removed stored data for %d pages using template %s", $page_count), $page_count, $template));
+                    $this->message(sprintf(
+                        _n("Removed stored data for %d page using template %s", "Removed stored data for %d pages using template %s", $page_count),
+                        $page_count,
+                        $template
+                    ));
                 }
             }
         }
@@ -1641,7 +1659,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             $stmt->bindValue(':fields_id', $fields_id, \PDO::PARAM_INT);
                             $stmt->execute();
                             $this->cleanupFiles();
-                            $this->message(sprintf(__("Removed stored data for field %s"), $field->name));
+                            $this->message(sprintf(
+                                $this->_("Removed stored data for field %s"),
+                                $field->name
+                            ));
                         }
                     }
                 }
@@ -1665,7 +1686,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $get = "";
         foreach ($this->input->get as $key => $value) {
             if ($key != "page" && $value != "") {
-                $get .= "&amp;".urlencode($key)."=".urlencode($value);
+                $get .= "&amp;" . urlencode($key) . "=" . urlencode($value);
             }
         }
 
@@ -1714,11 +1735,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @return bool
      */
     protected function isEnabledTemplate(Template $template) {
-        $enabled = false;
-        if ($template->name == "language") $enabled = false;
-        else if ($this->enable_all_templates) $enabled = true;
-        else if (in_array($template->id, $this->enabled_templates)) $enabled = true;
-        return $enabled;
+        if ($template->name == "language") {
+            return false;
+        } else if ($this->enable_all_templates) {
+            return true;
+        } else if (in_array($template->id, $this->enabled_templates)) {
+            return true;
+        }
+        return false;
     }
 
     /**
