@@ -393,7 +393,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 $input_permissions = $input;
                 $input = new InputfieldForm();
                 $input->add($input_permissions);
-                wire('modules')->get('ProcessRole');
+                $this->wire('modules')->get('ProcessRole');
             }
             exit($input->render());
         } else {
