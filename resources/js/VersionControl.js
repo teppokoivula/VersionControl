@@ -9,7 +9,7 @@ $(function() {
     var cache = {};
 
     // fetch revision data for this page as HTML markup
-    $.get(moduleConfig.processPage+'page', { pages_id: moduleConfig.pageID, settings: settings }, function(data) {
+    $.get(moduleConfig.processPage + 'page', { pages_id: moduleConfig.pageID, settings: settings }, function(data) {
         
         // prepend data (#version-control-data) to body
         $('body').prepend(data);
@@ -22,14 +22,14 @@ $(function() {
         // contain at least one revision other than what's currently used
         $('#version-control-data > div').each(function() {
             if ($(this).data('revision')) {
-                var $if = $('.Inputfield_'+$(this).data('field'));
+                var $if = $('.Inputfield_' + $(this).data('field'));
                 $if.find('> label')
                     .addClass('with-history')
                     .before($(this));
                 $(this).find('tr:eq(1)').addClass('ui-state-active');
                 if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
                 var $cacheobj = $if.find('.InputfieldContent') || $if.find('div.ui-widget-content');
-                cache[$(this).data('field')+"."+$(this).data('revision')] = $cacheobj.clone(true, true);
+                cache[$(this).data('field') + "." + $(this).data('revision')] = $cacheobj.clone(true, true);
             }
         });
         
@@ -39,11 +39,12 @@ $(function() {
             var toggle_title = "";
             if ($(this).siblings('.field-revisions').find('tr').length < 2) {
                 toggle_class += " inactive";
-                toggle_title = " title='"+$(this).siblings('.field-revisions').text()+"'";
+                toggle_title = " title='" + $(this).siblings('.field-revisions').text() + "'";
             }
-            var revisions_toggle = '<a '+toggle_title+'class="'+toggle_class+'"><i class="fa fa-clock-o"></i></a>';
-            if ($(this).find('.toggle-icon').length) {
-                $(this).find('.toggle-icon').after(revisions_toggle);
+            var revisions_toggle = '<a ' + toggle_title + 'class="' + toggle_class + '"><i class="fa fa-clock-o"></i></a>';
+            var $toggle_icon = $(this).find('.toggle-icon');
+            if ($toggle_icon.length) {
+                $toggle_icon.after(revisions_toggle);
             } else {
                 $(this).append(revisions_toggle);
             }
@@ -65,7 +66,7 @@ $(function() {
             $('.field-revision-diff').removeClass('active');
             var $content = $if.find('.InputfieldContent') || $if.find('div.ui-widget-content');
             var $loading = $('<span class="field-revision-loading"></span>').hide().css({
-                height: $content.innerHeight()+'px',
+                height: $content.innerHeight() + 'px',
                 backgroundColor: $content.css('background-color')
             });
             if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) {
@@ -74,11 +75,11 @@ $(function() {
                 settings = { render: 'JSON' };
             }
             var revision = $revision.data('revision');
-            if (cache[field+"."+revision]) {
+            if (cache[field + "." + revision]) {
                 if (settings.render != "JSON" && revision == $revisions.data('revision')) {
                     // current (latest) revision is the only one we've got
                     // inputfield content cached for as a jQuery object
-                    $content.replaceWith(cache[field+"."+revision].clone(true, true));
+                    $content.replaceWith(cache[field + "." + revision].clone(true, true));
                     if ($if.find('.InputfieldFileList').length) {
                         // for file inputs we need to trigger 'reloaded' event
                         // manually in order to (re-)enable HTML5 AJAX uploads
@@ -93,13 +94,13 @@ $(function() {
                         $select.asmSelect(options);
                     }
                 } else {
-                    update($if, $content, settings, field, cache[field+"."+revision]);
+                    update($if, $content, settings, field, cache[field + "." + revision]);
                 }
             } else {
                 $content.css('position', 'relative').prepend($loading.fadeIn(250));
-                $.get(moduleConfig.processPage+'field', { revision: revision, field: field, settings: settings }, function(data) {
-                    cache[field+"."+revision] = data;
-                    update($if, $content, settings, field, cache[field+"."+revision]);
+                $.get(moduleConfig.processPage + 'field', { revision: revision, field: field, settings: settings }, function(data) {
+                    cache[field + "." + revision] = data;
+                    update($if, $content, settings, field, cache[field + "." + revision]);
                     $loading.fadeOut(350, function() {
                         $(this).remove();
                     });
@@ -146,16 +147,16 @@ $(function() {
                 // format of returned data is JSON
                 $.each(data, function(property, value) {
                     var language = property.replace('data', '');
-                    if (language) language = "__"+language;
-                    if (typeof tinyMCE != "undefined" && tinyMCE.get('Inputfield_'+field+language)) {
+                    if (language) language = "__" + language;
+                    if (typeof tinyMCE != "undefined" && tinyMCE.get('Inputfield_' + field + language)) {
                         // TinyMCE inputfield
-                        tinyMCE.get('Inputfield_'+field+language).setContent(value);
+                        tinyMCE.get('Inputfield_' + field + language).setContent(value);
                     } else if ($if.find('.InputfieldCKEditorInline').length) {
                         // CKeditor inputfield in inline mode
                         $if.find('.InputfieldCKEditorInline').html(value);
-                    } else if (typeof CKEDITOR != "undefined" && CKEDITOR.instances['Inputfield_'+field+language]) {
+                    } else if (typeof CKEDITOR != "undefined" && CKEDITOR.instances['Inputfield_' + field + language]) {
                         // CKEditor inputfield
-                        CKEDITOR.instances['Inputfield_'+field+language].setData(value);
+                        CKEDITOR.instances['Inputfield_' + field + language].setData(value);
                     }
                 });
             }
@@ -177,16 +178,9 @@ $(function() {
                 $revisions.addClass('sliding').slideDown('fast', function() {
                     $revisions.removeClass('sliding');
                     InputfieldColumnWidths();
-                    if (!$revisions.hasClass('scroll-tip') && $revisions.width() < $revisions.find('table').outerWidth()) {
-                        var $scroll_tip = $('<div class="scroll-tip"><i class="fa fa-arrows-h" aria-hidden="true"></i></div>');
-                        $revisions.prepend($scroll_tip).addClass('scroll-tip');
-                        window.setTimeout(function() {
-                            $scroll_tip.animate({"left": "+=20px"}, "slow", function() {
-                                $(this).animate({"left": "-=20px"}, "slow", function() {
-                                    $(this).fadeOut(200);
-                                });
-                            });
-                        }, 200);
+                    if ($revisions.width() < $revisions.find('table').outerWidth()) {
+                        // Revision table won't fit to the horizontal space, and becomes scrollable.
+                        $revisions.addClass('scroll-tip');
                     }
                 });
             }
@@ -202,7 +196,7 @@ $(function() {
                 ds = '<em>' + moduleConfig.i18n.noDiff + '</em>';
             } else {
                 if (typeof diff_match_patch != 'function') {
-                    $.getScript(moduleConfig.moduleDir+"resources/js/diff_match_patch/diff_match_patch.js", function() {
+                    $.getScript(moduleConfig.moduleDir + "resources/js/diff_match_patch/diff_match_patch.js", function() {
                         enableDiffMatchPatch(r1, r2);
                     });
                     return false;
@@ -238,14 +232,14 @@ $(function() {
                     var field = $revisions.data('field');
                     var r1 = $revisions.find('.ui-state-active:first').data('revision');
                     var r2 = $revision.data('revision');
-                    var href = moduleConfig.processPage+'diff/?revisions='+r1+':'+r2+'&field='+field;
+                    var href = moduleConfig.processPage + 'diff/?revisions=' + r1 + ':' + r2 + '&field=' + field;
                     var $compare_revisions = $('<div class="compare-revisions"></div>');
                     $(this).before($compare_revisions);
                     var $parent = $(this).parents('tr:first');
                     $compare_revisions.prepend($spinner).load(href, function() {
                         if ($parent.find('ul.page-diff').length) {
                             if (typeof enableDiffSwitch != 'function') {
-                                $.getScript(moduleConfig.moduleDir+"diff_switch.min.js", function() {
+                                $.getScript(moduleConfig.moduleDir + "diff_switch.min.js", function() {
                                     enableDiffSwitch(moduleConfig);
                                 });
                             } else {

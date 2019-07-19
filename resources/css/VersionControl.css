@@ -71,19 +71,6 @@ textarea.version_control_filedata {
     border-right: 8px solid transparent;
 }
 
-.field-revisions .scroll-tip {
-    text-align: center;
-    width: 100%;
-    opacity: 0.75;
-    position: absolute;
-    top: 50%;
-    transform: perspective(1px) translateY(-50%);
-}
-
-.field-revisions .scroll-tip .fa {
-    font-size: 8em !important;
-}
-
 .field-revisions > div {
     overflow: scroll !important;
     padding: 0 1em;
