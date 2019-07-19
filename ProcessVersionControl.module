@@ -79,7 +79,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     public function executePage() {
 
         // should date formatting occur?
-        $defaults = self::getDefaultData();
+        $defaults = static::$defaultData;
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
         // additional settings
@@ -199,7 +199,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     public function executeDiff() {
 
         // should date formatting occur?
-        $defaults = self::getDefaultData();
+        $defaults = static::$defaultData;
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
         // get field name and revision ids
