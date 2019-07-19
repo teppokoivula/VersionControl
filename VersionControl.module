@@ -1356,7 +1356,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param HookEvent $event
      */
     protected function saveConfigData(HookEvent $event) {
-        if ($event->arguments[0] !== $this->className) return;
+
+        // Bail out early if we're currently saving config for some other module.
+        if ($event->arguments[0] !== $this->className) {
+            return;
+        }
+
         $data = $event->arguments[1];
         $p_data = [];
         foreach ($data as $key => $value) {
@@ -1366,8 +1371,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
         $event->arguments(1, $data);
-        if (wire('modules')->isInstalled('ProcessVersionControl')) {
-            wire('modules')->saveModuleConfigData('ProcessVersionControl', $p_data);
+        if ($this->wire('modules')->isInstalled('ProcessVersionControl')) {
+            $this->wire('modules')->saveModuleConfigData(
+                'ProcessVersionControl',
+                $p_data
+            );
         }
     }
 
