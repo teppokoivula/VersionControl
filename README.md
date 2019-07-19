@@ -23,21 +23,21 @@ All native ProcessWire fieldtypes and inputfields, apart from those that either 
 values at all (repeaters fields, fieldsets), or only store hashed values (password), should be
 supported:
 
-    * Email
-    * Datetime
-    * Text (regular and multi-language)
-    * Textarea (regular and multi-language)
-    * Page Title (regular and multi-language)
-    * Checkbox
-    * Integer
-    * Float
-    * URL
-    * Page
-    * Module
-    * File
-    * Image
-    * Selector
-    * Options
+  * Email
+  * Datetime
+  * Text (regular and multi-language)
+  * Textarea (regular and multi-language)
+  * Page Title (regular and multi-language)
+  * Checkbox
+  * Integer
+  * Float
+  * URL
+  * Page
+  * Module
+  * File
+  * Image
+  * Selector
+  * Options
   
 Note that if a specific fieldtype isn't listed here, it doesn't necessarily mean that it won't work
 with this module – it might just not have been tested yet.
@@ -47,14 +47,14 @@ which can be found under "Advanced Settings" from Version Control module configu
 
 Following inputfields are confirmed to be supported:
 
-    * TinyMCE
-    * CKEditor (regular and inline mode)
-    * Text (+ other inputfields using `<input>` HTML element, such as Email)
-    * Textarea (+ other inputfields using regular `<textarea>` HTML element)
-    * Select
-    * File
-    * Image
-    * Selector
+  * TinyMCE
+  * CKEditor (regular and inline mode)
+  * Text (+ other inputfields using `<input>` HTML element, such as Email)
+  * Textarea (+ other inputfields using regular `<textarea>` HTML element)
+  * Select
+  * File
+  * Image
+  * Selector
 
 ## Requirements
 
@@ -62,12 +62,12 @@ Please note that this module is mainly developed and tested under the latest sta
 ProcessWire. This also means that no 2.x versions of will be officially supported. In case you're
 using ProcessWire 2.x (>= 2.4.1), you should check out the legacy branch of Version Control:
 
-    * https://github.com/teppokoivula/VersionControl/tree/master
+  * https://github.com/teppokoivula/VersionControl/tree/master
 
 For ProcessWire 2.x versions before 2.4.1 the Version Control for Text Fields module provides
 similar features, but is limited to text based fields only:
 
-    * https://github.com/teppokoivula/VersionControlForTextFields
+  * https://github.com/teppokoivula/VersionControlForTextFields
 
 ## Getting started
 
