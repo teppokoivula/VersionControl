@@ -1,7 +1,7 @@
 $(function() {
 
     // configuration: "run-time" settings are defined here, "constant" settings
-    // (translations, interface URL etc.) in VersionControlForTextFields.module
+    // (translations, interface URL etc.) in VersionControl.module
     var settings = { empty: true, render: 'HTML' };
     var moduleConfig = config.VersionControl;
 
