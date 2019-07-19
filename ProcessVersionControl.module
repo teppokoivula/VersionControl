@@ -155,7 +155,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         }
 
         // add empty containers for fields with no data?
-        if (isset($settings['empty']) && $settings['empty']) {
+        if (!empty($settings['empty'])) {
             $fields_with_data = array_keys($data);
             foreach ($enabled_fields as $enabled_field) {
                 if (!in_array($enabled_field, $fields_with_data)) {
@@ -293,7 +293,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                     $items[] = "<ins title='{$item[0]}'>{$item[1]}</ins>";
                 }
             }
-            if (count($data['r1'])) {
+            if (!empty($data['r1'])) {
                 foreach ($data['r1'] as $item) {
                     $items[] = "<del title='#{$item[0]}'>{$item[1]}</del>";
                 }
