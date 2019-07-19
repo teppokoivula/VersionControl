@@ -11,24 +11,19 @@
  * @copyright 2013-2019 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
-class ProcessVersionControl extends Process implements ConfigurableModule, Module {
+class ProcessVersionControl extends Process implements Module, ConfigurableModule {
     
     /**
      * Default configuration for this module
      *
-     * The point of putting this in it's own function is so that you don't have to specify
-     * these defaults more than once.
-     *
-     * @return array
+     * @var array
      */
-    static public function getDefaultData() {
-        return [
-            'date_format' => 'Y-m-d H:i:s',
-            'user_name_format' => '{name}',
-            'diff_timeout' => 1,
-            'diff_efficiency_cleanup_edit_cost' => 4,
-        ];
-    }
+    public static $defaultData = [
+        'date_format' => 'Y-m-d H:i:s',
+        'user_name_format' => '{name}',
+        'diff_timeout' => 1,
+        'diff_efficiency_cleanup_edit_cost' => 4,
+    ];
 
     /**
      * Populate the default config data
@@ -38,7 +33,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule, Modul
      * construct(), but before init().
      */
     public function __construct() {
-        foreach (self::getDefaultData() as $key => $value) {
+        foreach (static::$defaultData as $key => $value) {
             $this->$key = $value;
         }
         $this->wire('modules')->setModuleConfigData($this->className);
@@ -55,103 +50,8 @@ class ProcessVersionControl extends Process implements ConfigurableModule, Modul
      * @param array $data
      * @return InputfieldWrapper
      */
-    static public function getModuleConfigInputfields(array $data) {
-
-        // this is a container for fields, basically like a fieldset
-        $fields = new InputfieldWrapper();
-
-        // since this is a static function, we can't use $this->modules, so get them from the global wire() function
-        $modules = wire('modules');
-
-        // merge default config settings (custom values overwrite defaults)
-        $defaults = self::getDefaultData();
-        $data = array_merge($defaults, $data);
-
-        // notice about centralized configuration
-        $field = $modules->get("InputfieldMarkup");
-        $field->label = __("Configuring the Version Control module bundle");
-        $field->icon = "info-circle";
-        $link_module = "VersionControl";
-        $link_markup = "<a href='".wire('page')->url."edit?name=$link_module'>$link_module</a>";
-        $field->set('markupText', sprintf(__("All configuration settings for the Version Control module bundle can be found from the %s module."), $link_markup));
-        $fields->add($field);
-
-        // fieldset: output settings
-        $fieldset = $modules->get("InputfieldFieldset");
-        $fieldset->label = __("Output Settings");
-        $fieldset->icon = "eyedropper";
-        $fieldset->collapsed = Inputfield::collapsedHidden;
-        $fields->add($fieldset);
-
-        // date format used
-        $field = $modules->get("InputfieldText");
-        $field->name = "date_format";
-        $field->label = __("Date Format");
-        $field->description = __("Used when displaying version history data in page edit.");
-        $field->notes = __("See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.");
-        $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
-        $field->icon = "clock-o";
-        $fieldset->add($field);
-
-        // user name format
-        $field = $modules->get("InputfieldText");
-        $field->name = "user_name_format";
-        $field->label = __("User Name Format");
-        $field->description = __("This defines the format and field(s) used to represent user names.");
-        $field->notes = __("This string is passed to wirePopulateStringTags() function. Example: {name} ({email}).");
-        $field->value = $data[$field->name];
-        $field->icon = "user";
-        $fieldset->add($field);
-
-        // fieldset: diff settings
-        $fieldset = $modules->get("InputfieldFieldset");
-        $fieldset->label = __("Diff Settings");
-        $fieldset->icon = "files-o";
-        $fieldset->collapsed = Inputfield::collapsedHidden;
-        $fields->add($fieldset);
-
-        // disable diff feature
-        $field = $modules->get("InputfieldCheckbox");
-        $field->name = "diff_disabled";
-        $field->label = __("Disable diff");
-        if (isset($data[$field->name]) && $data[$field->name]) $field->checked = "checked";
-        $fieldset->add($field);
-
-        // diff timeout
-        $field = $modules->get("InputfieldInteger");
-        $field->name = "diff_timeout";
-        $field->label = __("Diff Timeout");
-        $field->description = __("If diff computation takes longer than this, best solution to date is returned. While correct, it may not be optimal.");
-        $field->notes = __("A timeout of '0' allows for unlimited computation.");
-        $field->showIf = "diff_disabled=0";
-        $field->value = $data[$field->name];
-        $fieldset->add($field);
-
-        // diff cleanup
-        $field = $modules->get("InputfieldRadios");
-        $field->name = "diff_cleanup";
-        $field->label = __("Post-diff Cleanup");
-        $field->description = __("Post-diff cleanup algorithms attempt to filter out irrelevant small commonalities, thus enhancing final output.");
-        $field->notes = __("See [Diff Demo](https://neil.fraser.name/software/diff_match_patch/svn/trunk/demos/demo_diff.html) for examples and detailed descriptions.");
-        $field->addOptions([
-                '' => __("No Cleanup"),
-                'semantic' => __("Semantic Cleanup"),
-                'efficiency' => __("Efficiency Cleanup"),
-        ]);
-        $field->showIf = "diff_disabled=0";
-        if (isset($data[$field->name])) $field->value = $data[$field->name];
-        $fieldset->add($field);
-
-        // diff efficiency cleanup edit cost
-        $field = $modules->get("InputfieldInteger");
-        $field->name = "diff_efficiency_cleanup_edit_cost";
-        $field->label = __("Efficiency Cleanup Edit Cost");
-        $field->description = __("The larger the edit cost, the more agressive the cleanup.");
-        $field->showIf = "diff_disabled=0,diff_cleanup=efficiency";
-        if (isset($data[$field->name])) $field->value = $data[$field->name];
-        $fieldset->add($field);
-
-        return $fields;
+    public function getModuleConfigInputfields(array $data) {
+        return $this->wire(new \VersionControl\ProcessModuleConfig($data))->getFields();
     }
 
     /**
