@@ -9,7 +9,7 @@ $(function() {
         var revision = $(this).data('revision');
         var comment = prompt(moduleConfig.i18n.commentPrompt, $container.text());
         if (comment !== null) {
-            $.post(moduleConfig.processPage+'comment', { revision: revision, comment: comment }, function(data) {
+            $.post(moduleConfig.processPage + 'comment', { revision: revision, comment: comment }, function(data) {
                 $container.text(data).effect("highlight", {}, 500);
             });
         }
