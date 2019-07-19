@@ -18,10 +18,10 @@ class PageSnapshot extends WireData implements Module {
     
     /**
      * Initialization function
-     *
      */
     public function init() {
-        // add new method snapshot to Page objects
+
+        // Add new method snapshot to Page objects.
         $this->addHook('Page::snapshot', $this, 'hookPageSnapshot');
     }
 
@@ -94,12 +94,14 @@ class PageSnapshot extends WireData implements Module {
                 }
             }
         }
-        if (count($filedata)) {
+        if (!empty($filedata)) {
             // filedata comes in chunks and needs to be processed in two steps
-            if (!count($this->pagefile_hooks)) {
-                $this->pagefile_hooks[] = $this->addHook('Pagefile::url', $this, 'hookPagefileUrl');
-                $this->pagefile_hooks[] = $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename');
-                $this->pagefile_hooks[] = $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall');
+            if (empty($this->pagefile_hooks)) {
+                $this->pagefile_hooks = [
+                    $this->addHook('Pagefile::url', $this, 'hookPagefileUrl'),
+                    $this->addHook('Pagefile::filename', $this, 'hookPagefileFilename'),
+                    $this->addHookBefore('Pagefile::install', $this, 'hookPagefileInstall'),
+                ];
             }
             foreach ($filedata as $field => $items) {
                 $page->get($field)->deleteAll();
@@ -119,10 +121,11 @@ class PageSnapshot extends WireData implements Module {
                     }
                 }
             }
-            $page->_version_control_filedata = [json_encode($filedata)];
+            $page->_version_control_filedata = [
+                json_encode($filedata),
+            ];
         }
         $page->of($of);
-        
     }
 
     /**
@@ -161,7 +164,6 @@ class PageSnapshot extends WireData implements Module {
 
     /**
      * Remove hooks we're using to alter Pagefile behaviour
-     * 
      */
     public function removePagefileHooks() {
         foreach ($this->pagefile_hooks as $key => $hook) {
@@ -183,7 +185,9 @@ class PageSnapshot extends WireData implements Module {
      */
     protected function snapshot(Page $page, $time = null, $revision_id = null) {   
 
-        if ($time && !is_integer($time)) $time = strtotime($time);
+        if ($time && !is_integer($time)) {
+            $time = strtotime($time);
+        }
 
         // revision info
         $page->_version_control_revision = null;
@@ -206,7 +210,7 @@ class PageSnapshot extends WireData implements Module {
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
-                    if (count($subfields)) {
+                    if (!empty($subfields)) {
                         foreach ($page->$field as $repeater_page) {
                             $page_ids[] = $repeater_page->id;
                         }
@@ -257,7 +261,6 @@ class PageSnapshot extends WireData implements Module {
         }
 
         return $data;
-
     }
 
 }
