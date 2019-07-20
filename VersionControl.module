@@ -12,7 +12,7 @@
  * changes to individual fields and store them in a series of custom database
  * tables, along with required metadata, such as a running revision number.
  * 
- * @copyright 2013-2017 Teppo Koivula
+ * @copyright 2013-2019 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
@@ -27,9 +27,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'Version Control',
             'summary' => 'Version control features for page content.',
-            'href' => 'http://modules.processwire.com/modules/version-control/',
+            'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.9',
+            'version' => '1.2.10',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -446,23 +446,21 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         if (!$this->data_row_limit) return;
 
-        $ids = "";
+        $ids = [];
         $t1 = self::TABLE_REVISIONS;
         $t2 = self::TABLE_DATA;
-        $stmt = $this->database->prepare("SELECT COUNT(*) AS count FROM $t1, $t2 WHERE $t1.pages_id = :pages_id AND $t2.fields_id = :fields_id AND $t2.revisions_id = $t1.id");
+        $stmt = $this->database->prepare("SELECT $t1.id FROM $t1, $t2 WHERE $t1.pages_id = :pages_id AND $t2.fields_id = :fields_id AND $t2.revisions_id = $t1.id ORDER BY timestamp DESC LIMIT :offset, 18446744073709551615");
         $stmt->bindValue(':pages_id', (int) $pages_id, PDO::PARAM_INT);
         $stmt->bindValue(':fields_id', (int) $fields_id, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', (int) $this->data_row_limit, \PDO::PARAM_INT);
         $stmt->execute();
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row['count'] > $this->data_row_limit) {
-            $stmt = $this->database->prepare("SELECT id FROM $t1 ORDER BY timestamp LIMIT :limit");
-            $stmt->bindValue(':limit', (int) ($row['count']-$this->data_row_limit), PDO::PARAM_INT);
-            $stmt->execute();
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $ids .= ($ids) ? ", " . $row['id'] : $row['id'];
-            }
-            $this->database->query("DELETE FROM $t1 WHERE id IN ($ids)");
-            $this->database->query("DELETE FROM $t2 WHERE revisions_id IN ($ids)");
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            $ids[] = $row['id'];
+        }
+        if (!empty($ids)) {
+            $ids_string = implode(',', $ids);
+            $this->database->query("DELETE FROM $t1 WHERE id IN ($ids_string)");
+            $this->database->query("DELETE FROM $t2 WHERE revisions_id IN ($ids_string)");
             $this->cleanupFiles();
         }
 
