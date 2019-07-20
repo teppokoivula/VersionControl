@@ -81,6 +81,28 @@ Snapshot are installed automatically.
 After installing this module you need to configure it. Navigate to Admin > Modules > Version Control
 for module configuration settings.
 
+## Updating from VersionControl 1.x to 2.x
+
+There are a couple of important considerations when updating from VersionControl 1.x to 2.x:
+
+1. Since there have been various changes, including some related to namespaces, you'll have to visit
+   the Modules page in Admin and click the "Refresh" button. Without this some features may not work
+   as expected – or may not work at all.
+
+2. Cleanup features were split into a separate module called Version Control Cleanup. After updating
+   from 1.x to 2.x of the module you need to manually install the Version Control Cleanup module and
+   reconfigure the cleanup options via Version Control module settings.
+
+*Note: it's probably a good idea to check what you've got in the "Cleanup Settings" section of the
+Version Control module before updating.*
+
+Other than that, things should "just work". Please note, though, that the requirements have changed
+quite a bit, so before updating make sure that your ProcessWire and PHP versions are high enough.
+
+As always with an update from one major version to another, it's a good idea to keep a backup of the
+old version (at minimum the module, but preferably your whole site) available just in case something
+goes wrong.
+
 ## Development
 
 Following content is about developing the module itself, so feel free to skip this unless you're
