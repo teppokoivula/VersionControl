@@ -58,11 +58,14 @@ Following inputfields are confirmed to be supported:
 
 ## Requirements
 
-Please note that this module is mainly developed and tested under the latest stable version of
-ProcessWire. This also means that no 2.x versions of will be officially supported. In case you're
-using ProcessWire 2.x (>= 2.4.1), you should check out the legacy branch of Version Control:
+  * ProcessWire >= 3.0.112
+  * PHP >= 7.1.0
 
-  * https://github.com/teppokoivula/VersionControl/tree/master
+Please note that this module is mainly developed and tested under the latest stable version of
+ProcessWire. This also means that *none of the ProcessWire 2.x versions of are supported.* In
+case you're using ProcessWire 2.x >= 2.4.1, check out the legacy branch of Version Control:
+
+  * https://github.com/teppokoivula/VersionControl/tree/legacy
 
 For ProcessWire 2.x versions before 2.4.1 the Version Control for Text Fields module provides
 similar features, but is limited to text based fields only:
@@ -77,11 +80,6 @@ Snapshot are installed automatically.
 
 After installing this module you need to configure it. Navigate to Admin > Modules > Version Control
 for module configuration settings.
-
-## Requirements
-
-- ProcessWire >= 3.0.112
-- PHP >= 7.1.0
 
 ## Development
 
