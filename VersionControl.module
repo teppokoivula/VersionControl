@@ -1450,7 +1450,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Pass requests to companion modules
+     * Method overloading support
      *
      * This method provides access to companion module methods. For an example if a cleanup* method
      * is requested, we check if VersionControlCleanup has a matching method, calling that instead.
@@ -1459,14 +1459,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param array $arguments Array of arguments.
      * @return mixed
      */
-    public function ___callUnknown($method, $arguments) {
+    public function __call($method, $arguments) {
         if (strpos($method, "cleanup") === 0) {
             return call_user_func_array([
                 $this->wire('modules')->get('VersionControlCleanup'),
                 $method
             ], $arguments);
         }
-        return parent::__callUnknown($method, $arguments);
+        return parent::__call($method, $arguments);
     }
 
 }
