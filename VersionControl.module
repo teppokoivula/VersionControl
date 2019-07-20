@@ -634,8 +634,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
 
         // define date format
-        $defaults = ProcessVersionControl::$defaultData;
         $processModule = $this->modules->get('ProcessVersionControl');
+        $defaults = ProcessVersionControl::$defaultData;
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
         // setup datatable and append it to history tab
