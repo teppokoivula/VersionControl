@@ -620,7 +620,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->page_data[$page->id] = $this->page_data[0];
             unset($this->page_data[0]);
         }
-        $page_data = isset($this->page_data[$page->id]) ? $this->page_data[$page->id] : null;
+        $page_data = $this->page_data[$page->id] ?? null;
         if ($object instanceof HookEvent && $object->method == "saveField") {
             // if method is saveField, save data for that specific field only
             $field = $object->arguments[1];
@@ -647,7 +647,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // if revision isn't assigned yet, get next available revision ID
             if (!$revisions_id) {
                 $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username) VALUES (:parent, :pages_id, :users_id, :username)");
-                $stmt->bindValue(':parent', $parent ? $parent : null, \PDO::PARAM_INT);
+                $stmt->bindValue(':parent', $parent ?: null, \PDO::PARAM_INT);
                 $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
                 $stmt->bindValue(':users_id', $users_id, \PDO::PARAM_INT);
                 $stmt->bindValue(':username', $username, \PDO::PARAM_STR);
@@ -1637,7 +1637,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         }
                     }
                 }
-                return isset($this->data[$key]) ? $this->data[$key] : null;
+                return $this->data[$key] ?? null;
                 break;
             case "use_fileinfo":
                 if (!array_key_exists($key, $this->data)) {

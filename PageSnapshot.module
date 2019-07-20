@@ -34,8 +34,8 @@ class PageSnapshot extends WireData implements Module {
     protected function hookPageSnapshot(HookEvent $event) {
 
         $page = $event->object;
-        $time = isset($event->arguments[0]) ? $event->arguments[0] : null;
-        $revision_id = isset($event->arguments[1]) ? $event->arguments[1] : null;
+        $time = $event->arguments[0] ?? null;
+        $revision_id = $event->arguments[1] ?? null;
 
         $data = $this->snapshot($page, $time, $revision_id);
         if (!$data) return false;

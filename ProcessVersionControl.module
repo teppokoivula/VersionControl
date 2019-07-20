@@ -136,10 +136,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             if (!in_array($row['field_name'], $enabled_fields)) continue;
             $item = [
                 'users_id' => null,
-                'username' => isset($row['username']) ? $this->sanitizer->name($row['username']) : null,
-                'revision' => isset($row['revisions_id']) ? $row['revisions_id'] : null,
-                'date' => isset($row['timestamp']) ? $row['timestamp'] : null,
-                'data' => isset($row['data']) ? $row['data'] : null
+                'username' => !empty($row['username']) ? $this->sanitizer->name($row['username']) : null,
+                'revision' => $row['revisions_id'] ?? null,
+                'date' => $row['timestamp'] ?? null,
+                'data' => $row['data'] ?? null,
             ];
             if (isset($row['users_id']) && $user = $this->users->get((int) $row['users_id'])) {
                 $item['users_id'] = $user->id;
