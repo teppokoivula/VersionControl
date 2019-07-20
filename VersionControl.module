@@ -29,7 +29,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.10',
+            'version' => '1.2.11',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
@@ -221,7 +221,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (wire('modules')->isInstalled('ProcessVersionControl')) {
             $p = wire('modules')->get('ProcessVersionControl');
             $p_data = wire('modules')->getModuleConfigData('ProcessVersionControl');
-            $p_fields = ProcessVersionControl::getModuleConfigInputfields($p_data);
+            // note: we're calling static method getDefaultData non-statically here intentionally;
+            // this makes it easier to switch between VersionControl 1.x and 2.x.
+            $p_fields = $p->getModuleConfigInputfields($p_data);
             foreach ($p_fields as $p_field) {
                 $p_field->name .= "_p";
                 if ($p_field->collapsed == Inputfield::collapsedHidden) {
@@ -993,8 +995,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
 
         // define date format
-        $defaults = ProcessVersionControl::getDefaultData();
+        // note: we're calling static method getDefaultData non-statically here intentionally;
+        // this makes it easier to switch between VersionControl 1.x and 2.x.
         $processModule = $this->modules->get('ProcessVersionControl');
+        $defaults = $processModule->getDefaultData();
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
         // setup datatable and append it to history tab
