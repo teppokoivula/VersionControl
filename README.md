@@ -83,13 +83,17 @@ for module configuration settings.
 
 ## Updating from VersionControl 1.x to 2.x
 
-There are a couple of important considerations when updating from VersionControl 1.x to 2.x:
+Here are some important considerations if you're updating from VersionControl 1.x to 2.x:
 
-1. Since there have been various changes, including some related to namespaces, you'll have to visit
+1. The GUI – particularly the field-level revision lists, but other parts of the module as well –
+   have gone through major changes. This isn't really something you should worry about, but it's
+   good to know that these features may indeed look *very* different after the update.
+
+2. Since there have been various changes, including some related to namespaces, you'll have to visit
    the Modules page in Admin and click the "Refresh" button. Without this some features may not work
    as expected – or may not work at all.
 
-2. Cleanup features were split into a separate module called Version Control Cleanup. After updating
+3. Cleanup features were split into a separate module called Version Control Cleanup. After updating
    from 1.x to 2.x of the module you need to manually install the Version Control Cleanup module and
    reconfigure the cleanup options via Version Control module settings.
 
