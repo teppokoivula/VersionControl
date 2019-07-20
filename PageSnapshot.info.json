@@ -6,8 +6,8 @@
     "author": "Teppo Koivula, SteveB",
     "requires": [
         "VersionControl",
-        "ProcessWire>=3.0.62",
-        "PHP>=5.4"
+        "ProcessWire>=3.0.112",
+        "PHP>=7.1.0"
     ],
     "singular": true,
     "autoload": true

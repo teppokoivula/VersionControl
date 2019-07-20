@@ -78,6 +78,11 @@ Snapshot are installed automatically.
 After installing this module you need to configure it. Navigate to Admin > Modules > Version Control
 for module configuration settings.
 
+## Requirements
+
+- ProcessWire >= 3.0.112
+- PHP >= 7.1.0
+
 ## Development
 
 Following content is about developing the module itself, so feel free to skip this unless you're
