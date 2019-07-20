@@ -1,0 +1,14 @@
+{
+    "title": "Version Control Cleanup",
+    "summary": "Provides the cleanup features required by Version Control.",
+    "version": "1.0.0",
+    "href": "https://modules.processwire.com/modules/version-control/",
+    "author": "Teppo Koivula",
+    "requires": [
+        "VersionControl",
+        "ProcessWire>=3.0.112",
+        "PHP>=7.1.0"
+    ],
+    "singular": true,
+    "autoload": true
+}

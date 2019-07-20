@@ -42,10 +42,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     /**
      * Module configuration
      *
-     * Note: this module isn't meant to be configurable in the usual way. While
-     * native features are used to define config inputfields, and user-provided
-     * config settings are stored just like regular config settings, the user
-     * only ever accesses them via the main module, VersionControl.
+     * Note: this module isn't meant to be configurable in the usual way. While native features are
+     * used to define config inputfields and config settings are stored just like regular module
+     * config settings, the user only ever accesses them via the main module, VersionControl.
      *
      * @param array $data
      * @return InputfieldWrapper
@@ -57,8 +56,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     /**
      * Placeholder for when a page with this Process assigned is accessed
      * 
-     * Currently only displays 404 error, but could potentially be used for
-     * something more useful later.
+     * Currently only displays a 404 error, but could be used for something more useful later.
      * 
      * @throws Wire404Exception by default
      */
@@ -69,9 +67,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     /**
      * Return revision data for specific page
      *
-     * Page is defined by GET param 'pages_id' and additional settings with get
-     * param 'settings'. Supported settings are 'empty' (to render placeholders
-     * for fields with no stored data) and 'render' (selecting render method).
+     * Page is defined by GET param 'pages_id' and additional settings with GET param 'settings'.
+     * Supported settings are 'empty' (to render placeholders for fields with no stored data) and
+     * 'render' (selecting render method).
      * 
      * @throws WireException if GET param pages_id is missing
      * @return string revision data rendered with one of available render methods

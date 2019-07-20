@@ -45,12 +45,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'FieldtypeOptions',
         ],
         'enabled_templates' => [],
-        'cleanup_methods' => [
-            'deleted_pages',
-            'deleted_fields',
-            'changed_template',
-            'removed_fieldgroup_fields',
-        ],
         'enable_all_templates' => false,
     ];
 
@@ -85,8 +79,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Name of the revisions database table
      *
-     * Revisions table keeps track of revision numbers, which are system wide,
-     * and stores important metadata, such as dates, user ID's, and page ID's.
+     * Revisions table keeps track of revision numbers, which are system wide, and stores important
+     * metadata, such as dates, user ID's, and page ID's.
      *
      * @var string
      */
@@ -102,9 +96,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Name of the databae table containing metadata for stored files
      *
-     * Having file metadata stored in the database makes tasks such as mime
-     * type checking and fetching file sizes and file hashes fast. Another
-     * benefit is easier and more efficient cleanup for orphaned files.
+     * Having file metadata stored in the database makes tasks such as mime type checking and
+     * fetching file sizes and file hashes fast. Another benefit is easier and more efficient
+     * cleanup for orphaned files.
      *
      * @var string
      */
@@ -134,9 +128,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Module configuration
      *
-     * Note: some configuration inputfields are pulled from the companion module
-     * ProcessVersionControl. This is an attempt to make configuration options
-     * for the module bundle easier to grasp (and harder to miss).
+     * Note: some configuration inputfields are pulled from the companion modules Process Version
+     * Control and Version Control Cleanup. This makes configuration options of the module bundle
+     * easier to grasp, and harder to miss by accident.
      *
      * @param array $data
      * @return InputfieldWrapper
@@ -153,45 +147,44 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // Init class autoloader.
         $this->initClassLoader();
 
-        // remove expired data rows daily
-        $this->addHook("LazyCron::everyDay", $this, 'cleanup');
-
-        // handle saving config data for the Process module
+        // Handle saving config data for the companion modules.
         $this->addHookBefore('Modules::saveModuleConfigData', $this, 'saveConfigData');
 
-        // regenerate base data when enabled templates change
+        // Regenerate base data when enabled templates change.
         $this->addHookAfter('Modules::saveModuleConfigData', $this, 'regenerateData');
 
-        if ($this->enable_all_templates || count($this->enabled_templates)) {
-            // add hooks that gather and store data
+        if ($this->enable_all_templates || !empty($this->enabled_templates)) {
+
+            // Add hooks that gather and store data.
             $this->addHookBefore('Pages::saveReady', $this, 'restoreFiles');
             $this->addHook('Pages::saveReady', $this, 'gather'); 
             $this->addHookBefore('Pages::saveField', $this, 'gather');
             $this->addHookAfter('Pages::save', $this, 'insert');
             $this->addHookAfter('Pages::saveField', $this, 'insert');
-            // add hooks that clear obsolete or orphaned data (cleanup)
-            $this->addHookAfter('Pages::deleted', $this, 'cleanupDeletedPage');
-            $this->addHookBefore('Fields::delete', $this, 'cleanupDeletedField');
-            $this->addHook('Pages::templateChanged', $this, 'cleanupChangedTemplate');
-            $this->addHookBefore('Fieldgroups::save', $this, 'cleanupRemovedFieldgroupFields');
-            // add hooks that add additional scripts, styles and markup
+
+            // Add hooks that inject additional scripts, styles, and markup.
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
             if (!$this->input->get->field && !$this->input->get->fields) {
-                // history tab shouldn't be added if we're editing specific
-                // field or fieldset only
+
+                // The history tab shouldn't be added if we're editing a specific field or fieldset.
                 $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
             }
-            // add hooks that alter image and file inputfield output on the fly
+
+            // Add hooks that alter the output of image and file inputfields on the fly.
             $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
             $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
             $this->addHookAfter('InputfieldFile::renderList', $this, 'replaceHashes');
-            // add hook that removes hashes within text content of rendered page
+
+            // Add hook that removes hashes within text content of a rendered page.
             $this->addHookAfter('Page::render', $this, 'replaceTextHashes');
-            // add new property versionControlFields to Template object
+
+            // Add new property versionControlFields to Template object.
             $this->addHookProperty('Template::versionControlFields', $this, 'versionControlFields');
-            // add new property versionControlRevision to Page object
+
+            // Add new property versionControlRevision to Page object.
             $this->addHookProperty('Page::versionControlRevision', $this, 'versionControlRevision');
-            // add new method versionControlRevisions to Page object
+
+            // Add new method versionControlRevisions to Page object.
             $this->addHook('Page::versionControlRevisions', $this, 'versionControlRevisions');
         }
     }
@@ -204,208 +197,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'VersionControl',
             $this->wire('config')->paths->get('VersionControl') . 'lib/'
         );
-    }
-
-    /**
-     * Delete data older than max age defined in module settings
-     */
-    protected function cleanup() {
-
-        // check if this cleanup method is disabled
-        if (!$this->data_max_age) return;
-
-        // prepare params
-        $t1 = self::TABLE_REVISIONS;
-        $t2 = self::TABLE_DATA;
-        $interval = $this->database->escapeStr($this->data_max_age);
-
-        // prepare and execute statement
-        $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.timestamp < DATE_SUB(NOW(), INTERVAL $interval) AND $t2.revisions_id = $t1.id");
-        $stmt->execute();
-
-        // request cleanup for files
-        $this->cleanupFiles();
-    }
-
-    /**
-     * Delete files no longer referenced in any data rows
-     */
-    protected function cleanupFiles() {
-
-        // first clean up data files junction table
-        $this->database->query("DELETE FROM " . self::TABLE_DATA_FILES . " WHERE data_id NOT IN (SELECT DISTINCT id FROM " . self::TABLE_DATA . ")");
-
-        // find files without connections to stored data rows
-        $stmt = $this->database->prepare("SELECT * FROM " . self::TABLE_FILES . " WHERE id NOT IN (SELECT DISTINCT files_id from " . self::TABLE_DATA_FILES . ")");
-        $stmt->execute();
-        $stmt_del = null;
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            // remove file
-            $dir = $this->path . substr($row['filename'], 0, 2) . "/";
-            $file = $dir . $row['filename'];
-            if (is_file($file)) unlink($file);
-            // remove file variations (thumbs)
-            $path_parts = pathinfo($file);
-            $variations = scandir($dir . "variations");
-            foreach ($variations as $variation) {
-                if (strpos($variation, $path_parts['filename']) === 0) {
-                    unlink($dir . "variations/" . $variation);
-                }
-            }
-            // if containing directory is now empty, remove that too
-            if (count(scandir($dir)) == 1) wireRmdir($dir, true);
-            // delete related row from files database table
-            if (!$stmt_del) $stmt_del = $this->database->prepare("DELETE FROM " . self::TABLE_FILES . " WHERE id = :id");
-            $stmt_del->bindValue(':id', (int) $row['id'], \PDO::PARAM_INT);
-            $stmt_del->execute();
-        }
-
-    }
-
-    /**
-     * Delete data that exceeds row limit defined in module settings
-     *
-     * Row limit applies to each unique page + field combination.
-     *
-     * @param int $pages_id
-     * @param int $fields_id
-     */
-    protected function cleanupExcessRows($pages_id, $fields_id) {
-
-        if (!$this->data_row_limit) return;
-
-        $ids = "";
-        $t1 = self::TABLE_REVISIONS;
-        $t2 = self::TABLE_DATA;
-        $stmt = $this->database->prepare("SELECT COUNT(*) AS count FROM $t1, $t2 WHERE $t1.pages_id = :pages_id AND $t2.fields_id = :fields_id AND $t2.revisions_id = $t1.id");
-        $stmt->bindValue(':pages_id', (int) $pages_id, \PDO::PARAM_INT);
-        $stmt->bindValue(':fields_id', (int) $fields_id, \PDO::PARAM_INT);
-        $stmt->execute();
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if ($row['count'] > $this->data_row_limit) {
-            $stmt = $this->database->prepare("SELECT id FROM $t1 ORDER BY timestamp LIMIT :limit");
-            $stmt->bindValue(':limit', (int) ($row['count']-$this->data_row_limit), \PDO::PARAM_INT);
-            $stmt->execute();
-            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-                $ids .= ($ids) ? ", " . $row['id'] : $row['id'];
-            }
-            $this->database->query("DELETE FROM $t1 WHERE id IN ($ids)");
-            $this->database->query("DELETE FROM $t2 WHERE revisions_id IN ($ids)");
-            $this->cleanupFiles();
-        }
-    }
-
-    /**
-     * Remove previously stored data for deleted page
-     *
-     * Note that this is the only cleanup method that can delete revisions in
-     * addition to data. This is intentional, since revisions are always tied
-     * to pages.
-     *
-     * @param HookEvent $event
-     */
-    protected function cleanupDeletedPage(HookEvent $event) {
-
-        // check if this cleanup method is disabled
-        if (!in_array('deleted_pages', $this->cleanup_methods)) return;
-
-        $page = $event->arguments[0];
-        if ($page instanceof Page) {
-            $t1 = self::TABLE_REVISIONS;
-            $t2 = self::TABLE_DATA;
-            $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1 LEFT OUTER JOIN $t2 ON $t2.revisions_id = $t1.id WHERE $t1.pages_id = :pages_id");
-            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
-            $stmt->execute();
-            $this->cleanupFiles();
-        }
-    }
-
-    /**
-     * Remove previously stored data for deleted field
-     *
-     * @param HookEvent $event
-     */
-    protected function cleanupDeletedField(HookEvent $event) {
-
-        // check if this cleanup method is disabled
-        if (!in_array('deleted_fields', $this->cleanup_methods)) return;
-
-        $field = $event->arguments[0];
-        if ($field instanceof Field) {
-            $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id = :fields_id");
-            $stmt->bindValue(':fields_id', (int) $field->id, \PDO::PARAM_INT);
-            $stmt->execute();
-            $this->cleanupFiles();
-        }
-    }
-
-    /**
-     * Remove obsoleted data after template change
-     *
-     * @param HookEvent $event
-     */
-    protected function cleanupChangedTemplate(HookEvent $event) {
-
-        // check if this cleanup method is disabled
-        if (!in_array('changed_template', $this->cleanup_methods)) return;
-
-        $page = $event->arguments[0];
-        if ($page instanceof Page) {
-            $fields = implode(",", array_keys($page->template->fields->getArray()));
-            $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
-            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
-            $stmt->execute();
-            $this->cleanupFiles();
-        }
-    }
-
-    /**
-     * Remove previously stored data for fields removed from fieldgroups
-     *
-     * @param HookEvent $event
-     */
-    protected function cleanupRemovedFieldgroupFields(HookEvent $event) {
-
-        // check if this cleanup method is disabled
-        if (!in_array('removed_fieldgroup_fields', $this->cleanup_methods)) return;
-
-        // find out if fields are actually going to be removed (permanent/global
-        // flags can result in WireExceptions, terminating removal entirely) and
-        // which of those (if any) can have rows in version control data table
-        $removed_fields = [];
-        $removed_fields_by_template = [];
-        $item = $event->arguments[0];
-        if ($item instanceof Fieldgroup && $item->id && $item->removedFields) {
-            $removed_fields = $item->removedFields->getArray();
-            $enabled_templates = $this->enable_all_templates ? "" : "id=" . implode("|", $this->enabled_templates) . ", ";
-            foreach ($this->templates->find("{$enabled_templates}fieldgroups_id={$item->id}") as $template) {
-                foreach ($removed_fields as $id => $field) {
-                    if (($field->flags & Field::flagGlobal) && !$template->noGlobal) return;
-                    if ($field->flags & Field::flagPermanent) return;
-                    if (!in_array($field->type, $this->compatible_fieldtypes)) unset($removed_fields[$id]);
-                    if (count($this->enabled_fields) && !in_array($id, $this->enabled_fields)) unset($removed_fields[$id]);
-                    if (!isset($removed_fields_by_template[$template->id])) $removed_fields_by_template[$template->id] = [];
-                    $removed_fields_by_template[$template->id][] = (int) $field->id;
-                }
-                if (empty($removed_fields)) {
-                    return;
-                }
-            }
-        }
-
-        // if we got this far and removed fields were found, delete data rows
-        if (count($removed_fields)) {
-            foreach ($removed_fields_by_template as $template_id => $field_ids) {
-                if ($field_count = count($field_ids)) {
-                    $page_ids = array_values($this->pages->find("template={$template_id}, include=all")->getArray());
-                    if ($page_count = count($page_ids)) {
-                        $stmt = $this->database->prepare("DELETE FROM " . self::TABLE_DATA . " WHERE fields_id IN (" . rtrim(str_repeat('?, ', $field_count), ', ') . ") AND revisions_id IN (SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . "))");
-                        $stmt->execute(array_merge($field_ids, $page_ids));
-                    }
-                }
-            }
-            $this->cleanupFiles();
-        }
     }
 
     /**
@@ -1353,31 +1144,34 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Handle saving module config data for the companion Process module
+     * Handle saving module config data for the companion modules
      *
      * @param HookEvent $event
      */
     protected function saveConfigData(HookEvent $event) {
 
         // Bail out early if we're currently saving config for some other module.
-        if ($event->arguments[0] !== $this->className) {
+        if ($event->arguments[0] !== 'VersionControl') {
             return;
         }
 
         $data = $event->arguments[1];
-        $p_data = [];
+        $ext_data = [
+            'p' => ['ProcessVersionControl', []],
+            'c' => ['VersionControlCleanup', []],
+        ];
         foreach ($data as $key => $value) {
-            if (substr($key, -2) == "_p") {
-                $p_data[substr($key, 0, strlen($key)-2)] = $value;
+            $suffix = substr($key, -2);
+            if ($suffix == '_p' || $suffix == '_c') {
+                $ext_key = substr($key, 0, strlen($key) - 2);
+                $ext_data[$suffix[1]][1][$ext_key] = $value;
                 unset($data[$key]);
             }
-        }
+       }
         $event->arguments(1, $data);
-        if ($this->wire('modules')->isInstalled('ProcessVersionControl')) {
-            $this->wire('modules')->saveModuleConfigData(
-                'ProcessVersionControl',
-                $p_data
-            );
+        foreach ($ext_data as $ext_key => $ext_module) {
+            if (!$this->wire('modules')->isInstalled($ext_module[0])) continue;
+            $this->wire('modules')->saveModuleConfigData($ext_module[0], $ext_module[1]);
         }
     }
 
@@ -1653,6 +1447,26 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 break;
         }
         return parent::get($key);
+    }
+
+    /**
+     * Pass requests to companion modules
+     *
+     * This method provides access to companion module methods. For an example if a cleanup* method
+     * is requested, we check if VersionControlCleanup has a matching method, calling that instead.
+     *
+     * @param string $method Method name.
+     * @param array $arguments Array of arguments.
+     * @return mixed
+     */
+    public function ___callUnknown($method, $arguments) {
+        if (strpos($method, "cleanup") === 0) {
+            return call_user_func_array([
+                $this->wire('modules')->get('VersionControlCleanup'),
+                $method
+            ], $arguments);
+        }
+        return parent::__callUnknown($method, $arguments);
     }
 
 }

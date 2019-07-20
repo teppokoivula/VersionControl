@@ -7,6 +7,13 @@ use ProcessWire\InputfieldWrapper,
     ProcessWire\VersionControl,
     ProcessWire\ProcessVersionControl;
 
+/**
+ * Process Version Control Config
+ *
+ * @version 1.0.0
+ * @author Teppo Koivula <teppo.koivula@gmail.com>
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ */
 class ProcessModuleConfig extends \ProcessWire\Wire {
 
     /**
@@ -40,7 +47,10 @@ class ProcessModuleConfig extends \ProcessWire\Wire {
         $field->icon = "info-circle";
         $link_module = "VersionControl";
         $link_markup = '<a href="' . $this->wire('page')->url . 'edit?name=' . $link_module . '">' . $link_module . '</a>';
-        $field->set('markupText', sprintf($this->_("All configuration settings for the Version Control module bundle can be found from the %s module."), $link_markup));
+        $field->set('markupText', sprintf(
+            $this->_("All configuration settings for the Version Control module bundle can be found from the %s module."),
+            $link_markup
+        ));
         $fields->add($field);
 
         // fieldset: output settings

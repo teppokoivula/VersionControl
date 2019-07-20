@@ -1,0 +1,266 @@
+<?php namespace ProcessWire;
+
+/**
+ * Version Control Cleanup Helper
+ *
+ * This module provides various cleanup features required by the Version Control module. We don't
+ * want to store unnecessary data, so with this module we're making sur ethat expired rows and
+ * orphaned files etc. don't just stick around.
+ *
+ * @copyright 2019 Teppo Koivula
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ */
+class VersionControlCleanup extends WireData implements Module, ConfigurableModule {
+
+    /**
+     * Default configuration for this module
+     *
+     * @var array
+     */
+    public static $defaultData = [
+        'cleanup_methods' => [
+            'deleted_pages',
+            'deleted_fields',
+            'changed_template',
+            'removed_fieldgroup_fields',
+        ],
+    ];
+
+    /**
+     * Initialization function
+     */
+    public function init() {
+
+        // Remove expired data rows daily.
+        $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+
+        // Get main module config data.
+        $mainConfig = array_merge(VersionControl::$defaultData, $this->wire('modules')->getConfig('VersionControl'));
+        if ($mainConfig['enable_all_templates'] || !empty($mainConfig['enabled_templates'])) {
+
+            // Add hooks that clear obsolete or orphaned data (cleanup).
+            $this->addHookAfter('Pages::deleted', $this, 'cleanupDeletedPage');
+            $this->addHookBefore('Fields::delete', $this, 'cleanupDeletedField');
+            $this->addHook('Pages::templateChanged', $this, 'cleanupChangedTemplate');
+            $this->addHookBefore('Fieldgroups::save', $this, 'cleanupRemovedFieldgroupFields');
+        }
+    }
+
+    /**
+     * Module configuration
+     *
+     * Note: this module isn't meant to be configurable in the usual way. While native features are
+     * used to define config inputfields and config settings are stored just like regular module
+     * config settings, the user only ever accesses them via the main module, VersionControl.
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    public function getModuleConfigInputfields(array $data) {
+        return $this->wire(new \VersionControl\CleanupModuleConfig($data))->getFields();
+    }
+
+    /**
+     * Delete data older than max age defined in module settings
+     */
+    protected function cleanup() {
+
+        // check if this cleanup method is disabled
+        if (!$this->data_max_age) return;
+
+        // prepare params
+        $t1 = VersionControl::TABLE_REVISIONS;
+        $t2 = VersionControl::TABLE_DATA;
+        $interval = $this->database->escapeStr($this->data_max_age);
+
+        // prepare and execute statement
+        $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.timestamp < DATE_SUB(NOW(), INTERVAL $interval) AND $t2.revisions_id = $t1.id");
+        $stmt->execute();
+
+        // request cleanup for files
+        $this->cleanupFiles();
+    }
+
+    /**
+     * Delete files no longer referenced in any data rows
+     */
+    public function cleanupFiles() {
+
+        // first clean up data files junction table
+        $this->database->query("DELETE FROM " . VersionControl::TABLE_DATA_FILES . " WHERE data_id NOT IN (SELECT DISTINCT id FROM " . VersionControl::TABLE_DATA . ")");
+
+        // find files without connections to stored data rows
+        $stmt = $this->database->prepare("SELECT * FROM " . VersionControl::TABLE_FILES . " WHERE id NOT IN (SELECT DISTINCT files_id from " . VersionControl::TABLE_DATA_FILES . ")");
+        $stmt->execute();
+        $stmt_del = null;
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            // remove file
+            $dir = $this->path . substr($row['filename'], 0, 2) . "/";
+            $file = $dir . $row['filename'];
+            if (is_file($file)) unlink($file);
+            // remove file variations (thumbs)
+            $path_parts = pathinfo($file);
+            $variations = scandir($dir . "variations");
+            foreach ($variations as $variation) {
+                if (strpos($variation, $path_parts['filename']) === 0) {
+                    unlink($dir . "variations/" . $variation);
+                }
+            }
+            // if containing directory is now empty, remove that too
+            if (count(scandir($dir)) == 1) wireRmdir($dir, true);
+            // delete related row from files database table
+            if (!$stmt_del) $stmt_del = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_FILES . " WHERE id = :id");
+            $stmt_del->bindValue(':id', (int) $row['id'], \PDO::PARAM_INT);
+            $stmt_del->execute();
+        }
+
+    }
+
+    /**
+     * Delete data that exceeds row limit defined in module settings
+     *
+     * Row limit applies to each unique page + field combination.
+     *
+     * @param int $pages_id
+     * @param int $fields_id
+     */
+    public function cleanupExcessRows($pages_id, $fields_id) {
+
+        if (!$this->data_row_limit) return;
+
+        $ids = [];
+        $t1 = VersionControl::TABLE_REVISIONS;
+        $t2 = VersionControl::TABLE_DATA;
+        $stmt = $this->database->prepare("SELECT COUNT(*) AS count FROM $t1, $t2 WHERE $t1.pages_id = :pages_id AND $t2.fields_id = :fields_id AND $t2.revisions_id = $t1.id");
+        $stmt->bindValue(':pages_id', (int) $pages_id, \PDO::PARAM_INT);
+        $stmt->bindValue(':fields_id', (int) $fields_id, \PDO::PARAM_INT);
+        $stmt->execute();
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($row['count'] > $this->data_row_limit) {
+            $stmt = $this->database->prepare("SELECT id FROM $t1 ORDER BY timestamp LIMIT :limit");
+            $stmt->bindValue(':limit', (int) ($row['count'] - $this->data_row_limit), \PDO::PARAM_INT);
+            $stmt->execute();
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                $ids[] = $row['id'];
+            }
+            $ids_string = implode(',', $ids);
+            $this->database->query("DELETE FROM $t1 WHERE id IN ($ids_string)");
+            $this->database->query("DELETE FROM $t2 WHERE revisions_id IN ($ids_string)");
+            $this->cleanupFiles();
+        }
+    }
+
+    /**
+     * Remove previously stored data for deleted page
+     *
+     * Note that this is the only cleanup method that can delete revisions in
+     * addition to data. This is intentional, since revisions are always tied
+     * to pages.
+     *
+     * @param HookEvent $event
+     */
+    public function cleanupDeletedPage(HookEvent $event) {
+
+        // check if this cleanup method is disabled
+        if (!in_array('deleted_pages', $this->cleanup_methods)) return;
+
+        $page = $event->arguments[0];
+        if ($page instanceof Page) {
+            $t1 = VersionControl::TABLE_REVISIONS;
+            $t2 = VersionControl::TABLE_DATA;
+            $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1 LEFT OUTER JOIN $t2 ON $t2.revisions_id = $t1.id WHERE $t1.pages_id = :pages_id");
+            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $this->cleanupFiles();
+        }
+    }
+
+    /**
+     * Remove previously stored data for deleted field
+     *
+     * @param HookEvent $event
+     */
+    public function cleanupDeletedField(HookEvent $event) {
+
+        // check if this cleanup method is disabled
+        if (!in_array('deleted_fields', $this->cleanup_methods)) return;
+
+        $field = $event->arguments[0];
+        if ($field instanceof Field) {
+            $stmt = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_DATA . " WHERE fields_id = :fields_id");
+            $stmt->bindValue(':fields_id', (int) $field->id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $this->cleanupFiles();
+        }
+    }
+
+    /**
+     * Remove obsoleted data after template change
+     *
+     * @param HookEvent $event
+     */
+    public function cleanupChangedTemplate(HookEvent $event) {
+
+        // check if this cleanup method is disabled
+        if (!in_array('changed_template', $this->cleanup_methods)) return;
+
+        $page = $event->arguments[0];
+        if ($page instanceof Page) {
+            $fields = implode(",", array_keys($page->template->fields->getArray()));
+            $stmt = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . VersionControl::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
+            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $this->cleanupFiles();
+        }
+    }
+
+    /**
+     * Remove previously stored data for fields removed from fieldgroups
+     *
+     * @param HookEvent $event
+     */
+    public function cleanupRemovedFieldgroupFields(HookEvent $event) {
+
+        // check if this cleanup method is disabled
+        if (!in_array('removed_fieldgroup_fields', $this->cleanup_methods)) return;
+
+        // find out if fields are actually going to be removed (permanent/global
+        // flags can result in WireExceptions, terminating removal entirely) and
+        // which of those (if any) can have rows in version control data table
+        $removed_fields = [];
+        $removed_fields_by_template = [];
+        $item = $event->arguments[0];
+        if ($item instanceof Fieldgroup && $item->id && $item->removedFields) {
+            $removed_fields = $item->removedFields->getArray();
+            $enabled_templates = $this->enable_all_templates ? "" : "id=" . implode("|", $this->enabled_templates) . ", ";
+            foreach ($this->templates->find("{$enabled_templates}fieldgroups_id={$item->id}") as $template) {
+                foreach ($removed_fields as $id => $field) {
+                    if (($field->flags & Field::flagGlobal) && !$template->noGlobal) return;
+                    if ($field->flags & Field::flagPermanent) return;
+                    if (!in_array($field->type, $this->compatible_fieldtypes)) unset($removed_fields[$id]);
+                    if (count($this->enabled_fields) && !in_array($id, $this->enabled_fields)) unset($removed_fields[$id]);
+                    if (!isset($removed_fields_by_template[$template->id])) $removed_fields_by_template[$template->id] = [];
+                    $removed_fields_by_template[$template->id][] = (int) $field->id;
+                }
+                if (empty($removed_fields)) {
+                    return;
+                }
+            }
+        }
+
+        // if we got this far and removed fields were found, delete data rows
+        if (count($removed_fields)) {
+            foreach ($removed_fields_by_template as $template_id => $field_ids) {
+                if ($field_count = count($field_ids)) {
+                    $page_ids = array_values($this->pages->find("template={$template_id}, include=all")->getArray());
+                    if ($page_count = count($page_ids)) {
+                        $stmt = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_DATA . " WHERE fields_id IN (" . rtrim(str_repeat('?, ', $field_count), ', ') . ") AND revisions_id IN (SELECT id FROM " . VersionControl::TABLE_REVISIONS . " WHERE pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . "))");
+                        $stmt->execute(array_merge($field_ids, $page_ids));
+                    }
+                }
+            }
+            $this->cleanupFiles();
+        }
+    }
+
+}

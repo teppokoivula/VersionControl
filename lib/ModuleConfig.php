@@ -7,6 +7,13 @@ use ProcessWire\InputfieldWrapper,
     ProcessWire\VersionControl,
     ProcessWire\ProcessVersionControl;
 
+/**
+ * Version Control Config
+ *
+ * @version 1.0.0
+ * @author Teppo Koivula <teppo.koivula@gmail.com>
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ */
 class ModuleConfig extends \ProcessWire\Wire {
 
     /**
@@ -68,83 +75,35 @@ class ModuleConfig extends \ProcessWire\Wire {
         if (isset($data['enabled_fields'])) $field->value = $data['enabled_fields'];
         $fieldset->add($field);
 
-        // display config options from the Process module
-        if ($modules->isInstalled('ProcessVersionControl')) {
-            $p = $modules->get('ProcessVersionControl');
-            $p_data = $modules->getModuleConfigData('ProcessVersionControl');
-            $p_fields = $this->wire(new ProcessModuleConfig($p_data))->getFields();
-            foreach ($p_fields as $p_field) {
-                $p_field->name .= "_p";
-                if ($p_field->collapsed == Inputfield::collapsedHidden) {
-                    $p_field->collapsed = Inputfield::collapsedNo;
+        // display config options from companion modules
+        $ext_data = [
+            'p' => ['ProcessVersionControl', 'VersionControl\ProcessModuleConfig'],
+            'c' => ['VersionControlCleanup', 'VersionControl\CleanupModuleConfig'],
+        ];
+        foreach ($ext_data as $ext_key => $ext_module) {
+            if (!$modules->isInstalled($ext_module[0])) continue;
+            $e = $modules->get($ext_module[0]);
+            $e_data = $modules->getModuleConfigData($ext_module[0]);
+            $e_fields = $this->wire(new $ext_module[1]($e_data))->getFields();
+            foreach ($e_fields as $e_field) {
+                $e_field->name .= '_' . $ext_key;
+                if ($e_field->collapsed == Inputfield::collapsedHidden) {
+                    $e_field->collapsed = Inputfield::collapsedNo;
                 } else {
-                    $p_field->collapsed = Inputfield::collapsedHidden;
+                    $e_field->collapsed = Inputfield::collapsedHidden;
                 }
-                if ($p_field instanceof InputfieldWrapper) {
-                    foreach ($p_field as $p_subfield) {
-                        $p_subfield->name .= "_p";
-                        if ($p_subfield->showIf) {
-                            $p_subfield->showIf = str_replace("=", "_p=", $p_subfield->showIf);
+                if ($e_field instanceof InputfieldWrapper) {
+                    foreach ($e_field as $e_subfield) {
+                        $e_subfield->name .= '_' . $ext_key;
+                        if ($e_subfield->showIf) {
+                            $e_subfield->showIf = str_replace('=', '_' . $ext_key . '=', $e_subfield->showIf);
                         }
-                        $p_field->add($p_subfield);
+                        $e_field->add($e_subfield);
                     }
                 }
             }
-            $fields->add($p_fields);
+            $fields->add($e_fields);
         }
-
-        // fieldset: cleanup settings
-        $fieldset = $modules->get("InputfieldFieldset");
-        $fieldset->label = $this->_("Cleanup Settings");
-        $fieldset->icon = "trash-o";
-        $fields->add($fieldset);
-
-        // for how long should collected data be retained?
-        if ($modules->isInstalled("LazyCron")) {
-            $field = $modules->get("InputfieldSelect");
-            $field->addOption('1 WEEK', $this->_('1 week'));
-            $field->addOption('2 WEEK', $this->_('2 weeks'));
-            $field->addOption('1 MONTH', $this->_('1 month'));
-            $field->addOption('2 MONTH', $this->_('2 months'));
-            $field->addOption('3 MONTH', $this->_('3 months'));
-            $field->addOption('6 MONTH', $this->_('6 months'));
-            $field->addOption('1 YEAR', $this->_('1 year'));
-            $field->notes = $this->_("Leave empty to disable automatic time-based cleanup.");
-            if (isset($data['data_max_age'])) $field->value = $data['data_max_age'];
-        } else {
-            $field = $modules->get("InputfieldMarkup");
-            $field->description = $this->_("Automatic cleanup requires Lazy Cron module.");
-        }
-        $field->label = $this->_("For how long should we retain collected data?");
-        $field->name = "data_max_age";
-        $fieldset->add($field);
-
-        // should we limit the amount of revisions saved for each field + page combination?
-        $field = $modules->get("InputfieldSelect");
-        $field->name = "data_row_limit";
-        $field->label = $this->_("Revisions retained for each field + page combination");
-        $field->addOptions([
-            10 => '10',
-            20 => '20',
-            50 => '50',
-            100 => '100',
-        ]);
-        $field->notes = $this->_("Leave empty to not impose limits for stored revisions.");
-        if (isset($data['data_row_limit'])) $field->value = $data['data_row_limit'];
-        $fieldset->add($field);
-
-        // which cleanup methods (or features) should we enable?
-        $field = $modules->get("InputfieldCheckboxes");
-        $field->name = "cleanup_methods";
-        $field->label = $this->_("Additional cleanup methods");
-        $field->addOptions([
-            'deleted_pages' => $this->_("Delete all stored data for deleted pages"),
-            'deleted_fields' => $this->_("Delete all stored data for deleted fields"),
-            'changed_template' => $this->_("Delete data stored for non-existing fields after template is changed"),
-            'removed_fieldgroup_fields' => $this->_("Delete data stored for fields that are removed from page's fieldgroup"),
-        ]);
-        if (isset($data['cleanup_methods'])) $field->value = $data['cleanup_methods'];
-        $fieldset->add($field);
 
         // fieldset: advanced settings
         $fieldset = $modules->get("InputfieldFieldset");
