@@ -190,11 +190,11 @@ $(function() {
         });
 
         // Add the "scrollable" class to all oversized revision data tables.
-        var revisionsTableResizeTimeout;
+        var revisions_table_resize_timeout;
         $(window)
             .on('resize.revisions-table', function() {
-                clearTimeout(revisionsTableResizeTimeout);
-                revisionsTableResizeTimeout = setTimeout(function() {
+                clearTimeout(revisions_table_resize_timeout);
+                revisions_table_resize_timeout = setTimeout(function() {
                     $('.field-revisions:not(.animatable)').each(function() {
                         $table = $(this).find('table');
                         if ($table.length && $(this).width() < $table.outerWidth()) {
@@ -264,7 +264,7 @@ $(function() {
                     var r2 = $revision.data('revision');
                     var href = moduleConfig.processPage + 'diff/?revisions=' + r1 + ':' + r2 + '&field=' + field;
                     var $compare_revisions = $('<div class="compare-revisions"></div>');
-                    $(this).before($compare_revisions);
+                    $(this).after($compare_revisions);
                     var $parent = $(this).parents('tr:first');
                     $compare_revisions.prepend($spinner).load(href, function() {
                         if ($parent.find('ul.page-diff').length) {
@@ -278,9 +278,11 @@ $(function() {
                         } else {
                             enableDiffMatchPatch();
                         }
-                        var $compare_revisions_close = $('<a class="compare-revisions-close fa fas fa-times"></a>')
-                            .on('click', function() {
-                                $(this).parent().next().trigger('click');
+                        var $compare_revisions_close = $('<button class="field-revision-button compare-revisions-close fa fas fa-times"></button>')
+                            .attr('tabindex', 0)
+                            .on('click', function(event) {
+                                event.preventDefault();
+                                $(this).parent().prev().focus().trigger('click');
                             })
                             .appendTo($compare_revisions);
                     });

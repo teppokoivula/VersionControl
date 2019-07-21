@@ -49,6 +49,20 @@ textarea.version_control_filedata {
     background: linear-gradient(to right, #1c2836 0%,#293a4f 100%);
 }
 
+.field-revision-button {
+    background: transparent;
+    border: 0;
+    color: #fff;
+    cursor: pointer;
+    font-size: 1em;
+    padding: 0;
+}
+
+.field-revision-button:hover,
+.field-revision-button:focus {
+    opacity: .75;
+}
+
 .field-revisions.animatable {
     display: none;
 }
@@ -164,7 +178,7 @@ textarea.version_control_filedata {
     padding-right: 0;
 }
 
-.field-revisions .ui-state-active a {
+.field-revisions .ui-state-active .field-revision-button {
     display: none;
 }
 

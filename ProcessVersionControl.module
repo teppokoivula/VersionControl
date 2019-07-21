@@ -515,6 +515,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      */
     protected function renderHTML(array $data) {
 
+        // Translatable strings.
+        $strings = [
+            'restore' => $this->_('Restore'),
+            'compare' => $this->_('Compare'),
+        ];
+
         // Rendering templates.
         $templates = [
             'outer_container' => '<div id="version-control-data">%s</div>',
@@ -532,8 +538,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Action buttons.
         $buttons = [
-            'restore' => '<a class="field-revision-button field-revision-restore" href="#"><span>' . $this->_('Restore') . '</span></a>',
-            'compare' => '<a class="field-revision-button field-revision-diff" href="#"><span>' . $this->_('Compare') . '</span></a>',
+            'restore' => '<button class="field-revision-button field-revision-restore" title="' . $strings['restore'] . '"><span>' . $strings['restore'] . '</span></button>',
+            'compare' => '<button class="field-revision-button field-revision-diff" title="' . $strings['compare'] . '"><span>' . $strings['compare'] . '</span></button>',
         ];
 
         $dataset = [];
