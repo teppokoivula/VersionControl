@@ -1,7 +1,29 @@
+/* General purpose styles and elements */
+
 #version-control-data,
 textarea.version_control_filedata {
     display: none;
 }
+
+.InputfieldColumnWidth {
+    position: relative;
+}
+
+.visually-hidden,
+.scrollable .visually-hidden-if-scrollable {
+    border: 0;
+    clip: rect(1px, 1px, 1px, 1px);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+    word-wrap: normal !important;
+}
+
+/* Overlay layer */
 
 .version-control-overlay {
     top: 0;
@@ -12,6 +34,10 @@ textarea.version_control_filedata {
     position: absolute;
 }
 
+.overlay-parent  {
+    position: relative;
+}
+
 .InputfieldContent.overlay-parent > * {
     transition: .5s ease;
 }
@@ -20,26 +46,7 @@ textarea.version_control_filedata {
     opacity: .5;
 }
 
-.overlay-parent,
-.InputfieldColumnWidth {
-    position: relative;
-}
-
-.field-revisions-toggle {
-    float: right;
-    padding-right: 1em;
-    position: relative;
-}
-
-.field-revisions-toggle.active,
-.field-revision-diff.active {
-    opacity: .5;
-}
-
-.field-revisions-toggle.inactive * {
-    cursor: help;
-    opacity: .25;
-}
+/* Field revisions list */
 
 .field-revisions {
     overflow: visible !important;
@@ -49,19 +56,17 @@ textarea.version_control_filedata {
     background: linear-gradient(to right, #1c2836 0%,#293a4f 100%);
 }
 
-.field-revision-button {
-    background: transparent;
-    border: 0;
-    color: #fff;
-    cursor: pointer;
-    font-size: 1em;
-    line-height: 1;
-    padding: 0;
-}
-
-.field-revision-button:hover,
-.field-revision-button:focus {
-    opacity: .75;
+.field-revisions::after {
+    content: '';
+    width: 0;
+    height: 0;
+    bottom: 0;
+    left: 1.25em;
+    position: absolute;
+    margin-bottom: -8px;
+    border-top: 8px solid #1c2836;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
 }
 
 .field-revisions.animatable {
@@ -78,7 +83,6 @@ textarea.version_control_filedata {
 }
 
 .field-revisions.scrollable {
-    cursor: ew-resize;
     box-shadow: inset -1em 0 1em rgba(0,0,0,.25);
     transition: box-shadow .25s ease;
 }
@@ -89,19 +93,6 @@ textarea.version_control_filedata {
 
 .field-revisions.sliding {
     overflow: hidden !important;
-}
-
-.field-revisions::after {
-    content: '';
-    width: 0;
-    height: 0;
-    bottom: 0;
-    left: 1.25em;
-    position: absolute;
-    margin-bottom: -8px;
-    border-top: 8px solid #1c2836;
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
 }
 
 .field-revisions > div {
@@ -126,6 +117,7 @@ textarea.version_control_filedata {
 .field-revisions th,
 .field-revisions td {
     padding: .75em 1em;
+    white-space: nowrap;
 }
 
 .field-revisions th:first-child,
@@ -137,15 +129,8 @@ textarea.version_control_filedata {
     border-right: 1px solid rgba(255,255,255,.25);
 }
 
-@media screen and (min-width: 980px) {
-    .field-revisions th,
-    .field-revisions td {
-        white-space: nowrap;
-    }
-    .field-revisions td:last-child {
-        width: 100%;
-    }
-
+.field-revisions td:last-child {
+    width: 100%;
 }
 
 .field-revisions,
@@ -155,7 +140,49 @@ textarea.version_control_filedata {
     color: #fff !important;
 }
 
-.field-revisions a:not(:last-child) {
+body.template-admin .field-revisions .ui-state-active {
+    border: 0;
+    background: transparent;
+}
+
+/* Buttons and toggles */
+
+.field-revisions-toggle {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    float: right;
+    font-size: 1em;
+    padding-right: 1em;
+    position: relative;
+}
+
+.field-revisions-toggle.active,
+.field-revision-diff.active {
+    opacity: .5;
+}
+
+.field-revisions-toggle.inactive * {
+    cursor: help;
+    opacity: .25;
+}
+
+.field-revision-button {
+    background: transparent;
+    border: 0;
+    color: #fff;
+    cursor: pointer;
+    font-size: 1em;
+    line-height: 2;
+    padding: 0;
+}
+
+.field-revision-button:hover,
+.field-revision-button:focus {
+    opacity: .75;
+}
+
+.field-revision-button:not(:last-child) {
     margin-right: 1em;
 }
 
@@ -163,21 +190,8 @@ textarea.version_control_filedata {
     margin-right: .5rem;
 }
 
-.field-revisions.scrollable .field-revision-button span {
-    border: 0;
-    clip: rect(1px, 1px, 1px, 1px);
-    clip-path: inset(50%);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    padding: 0;
-    position: absolute;
-    width: 1px;
-    word-wrap: normal !important;
-}
-
-.field-revisions.scrollable td:last-child {
-    padding-right: 0;
+.field-revisions td:last-child {
+    padding: 0 0 0 1em;
 }
 
 .field-revisions .ui-state-active .field-revision-button {
@@ -223,14 +237,6 @@ textarea.version_control_filedata {
     text-shadow: none;
 }
 
-.field-revisions .ui-state-active {
-}
-
-body.template-admin .field-revisions .ui-state-active {
-    border: 0;
-    background: transparent;
-}
-
 .field-revision-loading {
     top: 0;
     left: 0;
@@ -266,6 +272,8 @@ body.template-admin .field-revisions .ui-state-active {
     right: 1em;
     top: 1em;
 }
+
+/* History tab */
 
 .InputfieldWrapper#VersionControlHistory .AdminDataTable tr a {
     opacity: .25;

@@ -524,7 +524,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         // Rendering templates.
         $templates = [
             'outer_container' => '<div id="version-control-data">%s</div>',
-            'field_container' => '<div class="field-revisions%s" data-field="%s" data-revision="%s"><div>%s</div></div>',
+            'field_container' => '<div class="field-revisions%s" data-field="%s" data-revision="%s" tabindex=-1 aria-hidden="true"><div>%s</div></div>',
             'table_container' => '<table>%s</table>',
             'table_head' => '<thead><tr><th></th><th>%s</th><th>%s</th></tr></thead>',
             'table_body' => '<tbody>%s</tbody>',
@@ -534,12 +534,15 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                          . '<td class="field-revision-user">%3$s</td>'
                          . '<td>%4$s%5$s</td>'
                          . '</tr>',
+            'button' => '<button class="field-revision-button field-revision-%s" title="%2$s">'
+                      . '<span class="visually-hidden-if-scrollable">%2$s</span>'
+                      . '</button>',
         ];
 
         // Action buttons.
         $buttons = [
-            'restore' => '<button class="field-revision-button field-revision-restore" title="' . $strings['restore'] . '"><span>' . $strings['restore'] . '</span></button>',
-            'compare' => '<button class="field-revision-button field-revision-diff" title="' . $strings['compare'] . '"><span>' . $strings['compare'] . '</span></button>',
+            'restore' => sprintf($templates['button'], 'restore', $strings['restore']),
+            'compare' => sprintf($templates['button'], 'diff', $strings['compare']),
         ];
 
         $dataset = [];

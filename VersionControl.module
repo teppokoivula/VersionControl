@@ -575,6 +575,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'diffSideBySide' => $this->_('Show side by side'),
                 'diffList' => $this->_('Show as a list'),
                 'noDiff' => $this->_('There is no difference between these revisions.'),
+                'toggleRevisions' => $this->_('Toggle a list of revisions'),
             ],
             'diff' => [
                 'timeout' => (int) $this->diff_timeout,

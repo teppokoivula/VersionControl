@@ -2,7 +2,10 @@ $(function() {
 
     // Configuration: "run-time" settings are defined here, "constant" settings
     // (translations, interface URL etc.) in VersionControl.module.
-    var settings = { empty: true, render: 'HTML' };
+    var settings = {
+        empty: true,
+        render: 'HTML'
+    };
     var moduleConfig = config.VersionControl;
 
     // Field data is cached to reduce need for redundant AJAX requests.
@@ -23,6 +26,7 @@ $(function() {
         $('#version-control-data > div').each(function() {
             if ($(this).data('revision')) {
                 var $if = $('.Inputfield_' + $(this).data('field'));
+                $(this).find('a, button').attr('tabindex', -1);
                 $if.find('> label')
                     .addClass('with-history')
                     .before($(this));
@@ -36,17 +40,29 @@ $(function() {
         // Iterate through history-enabled fields to add a revision toggle.
         $('.ui-widget-header.with-history, .InputfieldHeader.with-history').each(function() {
             var toggle_class = "field-revisions-toggle";
-            var toggle_title = "";
             if ($(this).siblings('.field-revisions').find('tr').length < 2) {
                 toggle_class += " inactive";
-                toggle_title = " title='" + $(this).siblings('.field-revisions').text() + "'";
             }
-            var revisions_toggle = '<a ' + toggle_title + 'class="' + toggle_class + '"><i class="fa fa-clock-o"></i></a>';
+            // Note: this is a bit sneaky, but basically we're placing a non-usable, hidden link and
+            // then using that to figure out how to style our toggle button.
+            var $revisions_toggle_sentinel = $('<a></a>')
+                .hide()
+                .appendTo($(this));
+            var revisions_toggle_color = $revisions_toggle_sentinel.css('color');
+            var $revisions_toggle = $('<button><i class="fa fa-clock-o"></i></button>')
+                .addClass(toggle_class)
+                .attr('title', moduleConfig.i18n.toggleRevisions)
+                .attr('aria-expanded', false)
+                .css('color', revisions_toggle_color);
+            var $revisions_toggle_text = $('<span></span>')
+                .addClass('visually-hidden')
+                .text(moduleConfig.i18n.toggleRevisions)
+                .appendTo($revisions_toggle);
             var $toggle_icon = $(this).find('.toggle-icon');
             if ($toggle_icon.length) {
-                $toggle_icon.after(revisions_toggle);
+                $toggle_icon.after($revisions_toggle);
             } else {
-                $(this).append(revisions_toggle);
+                $(this).append($revisions_toggle);
             }
         });
         
@@ -55,8 +71,12 @@ $(function() {
         // things are presented, loading animation etc.)
         $('.field-revisions').on('click', '.field-revision-restore, .field-revision-current', function() {
             var $revision = $(this).parents('.field-revision:first');
-            if ($revision.hasClass('ui-state-active')) return false;
-            var settings = { render: 'Input' };
+            if ($revision.hasClass('ui-state-active')) {
+                return false;
+            }
+            var settings = {
+                render: 'Input'
+            };
             var $revisions = $(this).parents('.field-revisions:first');
             var $if = $(this).parents('.Inputfield:first');
             var field = $revisions.data('field');
@@ -72,7 +92,9 @@ $(function() {
             if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) {
                 // For some inputfield types we need to get raw data as JSON
                 // instead of pre-rendered inputfield markup (HTML).
-                settings = { render: 'JSON' };
+                settings = {
+                    render: 'JSON'
+                };
             }
             var revision = $revision.data('revision');
             if (cache[field + "." + revision]) {
@@ -88,7 +110,9 @@ $(function() {
                     }
                     if ($if.find('.InputfieldAsmSelect').length) {
                         var $select = $if.find('select[multiple=multiple]');
-                        var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
+                        var options = typeof config === 'undefined' ? {
+                            sortable: true
+                        } : config[$select.attr('id')];
                         $select.appendTo($if.find('.InputfieldAsmSelect')).show();
                         $if.find('.asmContainer').remove();
                         $select.asmSelect(options);
@@ -129,25 +153,35 @@ $(function() {
                             alert($(this).attr('title'));
                         })
                         .hover(
-                            function() { $(this).parent('.overlay-parent').addClass('hover') }, 
-                            function() { $(this).parent('.overlay-parent').removeClass('hover') }
+                            function() {
+                                $(this).parent('.overlay-parent').addClass('hover');
+                            }, 
+                            function() {
+                                $(this).parent('.overlay-parent').removeClass('hover');
+                            }
                         )
                         .parent('.InputfieldContent')
                         .addClass('overlay-parent');
                 } else if ($if.hasClass('Inputfield_permissions')) {
-                    $('.Inputfield_permissions .Inputfield_permissions > .InputfieldContent').insertAfter($('.Inputfield_permissions:first > .InputfieldContent:first'));
+                    $('.Inputfield_permissions .Inputfield_permissions > .InputfieldContent').insertAfter(
+                        $('.Inputfield_permissions:first > .InputfieldContent:first')
+                    );
                     $('.Inputfield_permissions:first > .InputfieldContent:first').remove();
                 }
                 if ($if.find('.InputfieldAsmSelect').length) {
                     var $select = $if.find('select[multiple=multiple]');
-                    var options = typeof config === 'undefined' ? { sortable: true } : config[$select.attr('id')];
+                    var options = typeof config === 'undefined' ? {
+                        sortable: true
+                    } : config[$select.attr('id')];
                     $select.asmSelect(options);
                 }
             } else {
                 // Format of returned data is JSON.
                 $.each(data, function(property, value) {
                     var language = property.replace('data', '');
-                    if (language) language = "__" + language;
+                    if (language) {
+                        language = "__" + language;
+                    }
                     if (typeof tinyMCE != "undefined" && tinyMCE.get('Inputfield_' + field + language)) {
                         // TinyMCE inputfield.
                         tinyMCE.get('Inputfield_' + field + language).setContent(value);
@@ -165,24 +199,38 @@ $(function() {
         // When revisions toggle is clicked, show the revisions table – or hide
         // it in case it was already visible.
         $('.field-revisions-toggle').on('click', function() {
-            if ($(this).hasClass('inactive')) return false;
+            if ($(this).hasClass('inactive')) {
+                return false;
+            }
             var $revisions = $(this).parent('label').siblings('.field-revisions');
             if (!$(this).hasClass('active')) {
                 $revisions.addClass('animatable');
             }
             if ($revisions.is(':visible')) {
-                $(this).removeClass('active');
+                $(this)
+                    .removeClass('active')
+                    .attr('aria-expanded', false);
                 $revisions.addClass('sliding').slideUp('fast', function() {
                     $revisions
                         .removeClass('animatable sliding')
-                        .removeAttr('style');
+                        .removeAttr('style')
+                        .attr('aria-hidden', true)
+                        .find('a, button')
+                            .attr('tabindex', -1);
                     InputfieldColumnWidths();
                     $(window).trigger('resize.revisions-table');
                 });
             } else {
-                $(this).addClass('active');
+                $(this)
+                    .addClass('active')
+                    .attr('aria-expanded', true);
                 $revisions.addClass('sliding').slideDown('fast', function() {
-                    $revisions.removeClass('sliding');
+                    $revisions
+                        .removeClass('sliding')
+                        .removeAttr('aria-hidden')
+                        .focus()
+                        .find('a, button')
+                            .removeAttr('tabindex');
                     InputfieldColumnWidths();
                 });
             }
@@ -203,6 +251,8 @@ $(function() {
                                 .addClass('scrollable')
                                 .find('> div')
                                     .trigger('scroll.revisions-table');
+                        } else {
+                            $(this).removeClass('scrollable');
                         }
                     });
                 }, 250);
@@ -257,14 +307,18 @@ $(function() {
                 if ($(this).hasClass('active')) {
                     // In this case r1 refers to current revision, r2 to selected
                     // revision. Diff is fetched as HTML from revision interface.
+                    $(this).attr('aria-expanded', true);
                     var $revisions = $(this).parents('.field-revisions:first');
                     var $revision = $(this).parents('.field-revision:first');
                     var field = $revisions.data('field');
                     var r1 = $revisions.find('.ui-state-active:first').data('revision');
                     var r2 = $revision.data('revision');
                     var href = moduleConfig.processPage + 'diff/?revisions=' + r1 + ':' + r2 + '&field=' + field;
-                    var $compare_revisions = $('<div class="compare-revisions"></div>');
-                    $(this).after($compare_revisions);
+                    var $compare_revisions = $('<div></div>')
+                        .attr('tabindex', -1)
+                        .addClass('compare-revisions')
+                        .insertAfter($(this))
+                        .focus();
                     var $parent = $(this).parents('tr:first');
                     $compare_revisions.prepend($spinner).load(href, function() {
                         if ($parent.find('ul.page-diff').length) {
@@ -278,7 +332,8 @@ $(function() {
                         } else {
                             enableDiffMatchPatch();
                         }
-                        var $compare_revisions_close = $('<button class="field-revision-button compare-revisions-close fa fas fa-times"></button>')
+                        var $compare_revisions_close = $('<button></button>')
+                            .addClass('field-revision-button compare-revisions-close fa fas fa-times')
                             .attr('tabindex', 0)
                             .on('click', function(event) {
                                 event.preventDefault();
