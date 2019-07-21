@@ -126,7 +126,7 @@ cleancss -o resources/css/VersionControl.min.css resources/css/VersionControl.cs
 # JS
 find resources/js/ -maxdepth 1 -type f -name "*.js" ! -name "*.min.*" \
     -exec echo {} \; \
-    -exec sh -c 'uglifyjs "$1" -o "${1%.js}.min.js"' sh {} \;
+    -exec sh -c 'uglifyjs "$1" --compress --mangle -o "${1%.js}.min.js"' sh {} \;
 ```
 
 *Note: aforementioned commands should be run in the module directory.*
