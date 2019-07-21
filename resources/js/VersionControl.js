@@ -1,25 +1,25 @@
 $(function() {
 
-    // configuration: "run-time" settings are defined here, "constant" settings
-    // (translations, interface URL etc.) in VersionControl.module
+    // Configuration: "run-time" settings are defined here, "constant" settings
+    // (translations, interface URL etc.) in VersionControl.module.
     var settings = { empty: true, render: 'HTML' };
     var moduleConfig = config.VersionControl;
 
-    // field data is cached to reduce need for redundant AJAX requests
+    // Field data is cached to reduce need for redundant AJAX requests.
     var cache = {};
 
-    // fetch revision data for this page as HTML markup
+    // Fetch revision data for this page as HTML markup.
     $.get(moduleConfig.processPage + 'page', { pages_id: moduleConfig.pageID, settings: settings }, function(data) {
         
-        // prepend data (#version-control-data) to body
+        // Prepend data (#version-control-data) to body.
         $('body').prepend(data);
 
-        // create a reusable spinner element
+        // Create a reusable spinner element.
         var $spinner = $('<i class="fa fa-spinner fa-spin"></i>');
 
-        // iterate through field specific revision containers and add their
+        // Iterate through field specific revision containers and add their
         // contents to that fields header (.ui-widget-header) only if they
-        // contain at least one revision other than what's currently used
+        // contain at least one revision other than what's currently used.
         $('#version-control-data > div').each(function() {
             if ($(this).data('revision')) {
                 var $if = $('.Inputfield_' + $(this).data('field'));
@@ -33,7 +33,7 @@ $(function() {
             }
         });
         
-        // iterate through history-enabled fields to add a revision toggle
+        // Iterate through history-enabled fields to add a revision toggle.
         $('.ui-widget-header.with-history, .InputfieldHeader.with-history').each(function() {
             var toggle_class = "field-revisions-toggle";
             var toggle_title = "";
@@ -50,7 +50,7 @@ $(function() {
             }
         });
         
-        // when a restore link in revision list is clicked, fetch data for that
+        // When a restore link in revision list is clicked, fetch data for that
         // revision from the interface (most of the code here is related to how
         // things are presented, loading animation etc.)
         $('.field-revisions').on('click', '.field-revision-restore, .field-revision-current', function() {
@@ -70,19 +70,19 @@ $(function() {
                 backgroundColor: $content.css('background-color')
             });
             if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) {
-                // for some inputfield types we need to get raw data as JSON
-                // instead of pre-rendered inputfield markup (HTML)
+                // For some inputfield types we need to get raw data as JSON
+                // instead of pre-rendered inputfield markup (HTML).
                 settings = { render: 'JSON' };
             }
             var revision = $revision.data('revision');
             if (cache[field + "." + revision]) {
                 if (settings.render != "JSON" && revision == $revisions.data('revision')) {
-                    // current (latest) revision is the only one we've got
-                    // inputfield content cached for as a jQuery object
+                    // Current (latest) revision is the only one we've got
+                    // inputfield content cached for as a jQuery object.
                     $content.replaceWith(cache[field + "." + revision].clone(true, true));
                     if ($if.find('.InputfieldFileList').length) {
-                        // for file inputs we need to trigger 'reloaded' event
-                        // manually in order to (re-)enable HTML5 AJAX uploads
+                        // For file inputs we need to trigger 'reloaded' event
+                        // manually in order to (re-)enable HTML5 AJAX uploads.
                         $if.find('.InputfieldFileInit').removeClass('InputfieldFileInit');
                         $if.trigger('reloaded');
                     }
@@ -109,19 +109,19 @@ $(function() {
             return false;
         });
 
-        // this function updates inputfield content based on inputfield and
-        // content objects, settings (render mode etc.) and data (HTML or JSON)
+        // This function updates inputfield content based on inputfield and
+        // content objects, settings (render mode etc.) and data (HTML or JSON).
         var update = function($if, $content, settings, field, data) {
             if (settings.render == "Input") {
-                // format of returned data is HTML
+                // Format of returned data is HTML.
                 var before = $content.children('p.description:first');
                 var after = $content.children('p.notes:first');
                 $content.html(data).prepend(before).append(after);
                 if ($if.hasClass('InputfieldImage') || $if.hasClass('InputfieldFile')) {
-                    // trigger InputfieldImage() manually
+                    // Trigger InputfieldImage() manually.
                     InputfieldImage($);
-                    // image and file data isn't editable until it has been
-                    // restored; we're using an overlay to avoid confusion
+                    // Image and file data isn't editable until it has been
+                    // restored; we're using an overlay to avoid confusion.
                     $content.prepend('<div class="version-control-overlay"></div>');
                     $('.version-control-overlay')
                         .attr('title', moduleConfig.i18n.editDisabled)
@@ -144,50 +144,80 @@ $(function() {
                     $select.asmSelect(options);
                 }
             } else {
-                // format of returned data is JSON
+                // Format of returned data is JSON.
                 $.each(data, function(property, value) {
                     var language = property.replace('data', '');
                     if (language) language = "__" + language;
                     if (typeof tinyMCE != "undefined" && tinyMCE.get('Inputfield_' + field + language)) {
-                        // TinyMCE inputfield
+                        // TinyMCE inputfield.
                         tinyMCE.get('Inputfield_' + field + language).setContent(value);
                     } else if ($if.find('.InputfieldCKEditorInline').length) {
-                        // CKeditor inputfield in inline mode
+                        // CKeditor inputfield in inline mode.
                         $if.find('.InputfieldCKEditorInline').html(value);
                     } else if (typeof CKEDITOR != "undefined" && CKEDITOR.instances['Inputfield_' + field + language]) {
-                        // CKEditor inputfield
+                        // CKEditor inputfield.
                         CKEDITOR.instances['Inputfield_' + field + language].setData(value);
                     }
                 });
             }
         }
         
-        // when revisions toggle is clicked, show the revisions table – or hide
-        // it in case it was already visible
+        // When revisions toggle is clicked, show the revisions table – or hide
+        // it in case it was already visible.
         $('.field-revisions-toggle').on('click', function() {
             if ($(this).hasClass('inactive')) return false;
             var $revisions = $(this).parent('label').siblings('.field-revisions');
+            if (!$(this).hasClass('active')) {
+                $revisions.addClass('animatable');
+            }
             if ($revisions.is(':visible')) {
                 $(this).removeClass('active');
                 $revisions.addClass('sliding').slideUp('fast', function() {
-                    $revisions.removeClass('sliding');
+                    $revisions
+                        .removeClass('animatable sliding')
+                        .removeAttr('style');
                     InputfieldColumnWidths();
+                    $(window).trigger('resize.revisions-table');
                 });
             } else {
                 $(this).addClass('active');
                 $revisions.addClass('sliding').slideDown('fast', function() {
                     $revisions.removeClass('sliding');
                     InputfieldColumnWidths();
-                    if ($revisions.width() < $revisions.find('table').outerWidth()) {
-                        // Revision table won't fit to the horizontal space, and becomes scrollable.
-                        $revisions.addClass('scroll-tip');
-                    }
                 });
             }
             return false;
         });
 
-        // enable Diff Match Patch if/when required
+        // Add the "scrollable" class to all oversized revision data tables.
+        var revisionsTableResizeTimeout;
+        $(window)
+            .on('resize.revisions-table', function() {
+                clearTimeout(revisionsTableResizeTimeout);
+                revisionsTableResizeTimeout = setTimeout(function() {
+                    $('.field-revisions:not(.animatable)').each(function() {
+                        $table = $(this).find('table');
+                        if ($table.length && $(this).width() < $table.outerWidth()) {
+                            // Revision table won't fit to the horizontal space, and becomes scrollable.
+                            $(this)
+                                .addClass('scrollable')
+                                .find('> div')
+                                    .trigger('scroll.revisions-table');
+                        }
+                    });
+                }, 250);
+            })
+            .trigger('resize.revisions-table');
+
+        // Keep track of the scroll positions of scrollable revision table containers.
+        $('.field-revisions > div').on('scroll.revisions-table', function() {
+            var $revisions = $(this).parent();
+            $revisions
+                .toggleClass('scrollable--start', !$(this).scrollLeft())
+                .toggleClass('scrollable--end', $(this)[0].scrollWidth - $(this).scrollLeft() == $(this).outerWidth());
+        });
+
+        // Enable Diff Match Patch if/when required.
         var enableDiffMatchPatch = function(r1, r2) {
             var r1 = r1 || document.getElementById('r1').value;
             var r2 = r2 || document.getElementById('r2').value;
@@ -217,16 +247,16 @@ $(function() {
             document.getElementById('diff').innerHTML = ds;
         }
         
-        // when compare/diff link is clicked, display the difference between
-        // selected revision and currently active revision
+        // When compare/diff link is clicked, display the difference between
+        // selected revision and currently active revision.
         $('.field-revisions')
             .on('click', '.field-revision-diff', function() {
                 $('.compare-revisions').remove();
                 $('.field-revision-diff').not(this).removeClass('active');
                 $(this).toggleClass('active');
                 if ($(this).hasClass('active')) {
-                    // in this case r1 refers to current revision, r2 to selected
-                    // revision. diff is fetched as HTML from revision interface.
+                    // In this case r1 refers to current revision, r2 to selected
+                    // revision. Diff is fetched as HTML from revision interface.
                     var $revisions = $(this).parents('.field-revisions:first');
                     var $revision = $(this).parents('.field-revision:first');
                     var field = $revisions.data('field');

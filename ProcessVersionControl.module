@@ -532,8 +532,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Action buttons.
         $buttons = [
-            'restore' => '<a class="field-revision-restore" href="#">' . $this->_('Restore') . '</a>',
-            'compare' => '<a class="field-revision-diff" href="#">' . $this->_('Compare') . '</a>',
+            'restore' => '<a class="field-revision-button field-revision-restore" href="#"><span>' . $this->_('Restore') . '</span></a>',
+            'compare' => '<a class="field-revision-button field-revision-diff" href="#"><span>' . $this->_('Compare') . '</span></a>',
         ];
 
         $dataset = [];
