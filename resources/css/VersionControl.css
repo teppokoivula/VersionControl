@@ -72,6 +72,7 @@ textarea.version_control_filedata {
     /* Hide visually, but keep in the flow for the scrollable calculation */
     height: 1px;
     opacity: 0;
+    overflow: hidden !important;
     padding-bottom: 0 !important;
     padding-top: 0 !important;
 }
