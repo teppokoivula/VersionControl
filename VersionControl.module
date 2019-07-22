@@ -736,8 +736,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
 
         // Inject scripts.
+        $moduleURL = $this->wire('config')->urls->get('VersionControl');
         $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
-        $this->config->scripts->add($moduleURL . 'resources/js/HistoryTab.min.js?v=' . $version); 
+        $this->wire('config')->scripts->add($moduleURL . 'resources/js/HistoryTab.min.js?v=' . $version);
 
         // Insert the tab to the Page Edit form.
         $form->prepend($wrapper);
