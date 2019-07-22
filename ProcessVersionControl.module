@@ -49,7 +49,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @param array $data
      * @return InputfieldWrapper
      */
-    public function getModuleConfigInputfields(array $data) {
+    public function getModuleConfigInputfields(array $data): InputfieldWrapper {
         return $this->wire(new \VersionControl\ProcessModuleConfig($data))->getFields();
     }
 
@@ -58,10 +58,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * 
      * Currently only displays a 404 error, but could be used for something more useful later.
      * 
-     * @throws Wire404Exception by default
+     * @throws Wire404Exception when accessed.
      */
     public function execute() {
-        throw new Wire404Exception("Unrecognized path");
+        throw new Wire404Exception($this->_('Unrecognized path'));
     }
 
     /**
@@ -76,41 +76,42 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      */
     public function executePage() {
 
-        // should date formatting occur?
+        // Should date formatting occur?
         $defaults = static::$defaultData;
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
-        // additional settings
+        // Additional settings.
         $settings = $this->input->get->settings;
 
-        // get page
+        // Get Page object.
         $pages_id = $this->input->get->pages_id ? (int) $this->input->get->pages_id : null;
-        if (!$pages_id) throw new WireException("Missing required GET param pages_id");
+        if (!$pages_id) {
+            throw new WireException('Missing required GET param pages_id');
+        }
         $page = $this->pages->get($pages_id);
         $page_ids = [$pages_id];
 
-        // include repeater pages
+        // Include Repeater pages.
+        // @todo Do we need similar check for RepeaterMatrix and/or PageTable as well?
         $repeater_fields = [];
-        if ($this->modules->isInstalled('FieldtypeRepeater')) {
-            foreach ($page->fields as $field) {
-                if ($field->type instanceof FieldtypeRepeater) {
-                    $subfields = $this->templates->get($field->template_id)->versionControlFields;
-                    if (count($subfields)) {
-                        foreach ($page->$field as $repeater_page) {
-                            $page_ids[] = $repeater_page;
-                            foreach ($subfields as $subfield) {
-                                $repeater_fields[] = $subfield . "_repeater" . $repeater_page;
-                            }
+        foreach ($page->fields as $field) {
+            if ($field->type == 'FieldtypeRepeater') {
+                $subfields = $this->templates->get($field->template_id)->versionControlFields;
+                if (count($subfields)) {
+                    foreach ($page->$field as $repeater_page) {
+                        $page_ids[] = $repeater_page;
+                        foreach ($subfields as $subfield) {
+                            $repeater_fields[] = $subfield . "_repeater" . $repeater_page;
                         }
                     }
                 }
             }
         }
 
-        // find values
-        // - MIN() function calls are required in order to avoid errors when
-        //   MySQL is using SQL mode ONLY_FULL_GROUP_BY
-        // - some MIN() function calls may not be necessary for MySQL 5.7.5+
+        // Find values.
+        // - MIN() function calls are required in order to avoid errors when MySQL is using SQL
+        //   mode ONLY_FULL_GROUP_BY.
+        // - Some MIN() function calls may not be necessary for MySQL 5.7.5+.
         $stmt = $this->database->prepare("
         SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
         FROM fields f, " . VersionControl::TABLE_REVISIONS . " r, " . VersionControl::TABLE_DATA . " d
@@ -120,7 +121,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         ");
         $stmt->execute($page_ids);
 
-        // fetch enabled fields
+        // Fetch enabled fields.
         $enabled_fields = [];
         if (count($page->template->versionControlFields)) {
             foreach ($page->template->versionControlFields as $field) {
@@ -128,10 +129,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
         }
 
-        // parse data
+        // Parse data.
         $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            if (!in_array($row['field_name'], $enabled_fields)) continue;
+            if (!in_array($row['field_name'], $enabled_fields)) {
+                continue;
+            }
             $item = [
                 'users_id' => null,
                 'username' => !empty($row['username']) ? $this->sanitizer->name($row['username']) : null,
@@ -147,12 +150,16 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 $item['date'] = date($date_format, strtotime($item['date']));
             }
             $field_name = wire('sanitizer')->fieldName($row['field_name']);
-            if ($row['pages_id'] != $page->id) $field_name .= "_repeater" . $row['pages_id'];
-            if (!isset($data[$field_name])) $data[$field_name] = [];
+            if ($row['pages_id'] != $page->id) {
+                $field_name .= "_repeater" . $row['pages_id'];
+            }
+            if (!isset($data[$field_name])) {
+                $data[$field_name] = [];
+            }
             $data[$field_name][] = $item;
         }
 
-        // add empty containers for fields with no data?
+        // Add empty containers for fields with no data?
         if (!empty($settings['empty'])) {
             $fields_with_data = array_keys($data);
             foreach ($enabled_fields as $enabled_field) {
@@ -167,68 +174,73 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
         }
 
-        // render method
-        $render = "renderHTML";
-        if (isset($settings['render']) && $settings['render'] != $render) {
-            if (method_exists($this, "render".$settings['render'])) {
-                $render = "render".$settings['render'];
+        // Render method.
+        $render_method = "renderHTML";
+        if (isset($settings['render']) && $settings['render'] != $render_method) {
+            if (method_exists($this, 'render' . $settings['render'])) {
+                $render_method = 'render' . $settings['render'];
             }
         }
 
-        return $this->$render($data);
+        return $this->$render_method($data);
     }
 
     /**
-     * Render diff of two given revisions
+     * Render difference between two given revisions
      *
-     * Revisions are defined by GET param 'revisions', which should contain two
-     * revisions separated by colon ('?revisions=41:42'). Field is also defined
-     * with GET param ('field').
+     * Revisions are defined via GET param 'revisions', which should contain two revision IDs
+     * separated with a colon ('?revisions=41:42'). Field is defined via GET param 'field'.
      *
-     * Diff is computed with JavaScript library diff_match_patch and returned as
-     * HTML div element, id attribute set to 'diff', and rudimentary CSS styles.
+     * Diff is computed with JavaScript library diff_match_patch and returned as a HTML div element,
+     * ID attribute (set as 'diff'), and some rudimentary CSS styles.
      *
-     * @throws WireException if GET param field is missing
-     * @throws WireException if GET param revisions is missing
-     * @throws WireException if GET param revisions is invalid
-     * @throws WireException if GET param revisions includes same revision twice
-     * @throws WireException if requested field is not found
+     * @throws WireException if GET param field is missing.
+     * @throws WireException if GET param revisions is missing.
+     * @throws WireException if GET param revisions is invalid.
+     * @throws WireException if GET param revisions includes same revision twice.
+     * @throws WireException if requested field is not found.
      */
     public function executeDiff() {
 
-        // should date formatting occur?
+        // Should date formatting occur?
         $defaults = static::$defaultData;
         $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
 
-        // get field name and revision ids
+        // Get field name and revision IDs.
         $field_name = $this->sanitizer->fieldName($this->input->get->field);
         if (!$field_name) throw new WireException("Missing required GET param field");
         $revisions = $this->input->get->revisions ?: null;
         if (!$revisions) throw new WireException("Missing required GET param revisions");
 
-        // get field object and label format (if applicable)
-        $field = $this->fields->get("name=" . $field_name);
-        if (!$field) throw new WireException("Field not found");
+        // Get field object and label format (if applicable).
+        $field = $this->fields->get('name=' . $field_name);
+        if (!$field) {
+            throw new WireException('Field not found');
+        }
         $labelFieldName = "";
         $labelFieldFormat = "";
-        if ($field->type == "FieldtypePage") {
+        if ($field->type == 'FieldtypePage') {
             if ($field->labelFieldName == '.') {
-                // custom format
+                // Custom format.
                 $labelFieldName = 'title|name';
                 $labelFieldFormat = $field->labelFieldFormat ?: $labelFieldName;
             } else {
-                $labelFieldName = ($field->labelFieldName ?: 'title') . "|name";
+                $labelFieldName = ($field->labelFieldName ?: 'title') . '|name';
             }
         }
 
-        // separate revision ids
-        list($r1, $r2) = explode(":", $revisions);
+        // Separate and validate revision IDs.
+        list($r1, $r2) = explode(':', $revisions);
         $r1 = (int) $r1;
         $r2 = (int) $r2;
-        if (!$r1 || !$r2) throw new WireException("Revisions need to be provided in following format: 123:124");
-        if ($r1 == $r2) throw new WireException("You need to provide separate source and target revisions");
+        if (!$r1 || !$r2) {
+            throw new WireException('Revisions need to be provided in following format: 123:124');
+        }
+        if ($r1 == $r2) {
+            throw new WireException('You need to provide separate source and target revisions');
+        }
 
-        // find values
+        // Find values.
         $stmt = $this->database->prepare("
         SELECT r.id, d.data
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
@@ -241,7 +253,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $stmt->bindValue(':field_name', $field_name, \PDO::PARAM_STR);
         $stmt->execute();
 
-        // render output
+        // Render output.
         $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $id = $row['id'] == $r1 ? "r1" : "r2";
@@ -250,17 +262,19 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 if (preg_match("/^(?:[1-9][0-9]*\|?)*(?<!\|)$/", $row['data'])) {
                     $items = $this->pages->find('id=' . $row['data'] . ', include=all');
                     if ($items->count()) {
-                        $item_ids = explode("|", $row['data']);
-                        $use_get_markup = method_exists($items->first(), "___getMarkup");
+                        $item_ids = explode('|', $row['data']);
+                        $use_get_markup = method_exists($items->first(), '___getMarkup');
                         foreach ($item_ids as $item_id) {
-                            // note that if Page has been removed it is disregarded;
-                            // restoring removed pages is currently not in our scope
+                            // Note that if Page has been removed it is disregarded; this is by
+                            // design as restoring removed pages is currently not in our scope.
                             $item = $items->get('id=' . (int) $item_id);
                             if ($item && $item->id) {
                                 $of = $item->of();
                                 $item->of(true);
                                 $data_row = $labelFieldFormat && $use_get_markup ? $item->getMarkup($labelFieldFormat) : $item->get($labelFieldName);
-                                if (!mb_strlen($data_row)) $data_row = $item->name;
+                                if (!mb_strlen($data_row)) {
+                                    $data_row = $item->name;
+                                }
                                 $data[$id][] = [
                                     $item->id,
                                     $data_row,
@@ -274,9 +288,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
             }
         }
-        if ($field->type == "FieldtypePage") {
-            // in the case of a Page field comparing strings makes little sense;
-            // comparing values manually yields improved results and flexibility
+        if ($field->type == 'FieldtypePage') {
+            // In the case of a Page field comparing strings makes little sense; comparing values
+            // manually yields better results and more flexibility.
             $items = [];
             foreach ($data['r2'] as $key => $item) {
                 if (isset($data['r1'][$key])) {
@@ -305,26 +319,30 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Render output for specific field in specific revision
+     * Render output for a specific field in specific revision
      *
-     * Revision is defined with GET param 'revision', field with GET param
-     * 'field'. Output is either rendered inputfield (HTML) or JSON string.
+     * Revision ID is defined with GET param 'revision', field with GET param 'field'. Output is
+     * either a rendered inputfield (HTML) or a JSON string.
      *
-     * @throws WireException if GET param revision is missing
-     * @throws WireException if GET param field is missing
+     * @throws WireException if GET param revision is missing.
+     * @throws WireException if GET param field is missing.
      */
     public function executeField() {
 
-        // get field and revision
+        // Get and validate field name and revision ID.
         $revision_id = (int) $this->input->get->revision;
-        if (!$revision_id) throw new WireException("Missing required GET param revision");
+        if (!$revision_id) {
+            throw new WireException("Missing required GET param revision");
+        }
         $field_name = $this->sanitizer->fieldName($this->input->get->field);
-        if (!$field_name) throw new WireException("Missing required GET param field");
+        if (!$field_name) {
+            throw new WireException("Missing required GET param field");
+        }
 
-        // additional settings
+        // Additional settings.
         $settings = $this->input->get->settings;
 
-        // find values
+        // Find values.
         $stmt = $this->database->prepare("
         SELECT r.pages_id, d.fields_id, d.property, d.data
         FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
@@ -334,7 +352,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_STR);
         $stmt->execute();
 
-        // generate data (associative array)
+        // Generate data (an associative array).
         $page = null;
         $field = null;
         $data = [];
@@ -349,10 +367,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             $data[$row['property']] = $row['data'];
         }
 
-        // choose render method and exit with output
+        // Choose a render method and exit with output.
         if (isset($settings['render']) && $settings['render'] == "Input") {
             $input = $field->getInputfield($page);
-            if (isset($data['data'])) $input->value = $data['data'];
+            if (isset($data['data'])) {
+                $input->value = $data['data'];
+            }
             $filedata = [];
             $files = null;
             foreach ($data as $key => $value) {
@@ -371,8 +391,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                         $file = $files->makeBlankItem();
                         $file->setFilename($value['filename']);
                         $file->description = $value['description'];
-                        if (isset($value['tags']) && $field->useTags) $file->tags = $value['tags'];
-                        $value['filename'] = substr($value['filename'], 0, 2) . "/" . $value['filename'];
+                        if (isset($value['tags']) && $field->useTags) {
+                            $file->tags = $value['tags'];
+                        }
+                        $value['filename'] = substr($value['filename'], 0, 2) . '/' . $value['filename'];
                         $file->_version_control_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
                         $file->_version_control_url = $this->modules->VersionControl->url . $value['filename'];
                         $file->_version_control_filename = $this->modules->VersionControl->path . $value['filename'];
@@ -382,12 +404,14 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                     }
                 }
             }
-            if ($files) $input->value = $files;
+            if ($files) {
+                $input->value = $files;
+            }
             if ($filedata) {
                 $filedata = json_encode($filedata);
-                echo "<textarea class='version_control_filedata' name='version_control_filedata[]'>{$filedata}</textarea>";
+                echo '<textarea class="version_control_filedata" name="version_control_filedata[]">' . $filedata . '</textarea>';
             }
-            if ($page->template->name == "role" && $input->name == "permissions") {
+            if ($page->template->name == 'role' && $input->name == 'permissions') {
                 $input_permissions = $input;
                 $input = new InputfieldForm();
                 $input->add($input_permissions);
@@ -412,21 +436,25 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Override Pageimage / Pagefile URL with custom one
+     * Override Pageimage/Pagefile URL with custom one
      *
      * @param HookEvent $event
      */
     protected function hookPagefileUrl(HookEvent $event) {
-        if ($event->object->_version_control_url) $event->return = $event->object->_version_control_url;
+        if ($event->object->_version_control_url) {
+            $event->return = $event->object->_version_control_url;
+        }
     }
 
     /**
-     * Override Pageimage / Pagefile filename with custom one
+     * Override Pageimage/Pagefile filename with custom one
      *
      * @param HookEvent $event
      */
     protected function hookPagefileFilename(HookEvent $event) {
-        if ($event->object->_version_control_filename) $event->return = $event->object->_version_control_filename;
+        if ($event->object->_version_control_filename) {
+            $event->return = $event->object->_version_control_filename;
+        }
     }
 
     /**
@@ -436,7 +464,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      */
     protected function hookPageimageSize(HookEvent $event) {
         if ($event->return->_version_control_filename) {
-            $filename = substr($event->return->basename, 0, 2) . "/variations/" . $event->return->basename;
+            $filename = substr($event->return->basename, 0, 2) . '/variations/' . $event->return->basename;
             $event->return->_version_control_url = $this->modules->VersionControl->url . $filename;
             $event->return->_version_control_filename = $this->modules->VersionControl->path . $filename;
             rename($event->return->pagefiles->path() . $event->return->basename, $event->return->filename);
@@ -444,29 +472,31 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Return (or revert) specific page to given revision
+     * Return (revert) specific page to given revision
      *
      * Revision is defined with GET param 'revision', page with GET param
-     * 'pages_id'. Afterwards redirect user to page edit.
+     * 'pages_id'. Afterwards redirect user to page editor.
      */
     public function executeRestore() {
 
-        // replace current page content with that from given revision
+        // Replace current page content with that from given revision.
         $page = $this->getPageRevision('edit');
         $page->of(false);
         $page->save();
 
-        // redirect to page edit
+        // Redirect to page editor.
         $revision_id = (int) $this->input->get->revision;
-        $this->session->message(sprintf(__("Page reverted to revision #%d"), $revision_id));
-        $this->session->redirect($this->config->urls->admin . "page/edit/?id=" . $page->id, false);
+        $this->session->message(sprintf(
+            __('Page reverted to revision #%d'),
+            $revision_id
+        ));
+        $this->session->redirect($this->config->urls->admin . 'page/edit/?id=' . $page->id, false);
     }
 
     /**
      * Preview specific page in given revision
      *
-     * Revision is defined with GET param 'revision', page with GET param
-     * 'pages_id'. Afterwards redirect user to page edit.
+     * Revision is defined with GET param 'revision', page with GET param 'pages_id'.
      */
     public function ___executePreview() {
         $page = $this->getPageRevision('view');
@@ -474,30 +504,35 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Set revision comment text
+     * Set comment text for given revision
      *
-     * Revision is defined by POST param 'revision' and comment text by POST
-     * param 'comment'.
+     * Revision is defined by POST param 'revision' and comment text by POST param 'comment'.
      *
      * @throws WireException if revision doesn't exist
-     * @return null|string Comment text or null
+     * @return null|string Comment text or null.
      */
-    public function executeComment() {
+    public function executeComment(): ?string {
 
-        // this only applies to POST requests
-        if ($_SERVER['REQUEST_METHOD'] !== "POST") return;
+        // This only applies to POST requests.
+        if ($_SERVER['REQUEST_METHOD'] !== "POST") {
+            return;
+        }
 
-        // get and check revision
+        // Validate provided revision ID.
         $revision_id = (int) $this->input->post->revision;
         $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
         $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
         $stmt->execute();
         $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+        if (!$revision) {
+            throw new WireException("Revision doesn't exist: $revision_id");
+        }
 
-        // sanitize and store comment text
+        // Sanitize and store the comment text.
         $comment = $this->input->post->comment;
-        if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
+        if (mb_strlen($comment) > 255) {
+            $comment = mb_substr($comment, 0, 255);
+        }
         $comment = $this->database->escapeStr($comment);
         $stmt = $this->database->prepare("UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = :comment WHERE id = :revision_id");
         $stmt->bindValue(':comment', $comment, \PDO::PARAM_STR);
@@ -508,12 +543,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Render HTML markup based on input array
+     * Render HTML markup for field revisions based on an input array
      *
      * @param array $data
      * @return string
      */
-    protected function renderHTML(array $data) {
+    protected function renderHTML(array $data): string {
 
         // Translatable strings.
         $strings = [
@@ -549,7 +584,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         foreach ($data as $field => $field_data) {
 
             // Check if diff can and should be enabled, and try to read revision from field data.
-            $has_diff = !$this->diff_disabled && !$this->wire('fields')->get($field)->type instanceof FieldtypeFile;
+            $has_diff = !$this->diff_disabled && !$this->wire('fields')->get($field)->type == 'FieldtypeFile';
             $revision = !empty($field_data) ? $field_data[0]['revision'] : '';
 
             $table = [];
@@ -605,10 +640,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Render JSON based on input array
+     * Render JSON based on an input array
      *
-     * @param array $data
-     * @return string
+     * @param array $data Input array.
+     * @return string|bool JSON string, or false if encoding fails..
      */
     protected function renderJSON(array $data) {
         header('Content-type: application/json');
@@ -618,37 +653,57 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     /**
      * Return page as it was in given revision
      *
-     * Used internally by preview and restore methods. Stores ID of requested
-     * revision as temporary _version_control_parent param to the Page object.
+     * This method is used internally by the preview and restore methods. It stores the ID of the
+     * requested revision as temporary property _version_control_parent to the Page object.
      *
-     * @param string $permission optional permission required (view or edit)
-     * @throws WireException if GET param pages_id is missing
-     * @throws WireException if GET param revision is missing
-     * @throws WireException if page defined by GET param pages_id doesn't exist
-     * @throws WireException if user doesn't have specified permission for this page
-     * @throws WireException if revision defined by GET param revision doesn't exist
-     * @return Page
+     * @param string $permission Optional permission required ("view" or "edit").
+     * @throws WireException if GET param pages_id is missing.
+     * @throws WireException if GET param revision is missing.
+     * @throws WireException if page defined by GET param pages_id doesn't exist.
+     * @throws WireException if user doesn't have specified permission for this page.
+     * @throws WireException if revision defined by GET param revision doesn't exist.
+     * @return Page Page as it was in given revision.
      */
-    protected function getPageRevision($permission = null) {
+    protected function getPageRevision(string $permission = null): Page {
 
-        // get page and revision
+        // Get Page ID and revision ID.
         $pages_id = (int) $this->input->get->pages_id;
-        if (!$pages_id) throw new WireException("Missing required GET param pages_id");
+        if (!$pages_id) {
+            throw new WireException("Missing required GET param pages_id");
+        }
         $revision_id = (int) $this->input->get->revision;
-        if (!$revision_id) throw new WireException("Missing required GET param revision");
+        if (!$revision_id) {
+            throw new WireException("Missing required GET param revision");
+        }
 
-        // check page and revision
+        // Get Page object and check permissions.
         $page = $this->pages->get($pages_id);
-        if (!$page->id) throw new WireException("Page doesn't exist: $pages_id");
-        if ($permission == "view" && !$page->viewable()) throw new WireException("Permission denied (not viewable)");
-        if ($permission == "edit" && !$page->editable()) throw new WireException("Permission denied (not editable)");
+        if (!$page->id) {
+            throw new WireException(sprintf(
+                $this->_('Page doesn\'t exist: %d'),
+                $pages_id
+            ));
+        }
+        if ($permission == 'view' && !$page->viewable()) {
+            throw new WireException($this->_('Permission denied (Page not viewable)'));
+        }
+        if ($permission == 'edit' && !$page->editable()) {
+            throw new WireException($this->_('Permission denied (Page not editable)'));
+        }
+
+        // Get revision from database.
         $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
         $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
         $stmt->execute();
         $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+        if (!$revision) {
+            throw new WireException(sprintf(
+                $this->_('Revision doesn\'t exist: %d'),
+                $revision_id
+            ));
+        }
 
-        // fetch snapshot of page at the time of given revision
+        // Fetch snapshot of page at the time of given revision.
         $page->snapshot($revision['timestamp'], $revision_id);
         $page->_version_control_parent = $revision_id;
 
