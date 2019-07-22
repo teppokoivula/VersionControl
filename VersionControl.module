@@ -284,24 +284,23 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if ($page->_version_control_filedata) {
             $page_current = clone($page);
             $page_current->uncache();
-            // remove hooks PageSnapshot uses to prevent installing pagefiles
+            // Remove hooks PageSnapshot uses to prevent installing pagefiles.
             $this->modules->PageSnapshot->removePagefileHooks();
             foreach ($page->_version_control_filedata as $filedata) {
                 $filedata = json_decode($filedata, true);
                 foreach ($filedata as $field => $items) {
-                    // remove old files from disk and then from field itself
+                    // Remove old files from disk and then from field itself.
                     foreach ($page_current->$field as $file) $file->unlink();
                     $page->$field->deleteAll();
-                    // note: saving the field at this point helps avoid naming
-                    // conflicts between old and new files, and prevents newly
-                    // restored files from being accidentally removed
+                    // Note: saving the field at this point helps avoid naming conflicts between new
+                    // and old files, and prevents restored files from being accidentally removed.
                     $this->pages->___saveField($page, $field, [
                         'quiet' => true,
                         'noHooks' => true,
                     ]);
-                    // insert new files into field (field copies files to correct
-                    // location itself, but we'll have to rename them to original
-                    // filename by removing hash prefixes added for storage)
+                    // Add new files to the field. Field copies these files to the correct location
+                    // automatically, but we'll have to rename them to original filename by removing
+                    // the hash prefixes added for storage.
                     if (is_array($items)) {
                         foreach ($items as $item) {
                             $page->$field->add($item['filename']);
@@ -311,7 +310,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             $page->$field->last()->description = $item['description'];
                             $page->$field->last()->modified = $item['modified'];
                             $page->$field->last()->created = $item['created'];
-                            if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
+                            if (isset($item['tags'])) {
+                                $page->$field->last()->tags = $item['tags'];
+                            }
                         }
                     }
                 }
@@ -321,42 +322,54 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * After page has been edited track changed fields and trigger insert method
-     * to save their values to database or any other applicable storage medium.
+     * After page has been edited track changed fields and trigger insert method to save their
+     * values to database (or any other applicable storage medium).
      *
      * @param HookEvent|Page $object
      */
     protected function gather($object) {
 
-        if ($object instanceof HookEvent) $page = $object->arguments[0];
-        else if ($object instanceof Page) $page = $object;
-        else throw new WireException("Wrong param type: expecting HookEvent or Page");
+        if ($object instanceof HookEvent) {
+            $page = $object->arguments[0];
+        } else if ($object instanceof Page) {
+            $page = $object;
+        } else {
+            throw new WireException("Wrong param type: expecting HookEvent or Page");
+        }
 
-        // if page has no id, it's currently being added
-        $page_id = $page->id ? $page->id : 0;
+        // If Page has no ID, it's currently being added.
+        $page_id = $page->id ?: 0;
 
-        // check if tracking values has been enabled for template of current
-        // page or (in case of repeater pages) template of containing page
+        // Check if tracking values has been enabled for the template of current page, or (in the
+        // case of Repeater pages) template of the containing page.
         $template = $page->template;
-        if ($page instanceof RepeaterPage) $template = $page->getForPage()->template;
+        if ($page instanceof RepeaterPage) {
+            $template = $page->getForPage()->template;
+        }
         if (!$object instanceof Page && !$this->isEnabledTemplate($template)) return;
 
         if ($object instanceof Page || $page->isChanged()) {
             foreach ($page->template->fields as $field) {
+
+                // Check if we should continue with the gathering process.
                 if (!$object instanceof Page && !$page->isChanged($field->name)) continue;
                 if (!$page->id && $field->type instanceof FieldtypeFile) continue;
                 if (!in_array($field->type, $this->compatible_fieldtypes)) continue;
-                if (count($this->enabled_fields) && !in_array($field->id, $this->enabled_fields)) continue;
+                if (!empty($this->enabled_fields) && !in_array($field->id, $this->enabled_fields)) continue;
+
+                // Get data from the Page object.
                 $data = $page->get($field->name);
-                // continue only if either the page in question exists (i.e.
-                // old field was cleared) or page is new and field has value
+
+                // Continue only if either the page in question exists (i.e. old field was cleared)
+                // or page is new and field has value.
                 if ($page->id || !is_null($data) && $data != "") {
-                    if (!isset($this->page_data[$page_id])) $this->page_data[$page_id] = [];
+                    if (!isset($this->page_data[$page_id])) {
+                        $this->page_data[$page_id] = [];
+                    }
                     $data_array = [];
                     if ($data instanceof Pagefiles) {
-                        // note: originally 'sort' value of each item was
-                        // used instead of custom counter, but that's not
-                        // always available (when working over API).
+                        // Note: originally 'sort' value of each item was used instead of a custom
+                        // counter, but that's not always available when working over the API.
                         $count = 0;
                         foreach ($data as $item) {
                             $data_item = [
@@ -366,7 +379,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                                 'modified' => $item->modified,
                                 'created' => $item->created,
                             ];
-                            if ($field->useTags) $data_item['tags'] = $item->tags;
+                            if ($field->useTags) {
+                                $data_item['tags'] = $item->tags;
+                            }
                             $data_array[$count.'.data'] = json_encode($data_item);
                             ++$count;
                         }
@@ -397,27 +412,31 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function insert($object) {
 
-        // return if no page data exists
+        // Bail out early if no page data exists.
         if (!$this->page_data) return;
 
-        // fetch page object
-        if ($object instanceof HookEvent) $page = $object->arguments[0];
-        else if ($object instanceof Page) $page = $object;
-        else throw new WireException("Wrong param type: expecting HookEvent or Page");
+        // Fetch the Page object.
+        if ($object instanceof HookEvent) {
+            $page = $object->arguments[0];
+        } else if ($object instanceof Page) {
+            $page = $object;
+        } else {
+            throw new WireException('Wrong param type: expecting HookEvent or Page');
+        }
 
-        // return if current page is repeater parent (for-page-n or for-field-n)
-        if ($page->template == "admin" && strpos($page->name, "for-") === 0) return;
+        // Bail out early if current page is a repeater parent ("for-page-n" or "for-field-n").
+        if ($page->template == 'admin' && strpos($page->name, 'for-') === 0) return;
 
-        // fetch page data
+        // Fetch page data.
         if (!isset($this->page_data[$page->id]) && isset($this->page_data[0])) {
-            // handle new pages; '0' is a placeholder required if we want to
-            // store even the initial values of fields under version control
+            // Handle new pages; '0' is a placeholder required if we want to store even the initial
+            // values of fields under version control.
             $this->page_data[$page->id] = $this->page_data[0];
             unset($this->page_data[0]);
         }
         $page_data = $this->page_data[$page->id] ?? null;
-        if ($object instanceof HookEvent && $object->method == "saveField") {
-            // if method is saveField, save data for that specific field only
+        if ($object instanceof HookEvent && $object->method == 'saveField') {
+            // If method is "saveField", save data for that specific field only.
             $field = $object->arguments[1];
             if (!$field instanceof Field) {
                 $field = $this->fields->get('name=' . $this->sanitizer->fieldName($field));
@@ -429,17 +448,17 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
         if (!$page_data) return;
 
-        // fetch current revision (parent) and user details
+        // Fetch current revision (parent) and user details.
         $parent = $page->_version_control_parent;
         $users_id = $this->user->id;
         $username = $this->user->name;
 
-        // revision ID placeholder
+        // Revision ID placeholder.
         $revisions_id = 0;
 
         foreach ($page_data as $fields_id => $field_data) {
 
-            // if revision isn't assigned yet, get next available revision ID
+            // If revision isn't assigned yet, get next available revision ID.
             if (!$revisions_id) {
                 $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username) VALUES (:parent, :pages_id, :users_id, :username)");
                 $stmt->bindValue(':parent', $parent ?: null, \PDO::PARAM_INT);
@@ -449,7 +468,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $stmt->execute();
                 $revisions_id = $this->database->lastInsertId();
                 $page->_version_control_revision = $revisions_id;
-                // if parent isn't assigned yet, use ID of previous revision
+                // If parent isn't assigned yet, use ID of previous revision.
                 if (!$parent) {
                     $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id AND id < :revisions_id ORDER BY id DESC LIMIT 1");
                     $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
@@ -465,20 +484,24 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
             }
 
-            // insert field data to another table
+            // Insert field data to another table.
             $sql_fields = "revisions_id, fields_id, property, data";
             foreach ($field_data as $property => $data) {
+
                 $file_id = null;
-                // dot means that this is multipart property (n.data), which
-                // can *at the moment* be used to identify file/image fields
+
+                // Dot means that this is multipart property (n.data), which can (at least for the
+                // time being) used to identify file/image fields.
                 if (strpos($property, ".") && !is_null($data)) {
-                    // decode JSON data to get proper file information; copy
-                    // original file to storage unless it's already there
+
+                    // Decode JSON data to get proper file information; copy the original file to
+                    // storage (unless it's already there).
                     $data = json_decode($data, true);
                     $dir = $this->path . substr($data['filename'], 0, 2) . "/";
                     $file = $dir . $data['filename'];
-                    // if this is an existing file, fetch ID from files table;
-                    // otherwise store as a new file and add row to said table
+
+                    // If this is an existing file, fetch ID from files table; otherwise store as
+                    // a new file and add row to said table.
                     if (is_file($file)) {
                         $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_FILES . " WHERE filename = :filename");
                         $stmt->bindValue(':filename', $data['filename'], \PDO::PARAM_STR);
@@ -490,8 +513,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         copy($data['original_filename'], $file);
                         $mime_type = '';
                         if ($this->use_fileinfo) {
-                            // PECL fileinfo extension is not enabled by
-                            // default in Windows, so we check first
+                            // The PECL fileinfo extension is not enabled by default in Windows, so
+                            // check for that first.
                             $finfo = finfo_open(FILEINFO_MIME_TYPE);
                             $mime_type = finfo_file($finfo, $file);
                             finfo_close($finfo);
@@ -499,7 +522,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             $mime_type = mime_content_type($file);
                         }
                         $size = filesize($file);
-                        if (!$size) $size = 0;
+                        if (empty($size)) {
+                            $size = 0;
+                        }
                         $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_FILES . " (filename, mime_type, size) VALUES (:filename, :mime_type, :size)");
                         $stmt->bindValue(':filename', $data['filename'], \PDO::PARAM_STR);
                         $stmt->bindValue(':mime_type', $mime_type, \PDO::PARAM_STR);
@@ -508,7 +533,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $file_id = $this->database->lastInsertId();
                     }
                     unset($data['original_filename']);
-                    // re-encode JSON data
+
+                    // Re-encode the JSON data.
                     $data = json_encode($data);
                 }
                 $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (:revisions_id, :fields_id, :property, :data)");
@@ -518,7 +544,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $stmt->bindValue(':data', $data, \PDO::PARAM_STR);
                 $stmt->execute();
                 if ($file_id) {
-                    // if data row is related to file, add row to junction table
+                    // If data row is related to a file, add a new row to the junction table.
                     $data_id = $this->database->lastInsertId();
                     $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_DATA_FILES . " (data_id, files_id) VALUES (:data_id, :file_id)");
                     $stmt->bindValue(':data_id', $data_id, \PDO::PARAM_INT);
@@ -527,14 +553,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
             }
 
-            // remove processed items from page data
+            // Remove processed items from the page data.
             unset($this->page_data[$page->id][$fields_id]);
             if (!$this->page_data[$page->id]) unset($this->page_data[$page->id]);
 
-            // enforce row limit setting
+            // Enforce the row limit setting.
             $this->cleanupExcessRows($page->id, $fields_id);
 
-            // clear revision cache
+            // Clear revision cache.
             $page->_version_control_revisions = null;
         }
     }
@@ -550,22 +576,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function inject(HookEvent $event) {
 
         // This only applies to GET requests.
-        if ($_SERVER['REQUEST_METHOD'] !== "GET") {
-            return;
-        }
+        if ($_SERVER['REQUEST_METHOD'] !== "GET") return;
 
         // Make sure that current user has the version-control permission.
-        if (!$this->user->hasPermission('version-control')) {
-            return;
-        }
+        if (!$this->user->hasPermission('version-control')) return;
 
         // Make sure that value tracking is enabled for template of the page currently being edited.
         if ($this->input->get->id) {
             $page = $this->pages->get((int) $this->input->get->id);
         }
-        if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) {
-            return;
-        }
+        if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) return;
 
         // Inject scripts and styles.
         $moduleURL = $this->config->urls->get('VersionControl');
@@ -606,18 +626,17 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function buildFormHistory(HookEvent $event) {
 
-        // make sure that current user has version-control permission
+        // Make sure that current user has the version-control permission.
         if (!$this->user->hasPermission('version-control')) return;
 
-        // fetch the page being edited
+        // Fetch the page being edited.
         $form = $event->return;
         $page = $this->pages->get((int) $form->get('id')->value);
 
-        // make sure that version control is enabled for the template of the
-        // page being edited
+        // Make sure that version control is enabled for the template of the page being edited.
         if (!$this->isEnabledTemplate($page->template)) return;
 
-        // fetch history data for the page being edited
+        // Fetch history data for the page being edited.
         $limit = 25;
         $start = $this->input->get->page ? ($this->input->get->page-1)*$limit : 0;
         $data = $this->getHistory($page, $start, $limit, [
@@ -625,10 +644,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ]);
         if (!$data) return;
 
-        // define history tab position
+        // Define the position of the history tab.
         $this->addHookAfter('ProcessPageEdit::getTabs', $this, 'addTabHistory');
 
-        // pager markup
+        // Render markup for a pager.
         $pager = "";
         if ($data['total'] > $data['limit']) {
             $pager_links = 20;
@@ -637,7 +656,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $pager = $this->renderPager($pager_links, $pager_page, $pager_pages);
         }
 
-        // wrapper element (history tab)
+        // Wrapper element (the history tab).
         $wrapper = new InputfieldWrapper;
         $wrapper->attr('id', $this->className() . 'History');
         $wrapper->attr('title', $this->_('History')); // Tab Label: History
@@ -645,12 +664,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $wrapper->attr('data-active', true);
         }
 
-        // define date format
+        // Define the date format.
         $processModule = $this->modules->get('ProcessVersionControl');
         $defaults = ProcessVersionControl::$defaultData;
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
-        // setup datatable and append it to history tab
+        // Setup a datatable and append it to the history tab.
         $table = $this->modules->get('MarkupAdminDataTable');
         $table->setEncodeEntities(false);
         $table->headerRow([
@@ -659,7 +678,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $this->_('Changes'),
             $this->_('Timestamp'),
             $this->_('Comment'),
-            '', // placeholder
+            '', // Placeholder
         ]);
         $process_id = $this->wire('modules')->getModuleID('ProcessVersionControl');
         $process_page = $this->wire('pages')->get('template=admin, process=' . $process_id)->url;
@@ -686,7 +705,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $field->label = $this->_('History');
         $wrapper->append($field);
 
-        // filters
+        // Add filters.
         if (count($data['data']) > 1) {
 
             $fieldset = $this->modules->get('InputfieldFieldset');
@@ -716,11 +735,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $fieldset->add($field);
         }
 
-        // scripts
+        // Inject scripts.
         $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
         $this->config->scripts->add($moduleURL . 'resources/js/HistoryTab.min.js?v=' . $version); 
 
-        // insert new tab to the Page Edit form
+        // Insert the tab to the Page Edit form.
         $form->prepend($wrapper);
         $event->return = $form;
     }
@@ -735,7 +754,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function addTabHistory(HookEvent $event) {
 
-        // make sure that current user has version-control permission
+        // Make sure that current user has the version-control permission.
         if (!$this->user->hasPermission('version-control')) return;
 
         $pos = false;
@@ -777,17 +796,17 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     public function getHistory(Page $page, int $start = null, int $limit = null, array $filters = []): ?array {
 
-        // return null in case of a disabled template
+        // Return null in case of a disabled template.
         if (!$this->isEnabledTemplate($page->template)) {
             return null;
         }
 
-        // cache usernames for later use
+        // cache usernames for later use.
         if (empty($this->users_cache)) {
             $this->generateUsersCache($page);
         }
 
-        // gather WHERE rules (page, filters)
+        // Gather WHERE rules (page, filters).
         $where = [];
         $where['r.pages_id = :pages_id'] = [':pages_id', $page->id, \PDO::PARAM_INT];
         if (isset($filters['users_id']) && $filters['users_id'] == (int) $filters['users_id']) {
@@ -795,14 +814,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
         $where_str = "WHERE " . implode(" AND ", array_keys($where));
 
-        // total count of rows in database table
+        // Total count of rows in database table.
         $stmt = $this->database->prepare("SELECT COUNT(*) AS total FROM " . self::TABLE_REVISIONS . " r $where_str");
         foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
         $stmt->execute();
         $result = $stmt->fetch(\PDO::FETCH_ASSOC);
         $total = (int) $result['total'];
 
-        // put together LIMIT clause
+        // Put together a LIMIT clause.
         if ($limit) {
             $limit = (int) $limit;
             $start = (int) $start;
@@ -812,7 +831,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // fetch and parse history rows
+        // Fetch and parse history rows.
         $sql = "
         SELECT r.id, r.users_id, r.username, GROUP_CONCAT(CONCAT_WS(':', d.fields_id, d.property)) changes, r.timestamp, r.comment
         FROM " . self::TABLE_REVISIONS . " r
@@ -822,7 +841,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         GROUP BY r.id
         ORDER BY r.timestamp DESC, r.id DESC
         ";
-        if ($limit) $sql .= " LIMIT :start, :limit";
+        if ($limit) {
+            $sql .= " LIMIT :start, :limit";
+        }
         $stmt = $this->database->prepare($sql);
         foreach ($where as $value) {
             $stmt->bindValue($value[0], $value[1], $value[2]);
@@ -841,7 +862,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 foreach ($changes_fields as $changes_field) {
                     list($field_id, $property) = explode(":", $changes_field);
                     if (strpos($property, ".") !== false) {
-                        // extra dot only applies to file fields (0.data, 1.data, etc.)
+                        // Extra dot only applies to file fields (0.data, 1.data, etc.)
                         list($count, $property) = explode(".", $property);
                         $changes_field = $field_id . ":" . $property;
                     }
@@ -1174,9 +1195,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function saveConfigData(HookEvent $event) {
 
         // Bail out early if we're currently saving config for some other module.
-        if ($event->arguments[0] !== 'VersionControl') {
-            return;
-        }
+        if ($event->arguments[0] !== 'VersionControl') return;
 
         $data = $event->arguments[1];
         $ext_data = [
@@ -1205,10 +1224,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function regenerateData(HookEvent $event) {
 
-        // this only applies to settings of current module
-        if ($event->arguments[0] !== $this->className()) return;
+        // This only applies to settings of current module.
+        if ($event->arguments[0] !== 'VersionControl') return;
 
-        // find out which new templates have been enabled
+        // Find out which new templates have been enabled.
         $new_templates = $event->arguments[1]['enabled_templates'];
         if ($event->arguments[1]['enable_all_templates']) {
             $new_templates = [];
@@ -1217,7 +1236,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // find out which templates were already enabled
+        // Find out which templates were already enabled.
         $old_templates = $this->enabled_templates;
         if ($this->enable_all_templates) {
             $old_templates = [];
@@ -1226,16 +1245,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // fetch a list of enabled fields (old and new) plus all fields in case
-        // that no fields are enabled (which means that all fields are enabled)
+        // Fetch a list of enabled fields (old and new) plus all fields in case that no fields are
+        // enabled (which means that all fields are enabled).
         $new_fields = $event->arguments[1]['enabled_fields'];
         $old_fields = $this->enabled_fields;
         $all_fields = [];
         $all_new_fields = [];
         $all_old_fields = [];
         if (!$new_fields && $old_fields || $new_fields && !$old_fields) {
-            // as a minor optimization if both are undefined we never come this
-            // far since there have obviously been no changes to enabled fields
+            // A minor optimization: if both are undefined we never come this far since there have
+            // obviously been no changes to enabled fields.
             foreach ($this->templates->find('id=' . implode('|', array_unique(array_merge($old_templates, $new_templates)))) as $template) {
                 foreach ($template->fields as $field) {
                     if (in_array($field->type, $this->compatible_fieldtypes)) {
@@ -1253,13 +1272,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // make sure that enabled fields are up to date
+        // Make sure that enabled fields are up to date.
         $this->enabled_fields = $new_fields;
 
-        // find out which (if any) templates were added and need regenerating
+        // Find out which (if any) templates were added and need regenerating.
         $regenerate_templates = array_diff($new_templates, $old_templates);
 
-        // fetch a list of templates containing at least one newly enabled field
+        // Fetch a list of templates containing at least one newly enabled field.
         $added_fields = array_diff($new_fields ?: $all_new_fields, $old_fields ?: $all_old_fields);
         if ($added_fields) {
             foreach ($new_templates as $template) {
@@ -1274,7 +1293,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // populate new data
+        // Populate new data.
         if ($regenerate_templates) {
             $cache_items = 0;
             foreach ($regenerate_templates as $template) {
@@ -1286,7 +1305,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     ++$count;
                     ++$cache_items;
                     if ($cache_items > 100) {
-                        // avoid consuming too much memory by running in batches
+                        // Avoid consuming too much memory by running in batches.
                         $this->pages->uncacheAll();
                         $cache_items = 0;
                     }
@@ -1301,7 +1320,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // find out which (if any) templates were removed and cleanup data
+        // Find out which (if any) templates were removed and cleanup data.
         $removed_templates = array_diff($old_templates, $new_templates);
         if (!empty($removed_templates)) {
             $t1 = self::TABLE_REVISIONS;
@@ -1315,7 +1334,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     $stmt->execute($page_ids);
                     $this->cleanupFiles();
                     $this->message(sprintf(
-                        $this->_n("Removed stored data for %d page using template %s", "Removed stored data for %d pages using template %s", $page_count),
+                        $this->_n('Removed stored data for %d page using template %s', 'Removed stored data for %d pages using template %s', $page_count),
                         $page_count,
                         $template
                     ));
@@ -1323,40 +1342,41 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        // find out which (if any) fields were removed and cleanup data
+        // Find out which (if any) fields were removed and cleanup data.
         if ($new_fields) {
-            // note that if we no longer specify enabled fields and thus all fields are now enabled,
-            // there's no need to clean up anything
+            // Note that if we no longer specify enabled fields and thus all fields are now enabled,
+            // there's no need to clean up anything.
             $removed_fields = array_diff($old_fields ?: $all_old_fields, $new_fields ?: $all_new_fields);
             if (!empty($removed_fields)) {
                 foreach ($removed_fields as $fields_id) {
-                    if ((int) $fields_id == $fields_id) {
-                        $field = $this->fields->get($fields_id);
-                        if ($field instanceof Field) {
-                            // if field doesn't exist this shouldn't be reached; data for removed
-                            // fields is cleaned up elsewhere
-                            $stmt = $this->database->prepare('DELETE FROM ' . self::TABLE_DATA . ' WHERE fields_id = :fields_id');
-                            $stmt->bindValue(':fields_id', $fields_id, \PDO::PARAM_INT);
-                            $stmt->execute();
-                            $this->cleanupFiles();
-                            $this->message(sprintf(
-                                $this->_('Removed stored data for field %s'),
-                                $field->name
-                            ));
-                        }
-                    }
+
+                    // Validate field ID and make sure that the field exists.
+                    if ((int) $fields_id != $fields_id) continue;
+                    $field = $this->fields->get($fields_id);
+                    if (!$field instanceof Field) continue;
+
+                    // If a field doesn't exist, this point should never be reached; data belonging
+                    // to removed fields is cleaned up elsewhere.
+                    $stmt = $this->database->prepare('DELETE FROM ' . self::TABLE_DATA . ' WHERE fields_id = :fields_id');
+                    $stmt->bindValue(':fields_id', $fields_id, \PDO::PARAM_INT);
+                    $stmt->execute();
+                    $this->cleanupFiles();
+                    $this->message(sprintf(
+                        $this->_('Removed stored data for field %s'),
+                        $field->name
+                    ));
                 }
             }
         }
     }
 
     /**
-     * Render markup for pager
+     * Render markup for a pager
      *
      * @param int $links Number of pager links visible at once.
      * @param int $page Identifies currently active pager item.
      * @param int $pages Number of total pager items available.
-     * @return string
+     * @return string Rendered pager, or empty string if pager couldn't be rendered.
      */
     protected function renderPager(int $links, int $page, int $pages): string {
 
