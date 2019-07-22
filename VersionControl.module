@@ -3,18 +3,16 @@
 /**
  * Version Control
  *
- * This module makes it possible to store, review, and restore earlier values
- * of specific fields or even entire pages. Changes are automatically tracked
- * for enabled fields and templates and earlier versions can be reviews and
- * restored either via Page Edit GUI or the API.
+ * This module makes it possible to store, view, and restore earlier values of fields and pages.
+ * History data is automatically collected for all enabled fields and templates. Stored data can
+ * be reviewed and restored via Admin (Page editor GUI) and the API.
  * 
- * Behind the scenes the hooks provided by ProcessWire are used to capture any
- * changes to individual fields and store them in a series of custom database
- * tables, along with required metadata, such as a running revision number.
+ * Behind the scenes hooks are used to capture changes to individual fields, and to store data and
+ * necessary metadata (such as the revision number) into a series of custom database tables.
  * 
  * @copyright 2013-2019 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
+ * @todo Regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247).
  */
 class VersionControl extends WireData implements Module, ConfigurableModule {
 
@@ -135,7 +133,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param array $data
      * @return InputfieldWrapper
      */
-    public function getModuleConfigInputfields(array $data) {
+    public function getModuleConfigInputfields(array $data): InputfieldWrapper {
         return $this->wire(new \VersionControl\ModuleConfig($data))->getFields();
     }
 
@@ -207,24 +205,30 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function captureHash(HookEvent $event) {
         $item = $event->arguments[0];
         if ($item->_version_control_basename) {
-            if (!isset($this->hash_map[">$item->basename<"])) {
-                // full filename
-                $this->hash_map[">{$item->basename}<"] = ">{$item->_version_control_basename}<";
-                // filename without extension (for image inputfield)
-                $basename = mb_substr($item->basename, 0, mb_strrpos($item->basename, "."));
-                $version_control_basename = mb_substr($item->_version_control_basename, 0, mb_strrpos($item->_version_control_basename, "."));
-                $this->hash_map[">{$basename}<"] = ">{$version_control_basename}<";
-                // shortened filename (for file inputfield)
-                // note: this does the same thing as the getDisplayBasename method
-                // of InputfieldFile, and should probably be removed at some point
+            if (!isset($this->hash_map['>' . $item->basename . '<'])) {
+
+                // Full filename.
+                $this->hash_map['>' . $item->basename . '<'] = '>' . $item->_version_control_basename . '<';
+
+                // Filename without extension (for InputfieldImage).
+                $basename = mb_substr($item->basename, 0, mb_strrpos($item->basename, '.'));
+                $version_control_basename = mb_substr($item->_version_control_basename, 0, mb_strrpos($item->_version_control_basename, '.'));
+                $this->hash_map['>' . $basename . '<'] = '>' . $version_control_basename . '<';
+
+                // Shortened filename (for InputfieldFile). Note: this does the same thing as the
+                // InputfieldFile getDisplayBasename() method and might be removed at some point.
                 if (!$event->object->noShortName && mb_strlen($item->basename) > 25) {
-                    $ext = ".{$item->ext}";
-                    $basename = mb_substr(basename($item->basename, $ext), 0, 25-(mb_strlen($ext)+1)) . "&hellip;" . ltrim($ext, '.');
+                    $ext = '.' . $item->ext;
+                    $basename = mb_substr(basename($item->basename, $ext), 0, 25-(mb_strlen($ext)+1)) . '&hellip;' . ltrim($ext, '.');
                     $version_control_basename = $item->_version_control_basename;
                     if (mb_strlen($version_control_basename) > 25) {
-                        $version_control_basename = mb_substr(basename($version_control_basename, $ext), 0, 25-(mb_strlen($ext)+1)) . "&hellip;" . ltrim($ext, '.');
+                        $version_control_basename = mb_substr(
+                            basename($version_control_basename, $ext),
+                            0,
+                            25 - (mb_strlen($ext) + 1)
+                        ) . "&hellip;" . ltrim($ext, '.');
                     }
-                    $this->hash_map[">{$basename}<"] = ">{$version_control_basename}<";
+                    $this->hash_map['>' . $basename . '<'] = '>' . $version_control_basename . '<';
                 }
             }
         }
@@ -236,7 +240,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param HookEvent $event
      */
     protected function replaceHashes(HookEvent $event) {
-        if (count($this->hash_map)) {
+        if (!empty($this->hash_map)) {
             $event->return = str_replace(
                 array_keys($this->hash_map), 
                 array_values($this->hash_map), 
@@ -253,7 +257,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * those paths as-is that look like full URLs, because we don't want to
      * prevent embedding images etc. from the version control file directory.
      *
-     * @todo consider making this feature configurable: on/off, custom rule?
+     * @todo Consider making this feature configurable: on/off, custom rule?
      * @param HookEvent $event
      */
     protected function replaceTextHashes(HookEvent $event) {
@@ -538,31 +542,38 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * This function is executed before page markup has been created
      *
-     * Used for injecting custom scripts, styles and/or markup to admin
-     * page. Purpose of these is to allow viewing and possibly managing
-     * version history.
+     * Used for injecting custom scripts, styles and/or markup to admin page. Purpose of these is
+     * to allow viewing and possibly managing version history.
      *
      * @param HookEvent $event
      */
     protected function inject(HookEvent $event) {
 
-        // this only applies to GET requests
-        if ($_SERVER['REQUEST_METHOD'] !== "GET") return;
+        // This only applies to GET requests.
+        if ($_SERVER['REQUEST_METHOD'] !== "GET") {
+            return;
+        }
 
-        // make sure that current user has version-control permission
-        if (!$this->user->hasPermission('version-control')) return;
+        // Make sure that current user has the version-control permission.
+        if (!$this->user->hasPermission('version-control')) {
+            return;
+        }
 
-        // make sure that value tracking is enabled for template of the page currently being edited
-        if ($this->input->get->id) $page = $this->pages->get((int) $this->input->get->id);
-        if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) return;
+        // Make sure that value tracking is enabled for template of the page currently being edited.
+        if ($this->input->get->id) {
+            $page = $this->pages->get((int) $this->input->get->id);
+        }
+        if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) {
+            return;
+        }
 
-        // inject scripts and styles
+        // Inject scripts and styles.
         $moduleURL = $this->config->urls->get('VersionControl');
         $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
         $this->config->styles->add($moduleURL . 'resources/css/VersionControl.min.css?v=' . $version);
         $this->config->scripts->add($moduleURL . 'resources/js/VersionControl.min.js?v=' . $version);
 
-        // inject settings and translations
+        // Inject settings and translations.
         $process = $this->modules->getModuleID('ProcessVersionControl');
         $processPage = $this->pages->get('process=' . $process);
         $this->config->js('VersionControl', [
@@ -583,7 +594,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'cleanup' => ucfirst($this->diff_cleanup),
             ],
             'pageID' => $page->id,
-            'moduleDir' => $this->config->urls->{$this->className()},
+            'moduleDir' => $this->config->urls->get('VersionControl'),
             'processPage' => $processPage->url(),
         ]);
     }
@@ -764,10 +775,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param array $filters array of filters, currently only possible key being "users_id"
      * @return array|null null on failure, array consisting of keys "data", "total", "start", and "limit" on success
      */
-    public function getHistory(Page $page, $start = null, $limit = null, array $filters = []) {
+    public function getHistory(Page $page, int $start = null, int $limit = null, array $filters = []): ?array {
 
         // return null in case of a disabled template
-        if (!$this->isEnabledTemplate($page->template)) return;
+        if (!$this->isEnabledTemplate($page->template)) {
+            return null;
+        }
 
         // cache usernames for later use
         if (empty($this->users_cache)) {
@@ -1060,8 +1073,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * When module is uninstalled, drop database tables created during install
-     * and remove data directory.
+     * When module is uninstalled, drop database tables created during installation, and remove the
+     * data directory.
      */
     public function uninstall() {
         $this->dropTable(self::TABLE_REVISIONS);
@@ -1078,13 +1091,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param string $table Table name
      */
-    protected function dropTable($table) {
+    protected function dropTable(string $table) {
         $table = $this->database->escapeStr($table);
         $stmt = $this->database->prepare("SHOW TABLES LIKE '$table'");
         $stmt->execute();
         if (count($stmt->fetchAll()) == 1) {
             $this->database->query("DROP TABLE $table");
-            $this->message("Dropped Table: $table");
+            $this->message(sprintf(
+                $this->_('Dropped table: %s'),
+                $table
+            ));
         }
     }
 
@@ -1095,18 +1111,24 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param array $schema Table schema
      * @throws WireDatabaseException if table already exists
      */
-    protected function createTable($table, $schema) {
+    protected function createTable(string $table, array $schema) {
         $table = $this->database->escapeStr($table);
         $stmt = $this->database->prepare("SHOW TABLES LIKE '$table'");
         $stmt->execute();
         if (count($stmt->fetchAll()) == 1) {
-            throw new WireDatabaseException("Table $table already exists");
+            throw new WireDatabaseException(sprintf(
+                $this->_('Table %s already exists'),
+                $table
+            ));
         }
         $sql = "CREATE TABLE $table (";
         $sql .= implode(', ', $schema);
         $sql .= ") ENGINE = MYISAM DEFAULT CHARSET=utf8";
         $this->database->query($sql);
-        $this->message("Created Table: $table");
+        $this->message(sprintf(
+            $this->_('Created table: %s'),
+            $table
+        ));
     }
 
     /**
@@ -1140,7 +1162,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
                 $parent = $revisions_id;
             }
-            $this->message("Imported existing Version Control For Text Fields data");
+            $this->message($this->_('Imported existing Version Control For Text Fields data'));
         }
     }
 
@@ -1331,14 +1353,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Render markup for pager
      *
-     * @param int $links Number of pager links visible at once
-     * @param int $page Identifies currently active pager item
-     * @param int $pages Number of total pager items available
+     * @param int $links Number of pager links visible at once.
+     * @param int $page Identifies currently active pager item.
+     * @param int $pages Number of total pager items available.
      * @return string
      */
-    protected function renderPager($links, $page, $pages) {
+    protected function renderPager(int $links, int $page, int $pages): string {
 
-        if ($pages < 2) return;
+        if ($pages < 2) {
+            return '';
+        }
 
         // Convert GET params to string.
         $get = "";
@@ -1392,7 +1416,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param Template $template
      * @return bool
      */
-    protected function isEnabledTemplate(Template $template) {
+    protected function isEnabledTemplate(Template $template): bool {
         if ($template->name == 'language') {
             return false;
         } else if ($this->enable_all_templates) {

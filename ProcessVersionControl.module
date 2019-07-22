@@ -515,7 +515,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // This only applies to POST requests.
         if ($_SERVER['REQUEST_METHOD'] !== "POST") {
-            return;
+            return null;
         }
 
         // Validate provided revision ID.
@@ -584,7 +584,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         foreach ($data as $field => $field_data) {
 
             // Check if diff can and should be enabled, and try to read revision from field data.
-            $has_diff = !$this->diff_disabled && !$this->wire('fields')->get($field)->type == 'FieldtypeFile';
+            $has_diff = !$this->diff_disabled && $this->wire('fields')->get($field)->type != 'FieldtypeFile';
             $revision = !empty($field_data) ? $field_data[0]['revision'] : '';
 
             $table = [];
