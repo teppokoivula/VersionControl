@@ -554,12 +554,15 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $strings = [
             'restore' => $this->_('Restore'),
             'compare' => $this->_('Compare'),
+            'revisions_label' => $this->_('Stored revisions for field %s'),
         ];
 
         // Rendering templates.
         $templates = [
             'outer_container' => '<div id="version-control-data">%s</div>',
-            'field_container' => '<div class="field-revisions%s" data-field="%s" data-revision="%s" tabindex=-1 aria-hidden="true"><div>%s</div></div>',
+            'field_container' => '<div class="field-revisions%s" id="field-revisions--%2$s" data-field="%2$s" data-revision="%3$s" tabindex=-1 aria-hidden="true" aria-label="%4$s">'
+                               . '<div>%5$s</div>'
+                               . '</div>',
             'table_container' => '<table>%s</table>',
             'table_head' => '<thead><tr><th></th><th>%s</th><th>%s</th></tr></thead>',
             'table_body' => '<tbody>%s</tbody>',
@@ -570,7 +573,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                          . '<td>%4$s%5$s</td>'
                          . '</tr>',
             'button' => '<button class="field-revision-button field-revision-%s" title="%2$s">'
-                      . '<span class="visually-hidden-if-scrollable">%2$s</span>'
+                      . '<span class="version-control--visually-hidden-if-scrollable">%2$s</span>'
                       . '</button>',
         ];
 
@@ -624,9 +627,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
             $dataset[] = sprintf(
                 $templates['field_container'],
-                $has_diff ? ' diff' : '',
+                $has_diff ? ' field-revisions--diff' : '',
                 $field,
                 $revision,
+                sprintf($strings['revisions_label'], $field),
                 sprintf($templates['table_container'], implode($table))
             );
         }

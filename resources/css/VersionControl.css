@@ -9,8 +9,8 @@ textarea.version_control_filedata {
     position: relative;
 }
 
-.visually-hidden,
-.scrollable .visually-hidden-if-scrollable {
+.version-control--visually-hidden,
+.field-revisions--scrollable .version-control--visually-hidden-if-scrollable {
     border: 0;
     clip: rect(1px, 1px, 1px, 1px);
     clip-path: inset(50%);
@@ -34,27 +34,27 @@ textarea.version_control_filedata {
     position: absolute;
 }
 
-.overlay-parent  {
+.version-control-overlay-parent  {
     position: relative;
 }
 
-.InputfieldContent.overlay-parent > * {
+.InputfieldContent.version-control-overlay-parent > * {
     transition: .5s ease;
 }
 
-.InputfieldContent.overlay-parent.hover > * {
+.InputfieldContent.version-control-overlay-parent--hover > * {
     opacity: .5;
 }
 
 /* Field revisions list */
 
 .field-revisions {
+    background: #1c2836;
+    background: linear-gradient(to right, #1c2836 0%,#293a4f 100%);
+    outline: none;
     overflow: visible !important;
     padding: 1em 0 .25em 0 !important;
-    background: #1c2836;
-    outline: none;
     position: relative;
-    background: linear-gradient(to right, #1c2836 0%,#293a4f 100%);
 }
 
 .field-revisions::after {
@@ -70,11 +70,11 @@ textarea.version_control_filedata {
     border-right: 8px solid transparent;
 }
 
-.field-revisions.animatable {
+.field-revisions--animatable {
     display: none;
 }
 
-.field-revisions:not(.animatable) {
+.field-revisions:not(.field-revisions--animatable) {
     /* Hide visually, but keep in the flow for the scrollable calculation */
     height: 1px;
     opacity: 0;
@@ -83,16 +83,16 @@ textarea.version_control_filedata {
     padding-top: 0 !important;
 }
 
-.field-revisions.scrollable {
+.field-revisions--scrollable {
     box-shadow: inset -1em 0 1em rgba(0,0,0,.25);
     transition: box-shadow .25s ease;
 }
 
-.field-revisions.scrollable--end {
+.field-revisions--scrollable-end {
     box-shadow: none;
 }
 
-.field-revisions.sliding {
+.field-revisions--sliding {
     overflow: hidden !important;
 }
 
@@ -158,12 +158,12 @@ body.template-admin .field-revisions .ui-state-active {
     position: relative;
 }
 
-.field-revisions-toggle.active,
-.field-revision-diff.active {
+.field-revisions-toggle--active,
+.field-revision-diff--active {
     opacity: .5;
 }
 
-.field-revisions-toggle.inactive * {
+.field-revisions-toggle[disabled] * {
     cursor: help;
     opacity: .25;
 }
@@ -187,7 +187,7 @@ body.template-admin .field-revisions .ui-state-active {
     margin-right: 1em;
 }
 
-.field-revisions.scrollable .field-revision-button:not(:last-child) {
+.field-revisions--scrollable .field-revision-button:not(:last-child) {
     margin-right: .5rem;
 }
 

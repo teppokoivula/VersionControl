@@ -27,7 +27,8 @@ $(function() {
                 var $if = $('.Inputfield_' + $(this).data('field'));
                 $(this).find('a, button').attr('tabindex', -1);
                 $if.find('> label')
-                    .addClass('with-history')
+                    .addClass('version-control--with-history')
+                    .data('version-control--field', $(this).data('field'))
                     .before($(this));
                 $(this).find('tr:eq(1)').addClass('ui-state-active');
                 if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
@@ -37,11 +38,7 @@ $(function() {
         });
         
         // Iterate history-enabled fields to add a revision toggle to each of them.
-        $('.ui-widget-header.with-history, .InputfieldHeader.with-history').each(function() {
-            var toggle_class = "field-revisions-toggle";
-            if ($(this).siblings('.field-revisions').find('tr').length < 2) {
-                toggle_class += " inactive";
-            }
+        $('.version-control--with-history').each(function() {
             // Note: this is a bit sneaky, but basically we're creating a non-usable, hidden link,
             // and then using that to figure out how to style our real toggle button.
             var $revisions_toggle_sentinel = $('<a></a>')
@@ -49,12 +46,14 @@ $(function() {
                 .appendTo($(this));
             var revisions_toggle_color = $revisions_toggle_sentinel.css('color');
             var $revisions_toggle = $('<button><i class="fa fa-clock-o"></i></button>')
-                .addClass(toggle_class)
+                .addClass('field-revisions-toggle')
                 .attr('title', moduleConfig.i18n.toggleRevisions)
                 .attr('aria-expanded', false)
+                .attr('data-field', $(this).data('version-control--field'))
+                .prop('disabled', $('#field-revisions--' + $(this).data('version-control--field')).find('tr').length < 2)
                 .css('color', revisions_toggle_color);
             var $revisions_toggle_text = $('<span></span>')
-                .addClass('visually-hidden')
+                .addClass('version-control--visually-hidden')
                 .text(moduleConfig.i18n.toggleRevisions)
                 .appendTo($revisions_toggle);
             var $toggle_icon = $(this).find('.toggle-icon');
@@ -151,14 +150,14 @@ $(function() {
                         })
                         .hover(
                             function() {
-                                $(this).parent('.overlay-parent').addClass('hover');
+                                $(this).parent('.version-control-overlay-parent').addClass('version-control-overlay-parent--hover');
                             }, 
                             function() {
-                                $(this).parent('.overlay-parent').removeClass('hover');
+                                $(this).parent('.version-control-overlay-parent').removeClass('version-control-overlay-parent--hover');
                             }
                         )
                         .parent('.InputfieldContent')
-                        .addClass('overlay-parent');
+                            .addClass('version-control-overlay-parent');
                 } else if ($if.hasClass('Inputfield_permissions')) {
                     $('.Inputfield_permissions .Inputfield_permissions > .InputfieldContent').insertAfter(
                         $('.Inputfield_permissions:first > .InputfieldContent:first')
@@ -192,38 +191,36 @@ $(function() {
                 });
             }
         }
-        
-        // When revisions toggle is clicked, show the revisions table – or hide it, in case it was
-        // already visible.
-        $('.field-revisions-toggle').on('click', function() {
-            if ($(this).hasClass('inactive')) {
-                return false;
-            }
-            var $revisions = $(this).parent('label').siblings('.field-revisions');
-            if (!$(this).hasClass('active')) {
-                $revisions.addClass('animatable');
-            }
-            if ($revisions.is(':visible')) {
-                $(this)
-                    .removeClass('active')
-                    .attr('aria-expanded', false);
-                $revisions.addClass('sliding').slideUp('fast', function() {
+
+        // Toggle the visibility of a field-specific revisions list.
+        var toggleRevisions = function(field, state) {
+
+            // Get the revisions list and figure out whether it should be toggled on or off. Bail
+            // out early if revisions list can't be found.
+            var $revisions = $('#field-revisions--' + field);
+            if (!$revisions.length) return false;
+            state = state === undefined ? !$revisions.attr('aria-hidden') : Boolean(state);
+
+            // Set the state of the toggle button(s).
+            $('.field-revisions-toggle[data-field=' + field + ']')
+                .toggleClass('field-revisions-toggle--active', !state)
+                .attr('aria-expanded', !state);
+
+            // Toggle the state (visibility) of the revisions list.
+            if (state) {
+                $revisions.addClass('field-revisons--sliding').slideUp('fast', function() {
                     $revisions
-                        .removeClass('animatable sliding')
+                        .removeClass('field-revisions--sliding')
                         .removeAttr('style')
                         .attr('aria-hidden', true)
                         .find('a, button')
                             .attr('tabindex', -1);
                     InputfieldColumnWidths();
-                    $(window).trigger('resize.revisions-table');
                 });
             } else {
-                $(this)
-                    .addClass('active')
-                    .attr('aria-expanded', true);
-                $revisions.addClass('sliding').slideDown('fast', function() {
+                $revisions.addClass('field-revisions--animatable field-revisions--sliding').slideDown('fast', function() {
                     $revisions
-                        .removeClass('sliding')
+                        .removeClass('field-revisions--sliding')
                         .removeAttr('aria-hidden')
                         .focus()
                         .find('a, button')
@@ -231,7 +228,26 @@ $(function() {
                     InputfieldColumnWidths();
                 });
             }
-            return false;
+            $(window).trigger('resize.revisions-table');
+        }
+
+        // When revisions toggle is clicked, show the revisions table – or hide it, in case it was
+        // already visible.
+        $('.field-revisions-toggle').on('click', function(event) {
+            event.preventDefault();
+            toggleRevisions($(this).data('field'));
+        });
+
+        // Hide focused revisions table if the escape key is pressed.
+        $(window).on('keyup.field-revisions', function(event) {
+            if (event.key == 'Esc' || event.key == 'Escape') {
+                var $active_element = $(document.activeElement);
+                if ($active_element.hasClass('field-revisions')) {
+                    var field = $active_element.data('field');
+                    toggleRevisions(field);
+                    $('.field-revisions-toggle[data-field=' + field + ']').focus();
+                }
+            }
         });
 
         // Add the "scrollable" class to all oversized revision data tables.
@@ -240,16 +256,16 @@ $(function() {
             .on('resize.revisions-table', function() {
                 clearTimeout(revisions_table_resize_timeout);
                 revisions_table_resize_timeout = setTimeout(function() {
-                    $('.field-revisions:not(.animatable)').each(function() {
+                    $('.field-revisions:not(.field-revisions--animatable)').each(function() {
                         $table = $(this).find('table');
                         if ($table.length && $(this).width() < $table.outerWidth()) {
                             // Revision table won't fit to the horizontal space, and becomes scrollable.
                             $(this)
-                                .addClass('scrollable')
+                                .addClass('field-revisions--scrollable')
                                 .find('> div')
                                     .trigger('scroll.revisions-table');
                         } else {
-                            $(this).removeClass('scrollable');
+                            $(this).removeClass('field-revisions--scrollable');
                         }
                     });
                 }, 250);
@@ -260,8 +276,8 @@ $(function() {
         $('.field-revisions > div').on('scroll.revisions-table', function() {
             var $revisions = $(this).parent();
             $revisions
-                .toggleClass('scrollable--start', !$(this).scrollLeft())
-                .toggleClass('scrollable--end', $(this)[0].scrollWidth - $(this).scrollLeft() == $(this).outerWidth());
+                .toggleClass('field-revisions--scrollable-start', !$(this).scrollLeft())
+                .toggleClass('field-revisions--scrollable-end', $(this)[0].scrollWidth - $(this).scrollLeft() == $(this).outerWidth());
         });
 
         // Enable Diff Match Patch if/when required.
@@ -299,9 +315,9 @@ $(function() {
         $('.field-revisions')
             .on('click', '.field-revision-diff', function() {
                 $('.compare-revisions').remove();
-                $('.field-revision-diff').not(this).removeClass('active');
-                $(this).toggleClass('active');
-                if ($(this).hasClass('active')) {
+                $('.field-revision-diff').not(this).removeClass('field-revisions-diff--active');
+                $(this).toggleClass('field-revisions-diff--active');
+                if ($(this).hasClass('field-revisions-diff--active')) {
                     // In this case r1 refers to current revision, r2 to the selected revision.
                     // Diff is fetched as pre-rendered HTML markup from the revision interface.
                     $(this).attr('aria-expanded', true);
