@@ -1,10 +1,10 @@
 $(function() {
 
-    // translations etc. are defined in VersionControl.module
+    // Translations etc. are defined in VersionControl.module.
     var moduleConfig = config.VersionControl;
 
-    // edit comment feature
-    $('.InputfieldWrapper#VersionControlHistory').on('click', '.edit-comment', function() {
+    // Edit comment feature.
+    $('#VersionControlHistory').on('click', '.history-tab__button--edit-comment', function() {
         var $container = $(this).parent('td').prev('td');
         var revision = $(this).data('revision');
         var comment = prompt(moduleConfig.i18n.commentPrompt, $container.text());
@@ -16,8 +16,8 @@ $(function() {
         return false;
     });
 
-    // update GET params when history filters are toggled
-    $('.InputfieldWrapper#VersionControlHistory').on('change', '#history_filters select', function(event) {
+    // Update GET params when history filters are toggled.
+    $('#VersionControlHistory').on('change', '#history_filters select', function(event) {
         var params = "";
         $(this).parents('#history_filters:first').find('input, select').each(function() {
             if (params) params += "&";
@@ -27,19 +27,19 @@ $(function() {
         window.location.search = params;
     });
 
-    // activate history tab if history filters were toggled
+    // activate history tab if history filters were toggled.
     var $tab = $('#VersionControlHistory');
     if ($tab.length && $tab.children('ul:first').data('active')) {
-        $('a#_' + $tab.attr('id')).trigger('click');
+        $('#_' + $tab.attr('id')).trigger('click');
     }
 
-    // remove history filters from Page Edit form on submit
-    $('form#ProcessPageEdit').on('submit', function() {
+    // Remove history filters from Page Edit form on submit.
+    $('#ProcessPageEdit').on('submit', function() {
         $(this).find('#history_filters').remove();
     });
 
-    // preview feature
-    $tab.on('click', 'a.preview', function() {
+    // Preview feature.
+    $tab.on('click', '.history-tab__button--preview', function() {
         var $a = $(this);
         $('body')
             .append('<div id="preview-overlay"></div>')
@@ -55,7 +55,7 @@ $(function() {
         $('#preview')
             .show()
             .animate({ right: 0 }, 500, function() {
-                $('body').addClass('preview');
+                $('body').addClass('version-control--preview');
             });
         $(document)
             .on('keyup.preview', function() {
@@ -66,23 +66,30 @@ $(function() {
             });
         return false;
     });
-    var closePreview = function($a) {
+
+    /**
+     * Close the preview element.
+     *
+     * @param {jQuery} $button Close button/toggle.
+     * @return {boolean} Always returns boolean false.
+     */
+    var closePreview = function($button) {
         $(window).off('blur.preview');
         $(document).off('keyup.preview');
         $(document).off('click.preview');
-        $('body').removeClass('preview');
+        $('body').removeClass('version-control--preview');
         $('#preview-overlay').fadeOut(function() {
             $(this).remove();
         });
         $('#preview').animate({ right: '-80%' }, 500, function() {
             $(this).remove();
         });
-        $a.parents('tr:first').effect("highlight", {}, 1500);
+        $button.parents('tr:first').effect("highlight", {}, 1500);
         return false;
     }
 
-    // Confirm before restoring page
-    $tab.on('click', 'a.restore', function() {
+    // Confirm before restoring page.
+    $tab.on('click', '.history-tab__button--restore', function() {
         return confirm(moduleConfig.i18n.confirmRestore);
     });
 

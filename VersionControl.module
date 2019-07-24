@@ -669,6 +669,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $defaults = ProcessVersionControl::$defaultData;
         $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
 
+        // Rendering templates.
+        $templates = [
+            'button' => '<a class="history-tab__button history-tab__button--%s"%s href="%s">'
+                      . '<i class="fa fa-%s" title="%5$s" aria-hidden="true"></i>'
+                      . '<span class="version-control--visually-hidden">%5$s</span>'
+                      . '</a>',
+        ];
+
         // Setup a datatable and append it to the history tab.
         $table = $this->modules->get('MarkupAdminDataTable');
         $table->setEncodeEntities(false);
@@ -682,9 +690,27 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ]);
         $process_id = $this->wire('modules')->getModuleID('ProcessVersionControl');
         $process_page = $this->wire('pages')->get('template=admin, process=' . $process_id)->url;
-        $comment = '<a class="edit-comment" data-revision="%d" href="#"><i class="fa fa-edit" title="' . $this->_('Edit comment') . '"></i></a>';
-        $restore = '<a class="restore" href="' . $process_page . 'restore/?pages_id=' . $page->id . '&revision=%d"><i class="fa fa-undo" title="' . $this->_('Restore revision') . '"></i></a>';
-        $preview = '<a class="preview" target="_blank" data-date="%s" href="' . $process_page . 'preview/?pages_id=' . $page->id . '&revision=%d"><i class="fa fa-eye" title="' . $this->_('Preview revision') . '"></i></a>';
+        $comment = vsprintf($templates['button'], [
+            'edit-comment',
+            ' data-revision="%d"',
+            '#',
+            'edit',
+            $this->_('Edit comment'),
+        ]);
+        $restore = vsprintf($templates['button'], [
+            'restore',
+            '',
+            $process_page . 'restore/?pages_id=' . $page->id . '&revision=%d',
+            'undo',
+            $this->_('Restore revision'),
+        ]);
+        $preview = vsprintf($templates['button'], [
+            'preview',
+            ' data-date="%s"',
+            $process_page . 'preview/?pages_id=' . $page->id . '&revision=%d',
+            'eye',
+            $this->_('Preview revision'),
+        ]);
         $counter = 0;
         foreach ($data['data'] as $row) {
             unset($row['users_id']);
