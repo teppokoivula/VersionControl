@@ -267,11 +267,10 @@ body.template-admin .field-revisions .ui-state-active {
 }
 
 .compare-revisions-close {
-    display: inline-block;
-    position: absolute;
     color: #333;
-    right: 1em;
-    top: 1em;
+    display: inline-block;
+    float: right;
+    margin: 0 0 .25rem .5rem !important;
 }
 
 /* History tab */
@@ -339,6 +338,10 @@ body.preview {
     opacity: .25;
     position: fixed;
     background: #000;
+}
+
+#diff {
+    display: inline;
 }
 
 #diff .page-diff,

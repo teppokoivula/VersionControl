@@ -336,7 +336,7 @@ $(function() {
                                 event.preventDefault();
                                 $(this).parent().prev().focus().trigger('click');
                             })
-                            .appendTo($compare_revisions);
+                            .prependTo($compare_revisions);
                     });
                 }
                 return false;
