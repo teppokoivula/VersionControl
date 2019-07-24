@@ -26,6 +26,7 @@ $(function() {
             if ($(this).data('revision')) {
                 var $if = $('.Inputfield_' + $(this).data('field'));
                 $(this).find('a, button').attr('tabindex', -1);
+                $(this).find('.field-revision__current-label:first').attr('aria-hidden', false);
                 $if.find('> label')
                     .addClass('version-control--with-history')
                     .data('version-control--field', $(this).data('field'))
@@ -66,7 +67,7 @@ $(function() {
         
         // When a restore button in the revision list is clicked, fetch data for matching revision
         // from our API (most of the code here is for presentation, loading animation etc.)
-        $('.field-revisions').on('click', '.field-revision-restore, .field-revision-current', function() {
+        $('.field-revisions').on('click', '.field-revision__button--restore, .field-revision__current', function() {
             var $revision = $(this).parents('.field-revision:first');
             if ($revision.hasClass('ui-state-active')) {
                 return false;
@@ -75,14 +76,17 @@ $(function() {
                 render: 'Input'
             };
             var $revisions = $(this).parents('.field-revisions:first');
+            var $current = $revision.find('.field-revision__current:first');
             var $if = $(this).parents('.Inputfield:first');
             var field = $revisions.data('field');
             $if.find('.field-revisions .ui-state-active').removeClass('ui-state-active');
+            $if.find('.field-revision__current-label').attr('aria-hidden', true);
             $revision.addClass('ui-state-active');
+            $current.find('.field-revision__current-label').attr('aria-hidden', false);
             $('.compare-revisions').remove();
-            $('.field-revision-diff').removeClass('active');
+            $('.field-revision__button--diff').removeClass('active');
             var $content = $if.find('.InputfieldContent') || $if.find('div.ui-widget-content');
-            var $loading = $('<span class="field-revision-loading"></span>').hide().css({
+            var $loading = $('<span class="field-revision__loading"></span>').hide().css({
                 height: $content.innerHeight() + 'px',
                 backgroundColor: $content.css('background-color')
             });
@@ -129,8 +133,16 @@ $(function() {
             return false;
         });
 
-        // This function updates inputfield content based on inputfield and content objects,
-        // settings (render mode etc.) and data (HTML or JSON).
+        /**
+         * Update inputfield content based on inputfield and content objects, settings (render mode
+         * etc.) and data (HTML or JSON).
+         *
+         * @param {jQuery} $if Inputfield object.
+         * @param {jQuery} $content Content object.
+         * @param {Object} settings Settings object.
+         * @param {string} field Field name.
+         * @param {(string|Object)} data Data as HTML markup or JSON (object).
+         */
         var update = function($if, $content, settings, field, data) {
             if (settings.render == "Input") {
                 // Format of returned data is HTML.
@@ -192,7 +204,12 @@ $(function() {
             }
         }
 
-        // Toggle the visibility of a field-specific revisions list.
+        /**
+         * Toggle the visibility of a field-specific revisions list.
+         *
+         * @param {string} field Field name.
+         * @param {boolean} state Forced state (optional).
+         */
         var toggleRevisions = function(field, state) {
 
             // Get the revisions list and figure out whether it should be toggled on or off. Bail
@@ -280,7 +297,12 @@ $(function() {
                 .toggleClass('field-revisions--scrollable-end', $(this)[0].scrollWidth - $(this).scrollLeft() == $(this).outerWidth());
         });
 
-        // Enable Diff Match Patch if/when required.
+        /**
+         * Enable Diff Match Patch if/when required.
+         *
+         * @param {string} r1 Source revision.
+         * @param {string} r2 Target revision.
+         */
         var enableDiffMatchPatch = function(r1, r2) {
             var r1 = r1 || document.getElementById('r1').value;
             var r2 = r2 || document.getElementById('r2').value;
@@ -313,11 +335,11 @@ $(function() {
         // When compare/diff button is clicked, display the difference between the target revision
         // and the revision that is currently active.
         $('.field-revisions')
-            .on('click', '.field-revision-diff', function() {
+            .on('click', '.field-revision__button--diff', function() {
                 $('.compare-revisions').remove();
-                $('.field-revision-diff').not(this).removeClass('field-revisions-diff--active');
-                $(this).toggleClass('field-revisions-diff--active');
-                if ($(this).hasClass('field-revisions-diff--active')) {
+                $('.field-revision__button--diff').not(this).removeClass('field-revisions__button--active');
+                $(this).toggleClass('field-revisions__button--active');
+                if ($(this).hasClass('field-revisions__button--active')) {
                     // In this case r1 refers to current revision, r2 to the selected revision.
                     // Diff is fetched as pre-rendered HTML markup from the revision interface.
                     $(this).attr('aria-expanded', true);
@@ -346,7 +368,7 @@ $(function() {
                             enableDiffMatchPatch();
                         }
                         var $compare_revisions_close = $('<button></button>')
-                            .addClass('field-revision-button compare-revisions-close fa fas fa-times')
+                            .addClass('field-revision__button compare-revisions__close fa fas fa-times')
                             .attr('tabindex', 0)
                             .on('click', function(event) {
                                 event.preventDefault();

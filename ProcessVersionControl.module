@@ -554,7 +554,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $strings = [
             'restore' => $this->_('Restore'),
             'compare' => $this->_('Compare'),
-            'revisions_label' => $this->_('Stored revisions for field %s'),
+            'label_for_current_revision' => $this->_('Current revision'),
+            'label_for_revisions' => $this->_('Stored revisions for field %s'),
         ];
 
         // Rendering templates.
@@ -567,12 +568,15 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             'table_head' => '<thead><tr><th></th><th>%s</th><th>%s</th></tr></thead>',
             'table_body' => '<tbody>%s</tbody>',
             'table_item' => '<tr class="field-revision" data-revision="%1$s" data-date="%2$s">'
-                         . '<td class="field-revision-current"></td>'
-                         . '<td class="field-revision-date">%2$s</td>'
-                         . '<td class="field-revision-user">%3$s</td>'
-                         . '<td>%4$s%5$s</td>'
-                         . '</tr>',
-            'button' => '<button class="field-revision-button field-revision-%s" title="%2$s">'
+                          . '<td class="field-revision__current">'
+                          . '<span class="field-revision__current-icon" aria-hidden="true"></span>'
+                          . '<span class="field-revision__current-label version-control--visually-hidden" aria-hidden="true">' . $strings['label_for_current_revision'] . '</span>'
+                          . '</td>'
+                          . '<td class="field-revision__date">%2$s</td>'
+                          . '<td class="field-revision__user">%3$s</td>'
+                          . '<td>%4$s%5$s</td>'
+                          . '</tr>',
+            'button' => '<button class="field-revision__button field-revision__button--%s" title="%2$s">'
                       . '<span class="version-control--visually-hidden-if-scrollable">%2$s</span>'
                       . '</button>',
         ];
@@ -630,7 +634,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 $has_diff ? ' field-revisions--diff' : '',
                 $field,
                 $revision,
-                sprintf($strings['revisions_label'], $field),
+                sprintf($strings['label_for_revisions'], $field),
                 sprintf($templates['table_container'], implode($table))
             );
         }

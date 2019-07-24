@@ -158,8 +158,8 @@ body.template-admin .field-revisions .ui-state-active {
     position: relative;
 }
 
-.field-revisions-toggle--active,
-.field-revision-diff--active {
+.field-revisions__button--active,
+.field-revisions-toggle--active {
     opacity: .5;
 }
 
@@ -168,7 +168,7 @@ body.template-admin .field-revisions .ui-state-active {
     opacity: .25;
 }
 
-.field-revision-button {
+.field-revision__button {
     background: transparent;
     border: 0;
     color: #fff;
@@ -178,16 +178,16 @@ body.template-admin .field-revisions .ui-state-active {
     padding: 0;
 }
 
-.field-revision-button:hover,
-.field-revision-button:focus {
+.field-revision__button:hover,
+.field-revision__button:focus {
     opacity: .75;
 }
 
-.field-revision-button:not(:last-child) {
+.field-revision__button:not(:last-child) {
     margin-right: 1em;
 }
 
-.field-revisions--scrollable .field-revision-button:not(:last-child) {
+.field-revisions--scrollable .field-revision__button:not(:last-child) {
     margin-right: .5rem;
 }
 
@@ -195,28 +195,28 @@ body.template-admin .field-revisions .ui-state-active {
     padding: 0 0 0 1em;
 }
 
-.field-revisions .ui-state-active .field-revision-button {
+.field-revisions .ui-state-active .field-revision__button {
     display: none;
 }
 
-.field-revisions .field-revision-current::before {
+.field-revisions .field-revision__current-icon::before {
     content: '\f0c8';
     font-family: FontAwesome;
     cursor: pointer;
 }
 
-.field-revisions .ui-state-active .field-revision-current::before {
+.field-revisions .ui-state-active .field-revision__current-icon::before {
     content: '\f14a';
     cursor: default;
 }
 
-.field-revision-diff::before {
+.field-revision__button--diff::before {
     content: '\f074';
     padding-right: .5em;
     font-family: FontAwesome;
 }
 
-.field-revision-restore::before {
+.field-revision__button--restore::before {
     content: '\f0e2';
     padding-right: .5em;
     font-family: FontAwesome;
