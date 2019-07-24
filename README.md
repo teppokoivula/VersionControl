@@ -121,7 +121,9 @@ Currently there's no build process built-in, but these files can be created from
 
 ```
 # CSS
-cleancss -o resources/css/VersionControl.min.css resources/css/VersionControl.css
+find resources/css/ -maxdepth 1 -type f -name "*.css" ! -name "*.min.*" \
+    -exec echo {} \; \
+    -exec sh -c 'cleancss --source-map -o "${1%.css}.min.css" "$1"' sh {} \;
 
 # JS
 find resources/js/ -maxdepth 1 -type f -name "*.js" ! -name "*.min.*" \
