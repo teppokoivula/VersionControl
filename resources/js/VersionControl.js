@@ -1,7 +1,7 @@
 $(function() {
 
-    // Configuration: "run-time" settings are defined here, "constant" settings
-    // (translations, interface URL etc.) in VersionControl.module.
+    // Configuration: "run-time" settings are defined here, "constant" settings (translations,
+    // interface URL etc.) in VersionControl.module.
     var settings = {
         empty: true,
         render: 'HTML'
@@ -20,9 +20,8 @@ $(function() {
         // Create a reusable spinner element.
         var $spinner = $('<i class="fa fa-spinner fa-spin"></i>');
 
-        // Iterate through field specific revision containers and add their
-        // contents to that fields header (.ui-widget-header) only if they
-        // contain at least one revision other than what's currently used.
+        // Iterate field specific revision containers and add their contents to that field's header
+        // (.ui-widget-header) if there's at least one revision other than the currently active one.
         $('#version-control-data > div').each(function() {
             if ($(this).data('revision')) {
                 var $if = $('.Inputfield_' + $(this).data('field'));
@@ -37,14 +36,14 @@ $(function() {
             }
         });
         
-        // Iterate through history-enabled fields to add a revision toggle.
+        // Iterate history-enabled fields to add a revision toggle to each of them.
         $('.ui-widget-header.with-history, .InputfieldHeader.with-history').each(function() {
             var toggle_class = "field-revisions-toggle";
             if ($(this).siblings('.field-revisions').find('tr').length < 2) {
                 toggle_class += " inactive";
             }
-            // Note: this is a bit sneaky, but basically we're placing a non-usable, hidden link and
-            // then using that to figure out how to style our toggle button.
+            // Note: this is a bit sneaky, but basically we're creating a non-usable, hidden link,
+            // and then using that to figure out how to style our real toggle button.
             var $revisions_toggle_sentinel = $('<a></a>')
                 .hide()
                 .appendTo($(this));
@@ -66,9 +65,8 @@ $(function() {
             }
         });
         
-        // When a restore link in revision list is clicked, fetch data for that
-        // revision from the interface (most of the code here is related to how
-        // things are presented, loading animation etc.)
+        // When a restore button in the revision list is clicked, fetch data for matching revision
+        // from our API (most of the code here is for presentation, loading animation etc.)
         $('.field-revisions').on('click', '.field-revision-restore, .field-revision-current', function() {
             var $revision = $(this).parents('.field-revision:first');
             if ($revision.hasClass('ui-state-active')) {
@@ -90,8 +88,8 @@ $(function() {
                 backgroundColor: $content.css('background-color')
             });
             if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) {
-                // For some inputfield types we need to get raw data as JSON
-                // instead of pre-rendered inputfield markup (HTML).
+                // For some inputfield types we need to get raw data as JSON instead of pre-rendered
+                // inputfield markup (HTML).
                 settings = {
                     render: 'JSON'
                 };
@@ -99,12 +97,11 @@ $(function() {
             var revision = $revision.data('revision');
             if (cache[field + "." + revision]) {
                 if (settings.render != "JSON" && revision == $revisions.data('revision')) {
-                    // Current (latest) revision is the only one we've got
-                    // inputfield content cached for as a jQuery object.
+                    // Current (latest) revision is the only one we already have cached content for.
                     $content.replaceWith(cache[field + "." + revision].clone(true, true));
                     if ($if.find('.InputfieldFileList').length) {
-                        // For file inputs we need to trigger 'reloaded' event
-                        // manually in order to (re-)enable HTML5 AJAX uploads.
+                        // For file inputs we need to trigger the 'reloaded' event manually in order
+                        // to (re-)enable HTML5 AJAX uploads.
                         $if.find('.InputfieldFileInit').removeClass('InputfieldFileInit');
                         $if.trigger('reloaded');
                     }
@@ -133,8 +130,8 @@ $(function() {
             return false;
         });
 
-        // This function updates inputfield content based on inputfield and
-        // content objects, settings (render mode etc.) and data (HTML or JSON).
+        // This function updates inputfield content based on inputfield and content objects,
+        // settings (render mode etc.) and data (HTML or JSON).
         var update = function($if, $content, settings, field, data) {
             if (settings.render == "Input") {
                 // Format of returned data is HTML.
@@ -144,8 +141,8 @@ $(function() {
                 if ($if.hasClass('InputfieldImage') || $if.hasClass('InputfieldFile')) {
                     // Trigger InputfieldImage() manually.
                     InputfieldImage($);
-                    // Image and file data isn't editable until it has been
-                    // restored; we're using an overlay to avoid confusion.
+                    // Image and file data isn't editable until it has been restored; here we're
+                    // applying an overlay layer to prevent editing attempts and avoid confusion.
                     $content.prepend('<div class="version-control-overlay"></div>');
                     $('.version-control-overlay')
                         .attr('title', moduleConfig.i18n.editDisabled)
@@ -196,8 +193,8 @@ $(function() {
             }
         }
         
-        // When revisions toggle is clicked, show the revisions table – or hide
-        // it in case it was already visible.
+        // When revisions toggle is clicked, show the revisions table – or hide it, in case it was
+        // already visible.
         $('.field-revisions-toggle').on('click', function() {
             if ($(this).hasClass('inactive')) {
                 return false;
@@ -297,16 +294,16 @@ $(function() {
             document.getElementById('diff').innerHTML = ds;
         }
         
-        // When compare/diff link is clicked, display the difference between
-        // selected revision and currently active revision.
+        // When compare/diff button is clicked, display the difference between the target revision
+        // and the revision that is currently active.
         $('.field-revisions')
             .on('click', '.field-revision-diff', function() {
                 $('.compare-revisions').remove();
                 $('.field-revision-diff').not(this).removeClass('active');
                 $(this).toggleClass('active');
                 if ($(this).hasClass('active')) {
-                    // In this case r1 refers to current revision, r2 to selected
-                    // revision. Diff is fetched as HTML from revision interface.
+                    // In this case r1 refers to current revision, r2 to the selected revision.
+                    // Diff is fetched as pre-rendered HTML markup from the revision interface.
                     $(this).attr('aria-expanded', true);
                     var $revisions = $(this).parents('.field-revisions:first');
                     var $revision = $(this).parents('.field-revision:first');
