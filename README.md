@@ -114,7 +114,7 @@ interested in submitting a pull request or otherwise participating in the develo
 
 ### Resources
 
-Resources (JS and CSS) required by this module ae in the resources directory under the main module
+Resources (JS and CSS) required by this module are in the resources directory under the main module
 directory. For each version there's a ".min" version, which contains minified verison of the file.
 Currently there's no build process built-in, but these files can be created from the command-line
 (assuming that cleancss and uglifyjs have been installed) with following commands:
