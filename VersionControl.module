@@ -821,6 +821,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // insert field data to another table
             $sql_fields = "revisions_id, fields_id, property, data";
             foreach ($field_data as $property => $data) {
+                // FieldtypeTextareas
+                if ($data instanceof TextareasData || $data instanceof \ProcessWire\TextareasData) {
+                    $field = $data->getField();
+                    $data = $field->type->___sleepValue($page, $field, $data);
+                }
                 $file_id = null;
                 // dot means that this is multipart property (n.data), which
                 // can *at the moment* be used to identify file/image fields
@@ -921,7 +926,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $info = $this->getModuleInfo();
         $version = $info['version']; 
         if (is_file($this->config->paths->$class . "$class.min.css")) $this->config->styles->add($this->config->urls->$class . "$class.min.css?v=$version"); 
-        if (is_file($this->config->paths->$class . "$class.min.js")) $this->config->scripts->add($this->config->urls->$class . "$class.min.js?v=$version"); 
+        if (is_file($this->config->paths->$class . "$class.min.js")) $this->config->scripts->add($this->config->urls->$class . "$class.js?v=$version"); 
 
         // inject settings and translations
         $process = $this->modules->getModuleID("ProcessVersionControl");
