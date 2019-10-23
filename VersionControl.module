@@ -925,8 +925,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $class = $this->className();
         $info = $this->getModuleInfo();
         $version = $info['version']; 
-        if (is_file($this->config->paths->$class . "$class.min.css")) $this->config->styles->add($this->config->urls->$class . "$class.min.css?v=$version"); 
-        if (is_file($this->config->paths->$class . "$class.min.js")) $this->config->scripts->add($this->config->urls->$class . "$class.js?v=$version"); 
+        if (is_file($this->config->paths->$class . "$class.min.css")) $this->config->styles->add($this->config->urls->$class . "$class.min.css?v=$version");
+        if (is_file($this->config->paths->$class . "$class.min.js")) $this->config->scripts->add($this->config->urls->$class . "$class.min.js?v=$version");
 
         // inject settings and translations
         $process = $this->modules->getModuleID("ProcessVersionControl");
