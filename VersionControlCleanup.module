@@ -37,7 +37,6 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         foreach (static::$defaultData as $key => $value) {
             $this->$key = $value;
         }
-        $this->wire('modules')->setModuleConfigData($this->className);
     }
 
     /**
@@ -71,6 +70,7 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
      * @return InputfieldWrapper
      */
     public function getModuleConfigInputfields(array $data) {
+        $this->wire('modules')->get('VersionControl')->initClassLoader();
         return $this->wire(new \VersionControl\CleanupModuleConfig($data))->getFields();
     }
 

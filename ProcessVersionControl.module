@@ -8,7 +8,7 @@
  *
  * For more details see the README.md file distributed with this module.
  *
- * @copyright 2013-2019 Teppo Koivula
+ * @copyright 2013-2020 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessVersionControl extends Process implements Module, ConfigurableModule {
@@ -36,7 +36,6 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         foreach (static::$defaultData as $key => $value) {
             $this->$key = $value;
         }
-        $this->wire('modules')->setModuleConfigData($this->className);
     }
 
     /**
@@ -50,6 +49,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @return InputfieldWrapper
      */
     public function getModuleConfigInputfields(array $data): InputfieldWrapper {
+        $this->wire('modules')->get('VersionControl')->initClassLoader();
         return $this->wire(new \VersionControl\ProcessModuleConfig($data))->getFields();
     }
 

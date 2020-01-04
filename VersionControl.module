@@ -10,7 +10,7 @@
  * Behind the scenes hooks are used to capture changes to individual fields, and to store data and
  * necessary metadata (such as the revision number) into a series of custom database tables.
  * 
- * @copyright 2013-2019 Teppo Koivula
+ * @copyright 2013-2020 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo Regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247).
  */
@@ -120,7 +120,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         foreach (static::$defaultData as $key => $value) {
             $this->$key = $value;
         }
-        $this->wire('modules')->setModuleConfigData($this->className);
     }
 
     /**
@@ -134,6 +133,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @return InputfieldWrapper
      */
     public function getModuleConfigInputfields(array $data): InputfieldWrapper {
+        $this->initClassLoader();
         return $this->wire(new \VersionControl\ModuleConfig($data))->getFields();
     }
 
@@ -190,11 +190,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Add VersionControl namespace to ProcessWire's class autoloader
      */
-    protected function initClassLoader() {
-        $this->wire('classLoader')->addNamespace(
-            'VersionControl',
-            $this->wire('config')->paths->get('VersionControl') . 'lib/'
-        );
+    public function initClassLoader() {
+        if (!$this->wire('classLoader')->hasNamespace('VersionControl')) {
+            $this->wire('classLoader')->addNamespace(
+                'VersionControl',
+                $this->wire('config')->paths->get('VersionControl') . 'lib/'
+            );
+        }
     }
 
     /**
