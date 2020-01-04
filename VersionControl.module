@@ -12,7 +12,7 @@
  * changes to individual fields and store them in a series of custom database
  * tables, along with required metadata, such as a running revision number.
  * 
- * @copyright 2013-2019 Teppo Koivula
+ * @copyright 2013-2020 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247)
  */
@@ -29,7 +29,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'summary' => 'Version control features for page content.',
             'href' => 'https://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.12',
+            'version' => '1.2.13',
             'singular' => true,
             'autoload' => true,
             'installs' => array(
