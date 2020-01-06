@@ -33,7 +33,7 @@ $(function() {
                     .before($(this));
                 $(this).find('tr:eq(1)').addClass('ui-state-active');
                 if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
-                var $cacheobj = $if.find('.InputfieldContent') || $if.find('div.ui-widget-content');
+                var $cacheobj = $if.find('.InputfieldContent:first') || $if.find('div.ui-widget-content:first');
                 cache[$(this).data('field') + "." + $(this).data('revision')] = $cacheobj.clone(true, true);
             }
         });
@@ -85,7 +85,7 @@ $(function() {
             $current.find('.field-revision__current-label').attr('aria-hidden', false);
             $('.compare-revisions').remove();
             $('.field-revision__button--diff').removeClass('active');
-            var $content = $if.find('.InputfieldContent') || $if.find('div.ui-widget-content');
+            var $content = $if.find('.InputfieldContent:first') || $if.find('div.ui-widget-content:first');
             var $loading = $('<span class="field-revision__loading"></span>').hide().css({
                 height: $content.innerHeight() + 'px',
                 backgroundColor: $content.css('background-color')

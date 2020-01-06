@@ -371,7 +371,11 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if (isset($settings['render']) && $settings['render'] == "Input") {
             $input = $field->getInputfield($page);
             if (isset($data['data'])) {
-                $input->value = $data['data'];
+                if ($input instanceof InputfieldTextareas) {
+                    $input->value = $field->type->___wakeupValue($page, $field, $data['data']);
+                } else {
+                    $input->value = $data['data'];
+                }
             }
             $filedata = [];
             $files = null;

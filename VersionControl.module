@@ -28,6 +28,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'FieldtypeText',
             'FieldtypeTextLanguage',
             'FieldtypeTextarea',
+            'FieldtypeTextareas',
             'FieldtypeTextareaLanguage',
             'FieldtypePageTitle',
             'FieldtypePageTitleLanguage',
@@ -489,6 +490,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // Insert field data to another table.
             $sql_fields = "revisions_id, fields_id, property, data";
             foreach ($field_data as $property => $data) {
+
+                // FieldtypeTextareas
+                if ($data instanceof TextareasData || $data instanceof \ProcessWire\TextareasData) {
+                    $field = $data->getField();
+                    $data = $field->type->___sleepValue($page, $field, $data);
+                }
 
                 $file_id = null;
 

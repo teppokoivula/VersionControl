@@ -2,7 +2,7 @@ Version Control module for ProcessWire
 ======================================
 
 Version Control module For ProcessWire CMS/CMF.
-Copyright (c) 2013-2019 Teppo Koivula
+Copyright (c) 2013-2020 Teppo Koivula
 
 This module uses hooks provided by ProcessWire to catch page edits and store revision data in a
 series of custom database tables, so that it can be later retrieved, reviewed, and restored.
@@ -38,7 +38,11 @@ supported:
   * Image
   * Selector
   * Options
-  
+
+Supported third party fieldtypes:
+
+  * ProFields Textareas
+
 Note that if a specific fieldtype isn't listed here, it doesn't necessarily mean that it won't work
 with this module – it might just not have been tested yet.
 
