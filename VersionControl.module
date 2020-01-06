@@ -1165,6 +1165,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function createTable(string $table, array $schema) {
         $table = $this->database->escapeStr($table);
+        $engine = $this->wire('config')->dbEngine;
+        $charset = $this->wire('config')->dbCharset;
         $stmt = $this->database->prepare("SHOW TABLES LIKE '$table'");
         $stmt->execute();
         if (count($stmt->fetchAll()) == 1) {
@@ -1175,7 +1177,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
         $sql = "CREATE TABLE $table (";
         $sql .= implode(', ', $schema);
-        $sql .= ") ENGINE = MYISAM DEFAULT CHARSET=utf8";
+        $sql .= ") ENGINE = " . $engine . " DEFAULT CHARSET=" . $charset;
         $this->database->query($sql);
         $this->message(sprintf(
             $this->_('Created table: %s'),
