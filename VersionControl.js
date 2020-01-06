@@ -25,7 +25,7 @@ $(function() {
                     .before($(this));
                 $(this).find('a:first').addClass('ui-state-active');
                 if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
-                cache[$(this).data('field')+"."+$(this).data('revision')] = $if.find('div.ui-widget-content, .InputfieldContent').clone(true, true);
+                cache[$(this).data('field')+"."+$(this).data('revision')] = $if.find('div.ui-widget-content:first, .InputfieldContent:first').filter(':first').clone(true, true);
             }
         });
         
@@ -57,7 +57,7 @@ $(function() {
             $if.find('.field-revisions .ui-state-active').removeClass('ui-state-active');
             $this.addClass('ui-state-active');
             $('.compare-revisions').remove();
-            var $content = $if.find('div.ui-widget-content, .InputfieldContent');
+            var $content = $if.find('div.ui-widget-content:first, .InputfieldContent:first').filter(':first');
             var $loading = $('<span class="field-revisions-loading"></span>').hide().css({
                 height: $content.innerHeight()+'px',
                 backgroundColor: $content.css('background-color')
