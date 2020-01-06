@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.6',
+            'version' => '1.2.7',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -629,7 +629,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // sanitize and store comment text
         $comment = $this->input->post->comment;
         if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
-        $comment = $this->database->escapeStr($comment);
         $stmt = $this->database->prepare("UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = :comment WHERE id = :revision_id");
         $stmt->bindValue(':comment', $comment, PDO::PARAM_STR);
         $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);

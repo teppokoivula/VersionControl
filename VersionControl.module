@@ -1232,7 +1232,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'username' => isset($this->users_cache[$row['users_id']]) ? $this->users_cache[$row['users_id']] : $row['username'],
                 'changes' => $row['changes'],
                 'timestamp' => $row['timestamp'],
-                'comment' => $row['comment'],
+                'comment' => $this->sanitizer->entities($row['comment']),
             );
         }
 
