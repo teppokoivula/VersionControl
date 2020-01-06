@@ -38,6 +38,10 @@ hashed values (password), should be supported by the time of this writing:
   * Image
   * Selector
   * Options
+
+Supported third party fieldtypes:
+
+  * ProFields Textareas
   
 If a specific fieldtype isn't listed here, it doesn't necessarily mean that
 it's not supported; it just hasn't been tested yet. If you know a fieldtype

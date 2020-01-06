@@ -59,6 +59,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 'FieldtypeText',
                 'FieldtypeTextLanguage',
                 'FieldtypeTextarea',
+                'FieldtypeTextareas',
                 'FieldtypeTextareaLanguage',
                 'FieldtypePageTitle',
                 'FieldtypePageTitleLanguage',
