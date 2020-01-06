@@ -9,7 +9,7 @@
  *
  * For more details see the README.md file distributed with this module.
  *
- * @copyright 2013-2019 Teppo Koivula
+ * @copyright 2013-2020 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessVersionControl extends Process implements ConfigurableModule {
@@ -69,7 +69,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         foreach(self::getDefaultData() as $key => $value) {
             $this->$key = $value;
         }
-        wire('modules')->setModuleConfigData($this->className);
     }
 
     /**
@@ -636,7 +635,6 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // sanitize and store comment text
         $comment = $this->input->post->comment;
         if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
-        $comment = $this->database->escapeStr($comment);
         $stmt = $this->database->prepare("UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = :comment WHERE id = :revision_id");
         $stmt->bindValue(':comment', $comment, PDO::PARAM_STR);
         $stmt->bindValue(':revision_id', $revision_id, PDO::PARAM_INT);
