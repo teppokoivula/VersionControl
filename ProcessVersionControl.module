@@ -533,7 +533,6 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if (mb_strlen($comment) > 255) {
             $comment = mb_substr($comment, 0, 255);
         }
-        $comment = $this->database->escapeStr($comment);
         $stmt = $this->database->prepare("UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = :comment WHERE id = :revision_id");
         $stmt->bindValue(':comment', $comment, \PDO::PARAM_STR);
         $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
