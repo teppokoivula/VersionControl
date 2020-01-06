@@ -36,6 +36,10 @@ textarea.version_control_filedata {
     opacity: 0.25;
 }
 
+.Inputfield {
+    position: relative;
+}
+
 .field-revisions {
     padding: 36px 0 0 0 !important;
     overflow: visible !important;
@@ -44,11 +48,13 @@ textarea.version_control_filedata {
     display: none;
     z-index: 99;
     right: 10px;
+    width: auto !important;
 }
 
 .field-revisions ul {
     margin: 0;
     line-height: 1em;
+    list-style: none
     overflow-y: auto;
     max-height: 350px;
     border-radius: 2px;
