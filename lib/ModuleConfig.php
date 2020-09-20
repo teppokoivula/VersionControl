@@ -10,7 +10,7 @@ use ProcessWire\InputfieldWrapper,
 /**
  * Version Control Config
  *
- * @version 1.0.0
+ * @version 1.1.0
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
@@ -74,6 +74,15 @@ class ModuleConfig extends \ProcessWire\Wire {
         $field->addOptions($this->wire('fields')->find("type=$types")->getArray());
         if (isset($data['enabled_fields'])) $field->value = $data['enabled_fields'];
         $fieldset->add($field);
+
+        // enable version control in view only mode for locked fields?
+        $field = $modules->get("InputfieldCheckbox");
+        $field->name = "enable_locked_fields";
+        $field->label = $this->_("Enable version control for locked fields");
+        $field->notes = $this->_("By default version control features are not displayed for locked (uneditable) fields. If this option is enabled, users will be able to view version history, but still won't be able to restore earlier revisions.");
+        $field->icon = "unlock";
+        $fieldset->add($field);
+        $field->attr('checked', isset($data['enable_locked_fields']) && $data['enable_locked_fields']);
 
         // display config options from companion modules
         $ext_data = [

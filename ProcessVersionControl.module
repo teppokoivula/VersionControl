@@ -71,17 +71,11 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * Supported settings are 'empty' (to render placeholders for fields with no stored data) and
      * 'render' (selecting render method).
      * 
-     * @throws WireException if GET param pages_id is missing
-     * @return string revision data rendered with one of available render methods
+     * @throws WireException if GET param pages_id is missing.
+     * @throws WirePermissionException if current user doesn't have edit permission on this page.
+     * @return string revision data rendered with one of available render methods.
      */
     public function executePage() {
-
-        // Should date formatting occur?
-        $defaults = static::$defaultData;
-        $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
-
-        // Additional settings.
-        $settings = $this->input->get->settings;
 
         // Get Page object.
         $pages_id = $this->input->get->pages_id ? (int) $this->input->get->pages_id : null;
@@ -89,7 +83,17 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             throw new WireException('Missing required GET param pages_id');
         }
         $page = $this->pages->get($pages_id);
+        if (!$page->editable()) {
+            throw new WirePermissionException('Permission denied (Page not editable)');
+        }
         $page_ids = [$pages_id];
+
+        // Should date formatting occur?
+        $defaults = static::$defaultData;
+        $date_format = $this->date_format != $defaults['date_format'] ? $this->date_format : null;
+
+        // Additional settings.
+        $settings = $this->input->get->settings;
 
         // Include Repeater pages.
         // @todo Do we need similar check for RepeaterMatrix and/or PageTable as well?
@@ -125,6 +129,15 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $enabled_fields = [];
         if (count($page->template->versionControlFields)) {
             foreach ($page->template->versionControlFields as $field) {
+                if (!$this->modules->VersionControl->enable_locked_fields) {
+                    $field_object = $this->wire('fields')->get($field);
+                    if ($field_object && $field_object->id) {
+                        $inputfield = $field_object->getInputfield($page);
+                        if (in_array($inputfield->collapsed, [7, 8])) {
+                            continue;
+                        }
+                    }
+                }
                 $enabled_fields[] = $field->name;
             }
         }
@@ -182,7 +195,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
         }
 
-        return $this->$render_method($data);
+        return $this->$render_method($data, $page);
     }
 
     /**
@@ -421,6 +434,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 $input->add($input_permissions);
                 $this->wire('modules')->get('ProcessRole');
             }
+            if (in_array($input->collapsed, [7, 8])) {
+                // Inputfield is locked (not editable)
+                exit($input->renderValue());
+            }
             exit($input->render());
         } else {
             exit($this->renderJSON($data));
@@ -549,9 +566,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * Render HTML markup for field revisions based on an input array
      *
      * @param array $data
+     * @param Page $page
      * @return string
      */
-    protected function renderHTML(array $data): string {
+    protected function renderHTML(array $data, Page $page): string {
 
         // Translatable strings.
         $strings = [
@@ -564,8 +582,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         // Rendering templates.
         $templates = [
             'outer_container' => '<div id="version-control-data">%s</div>',
-            'field_container' => '<div class="field-revisions%s" id="field-revisions--%2$s" data-field="%2$s" data-revision="%3$s" tabindex=-1 aria-hidden="true" aria-label="%4$s">'
-                               . '<div>%5$s</div>'
+            'field_container' => '<div class="field-revisions%s%4$s" id="field-revisions--%2$s" data-field="%2$s" data-revision="%3$s" tabindex=-1 aria-hidden="true" aria-label="%4$s">'
+                               . '<div>%6$s</div>'
                                . '</div>',
             'table_container' => '<table>%s</table>',
             'table_head' => '<thead><tr><th></th><th>%s</th><th>%s</th></tr></thead>',
@@ -590,12 +608,29 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             'compare' => sprintf($templates['button'], 'diff', $strings['compare']),
         ];
 
+        // Restorable fields.
+        $restore_enabled = [];
+
         $dataset = [];
         foreach ($data as $field => $field_data) {
 
             // Check if diff can and should be enabled, and try to read revision from field data.
             $has_diff = !$this->diff_disabled && $this->wire('fields')->get($field)->type != 'FieldtypeFile';
             $revision = !empty($field_data) ? $field_data[0]['revision'] : '';
+
+            // Check if restore button should be displayed.
+            if (!isset($restore_enabled[$field])) {
+                $has_restore = true;
+                $field_object = $this->wire('fields')->get($field);
+                if ($field_object && $field_object->id) {
+                    $inputfield = $field_object->getInputfield($page);
+                    if (in_array($inputfield->collapsed, [7, 8])) {
+                        $has_restore = false;
+                    }
+                }
+                $restore_enabled[$field] = $has_restore;
+            }
+            $has_restore = $restore_enabled[$field];
 
             $table = [];
             if (!empty($field_data)) {
@@ -626,7 +661,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                         $row['revision'],
                         $row['date'],
                         $user_name,
-                        $buttons['restore'],
+                        $has_restore ? $buttons['restore'] : '',
                         $has_diff ? $buttons['compare'] : '',
                     );
                 }
@@ -637,6 +672,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 $has_diff ? ' field-revisions--diff' : '',
                 $field,
                 $revision,
+                $has_restore ? ' field-revisions--restore' : '',
                 sprintf($strings['label_for_revisions'], $field),
                 sprintf($templates['table_container'], implode($table))
             );
@@ -654,9 +690,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * Render JSON based on an input array
      *
      * @param array $data Input array.
+     * @param Page $page
      * @return string|bool JSON string, or false if encoding fails..
      */
-    protected function renderJSON(array $data) {
+    protected function renderJSON(array $data, Page $page) {
         header('Content-type: application/json');
         return json_encode($data);
     }
@@ -671,7 +708,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @throws WireException if GET param pages_id is missing.
      * @throws WireException if GET param revision is missing.
      * @throws WireException if page defined by GET param pages_id doesn't exist.
-     * @throws WireException if user doesn't have specified permission for this page.
+     * @throws WirePermissionException if view access is expected and current user doesn't have the permission to view this page.
+     * @throws WirePermissionException if edit access is expected and current user doesn't have the permission to edit this page.
      * @throws WireException if revision defined by GET param revision doesn't exist.
      * @return Page Page as it was in given revision.
      */
@@ -696,10 +734,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             ));
         }
         if ($permission == 'view' && !$page->viewable()) {
-            throw new WireException($this->_('Permission denied (Page not viewable)'));
+            throw new WirePermissionException($this->_('Permission denied (Page not viewable)'));
         }
         if ($permission == 'edit' && !$page->editable()) {
-            throw new WireException($this->_('Permission denied (Page not editable)'));
+            throw new WirePermissionException($this->_('Permission denied (Page not editable)'));
         }
 
         // Get revision from database.
