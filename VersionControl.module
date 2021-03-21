@@ -10,7 +10,7 @@
  * Behind the scenes hooks are used to capture changes to individual fields, and to store data and
  * necessary metadata (such as the revision number) into a series of custom database tables.
  * 
- * @copyright 2013-2020 Teppo Koivula
+ * @copyright 2013-2021 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo Regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247).
  */

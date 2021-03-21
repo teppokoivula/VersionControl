@@ -13,7 +13,7 @@ $(function() {
 
     // Fetch revision data for this page as HTML markup.
     $.get(moduleConfig.processPage + 'page', { pages_id: moduleConfig.pageID, settings: settings }, function(data) {
-        
+
         // Prepend data (#version-control-data) to body.
         $('body').prepend(data);
 
@@ -37,7 +37,7 @@ $(function() {
                 cache[$(this).data('field') + "." + $(this).data('revision')] = $cacheobj.clone(true, true);
             }
         });
-        
+
         // Iterate history-enabled fields to add a revision toggle to each of them.
         $('.version-control--with-history').each(function() {
             // Note: this is a bit sneaky, but basically we're creating a non-usable, hidden link,
@@ -64,7 +64,7 @@ $(function() {
                 $(this).append($revisions_toggle);
             }
         });
-        
+
         // When a restore button in the revision list is clicked, fetch data for matching revision
         // from our API (most of the code here is for presentation, loading animation etc.)
         $('.field-revisions').on('click', '.field-revision__button--restore, .field-revision__current', function() {
@@ -163,7 +163,7 @@ $(function() {
                         .hover(
                             function() {
                                 $(this).parent('.version-control-overlay-parent').addClass('version-control-overlay-parent--hover');
-                            }, 
+                            },
                             function() {
                                 $(this).parent('.version-control-overlay-parent').removeClass('version-control-overlay-parent--hover');
                             }
@@ -182,6 +182,9 @@ $(function() {
                         sortable: true
                     } : config[$select.attr('id')];
                     $select.asmSelect(options);
+                }
+                if ($if.find('.langTabs').length && typeof setupLanguageTabs === 'function') {
+                    setupLanguageTabs($if);
                 }
             } else {
                 // Format of returned data is JSON.
@@ -225,7 +228,7 @@ $(function() {
 
             // Toggle the state (visibility) of the revisions list.
             if (state) {
-                $revisions.addClass('field-revisons--sliding').slideUp('fast', function() {
+                $revisions.addClass('field-revisions--sliding').slideUp('fast', function() {
                     $revisions
                         .removeClass('field-revisions--sliding')
                         .removeAttr('style')
@@ -331,7 +334,7 @@ $(function() {
             }
             document.getElementById('diff').innerHTML = ds;
         }
-        
+
         // When compare/diff button is clicked, display the difference between the target revision
         // and the revision that is currently active.
         $('.field-revisions')
@@ -379,7 +382,7 @@ $(function() {
                 }
                 return false;
             });
-    
+
     });
-    
+
 });

@@ -97,7 +97,7 @@ textarea.version_control_filedata {
 }
 
 .field-revisions > div {
-    overflow: scroll !important;
+    overflow: auto !important;
     padding: 0 1em;
 }
 
@@ -141,6 +141,11 @@ textarea.version_control_filedata {
     color: #fff !important;
 }
 
+.InputfieldStateRequired > .field-revisions + .InputfieldHeader:after {
+    content: ' *';
+    color: red;
+}
+
 body.template-admin .field-revisions .ui-state-active {
     border: 0;
     background: transparent;
@@ -154,6 +159,7 @@ body.template-admin .field-revisions .ui-state-active {
     cursor: pointer;
     float: right;
     font-size: 1em;
+    line-height: 1.5;
     padding-right: 1em;
     position: relative;
 }

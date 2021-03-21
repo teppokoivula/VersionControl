@@ -370,8 +370,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $field = null;
         $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            if (!$page) $page = $this->pages->get($row['pages_id']);
-            if (!$field) $field = $this->fields->get($row['fields_id']);
+            $page = $page ?: $this->pages->get((int) $row['pages_id']);
+            $field = $field ?: $this->fields->get((int) $row['fields_id']);
             if ($field->type == "FieldtypeDatetime") {
                 $input = $field->getInputfield($page);
                 $format = "$input->dateInputFormat $input->timeInputFormat";
@@ -381,15 +381,23 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         }
 
         // Choose a render method and exit with output.
+		$default_language = $this->languages ? $this->languages->default : '';
         if (isset($settings['render']) && $settings['render'] == "Input") {
             $input = $field->getInputfield($page);
-            if (isset($data['data'])) {
-                if ($input instanceof InputfieldTextareas) {
-                    $input->value = $field->type->___wakeupValue($page, $field, $data['data']);
-                } else {
-                    $input->value = $data['data'];
-                }
-            }
+			foreach ($data as $data_key => $data_value) {
+				if ($data_key == 'data' || preg_match('/^data[0-9]*$/', $data_key)) {
+					$data_lang = substr($data_key, 4);
+					if ($data_lang == $default_language) {
+						$data_lang = '';
+					}
+					if ($input instanceof InputfieldTextareas) {
+						$input->setAttribute('value' . $data_lang, $field->type->___wakeupValue($page, $field, $data_value));
+						continue;
+					}
+					$input->setAttribute('value' . $data_lang, $data_value);
+					continue;
+				}
+			}
             $filedata = [];
             $files = null;
             foreach ($data as $key => $value) {
@@ -439,9 +447,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                 exit($input->renderValue());
             }
             exit($input->render());
-        } else {
-            exit($this->renderJSON($data));
         }
+		exit($this->renderJSON($data, $page));
     }
 
     /**
@@ -615,7 +622,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         foreach ($data as $field => $field_data) {
 
             // Check if diff can and should be enabled, and try to read revision from field data.
-            $has_diff = !$this->diff_disabled && $this->wire('fields')->get($field)->type != 'FieldtypeFile';
+			$has_diff = !$this->diff_disabled;
+			if ($has_diff) {
+				$field_name = strpos($field, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field) : $field;
+    	        $field_object = $this->wire('fields')->get($field_name);
+				$has_diff = $field_object !== null && $field_object->type != 'FieldtypeFile';
+			}
             $revision = !empty($field_data) ? $field_data[0]['revision'] : '';
 
             // Check if restore button should be displayed.
@@ -662,7 +674,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                         $row['date'],
                         $user_name,
                         $has_restore ? $buttons['restore'] : '',
-                        $has_diff ? $buttons['compare'] : '',
+                        $has_diff ? $buttons['compare'] : ''
                     );
                 }
                 $table['body'] = sprintf($templates['table_body'], implode($table['body']));
