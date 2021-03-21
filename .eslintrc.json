@@ -1,0 +1,19 @@
+{
+    "root": true,
+    "extends": "eslint:recommended",
+    "parserOptions": {
+        "ecmaVersion": 2018
+    },
+    "env": {
+        "browser": true
+    },
+    "globals": {
+        "browser": true
+    },
+    "rules": {
+        "indent": [
+            "error",
+            "space"
+        ]
+    }
+}
