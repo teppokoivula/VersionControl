@@ -118,6 +118,13 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
      */
     public function cleanupFiles() {
 
+        // get base path for files
+        $files_path = $this->modules->get('VersionControl')->path;
+        if (empty($files_path)) {
+            // bail out early if files path can't be found
+            return;
+        }
+
         // first clean up data files junction table
         $this->database->query("DELETE FROM " . VersionControl::TABLE_DATA_FILES . " WHERE data_id NOT IN (SELECT DISTINCT id FROM " . VersionControl::TABLE_DATA . ")");
 
