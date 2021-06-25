@@ -134,7 +134,7 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         $stmt_del = null;
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             // remove file
-            $dir = $this->path . substr($row['filename'], 0, 2) . "/";
+            $dir = $files_path . substr($row['filename'], 0, 2) . "/";
             $file = $dir . $row['filename'];
             if (is_file($file)) unlink($file);
             // remove file variations (thumbs)
