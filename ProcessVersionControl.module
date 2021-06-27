@@ -227,6 +227,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         // Get field name and revision IDs.
         $field_name = $this->sanitizer->fieldName($this->input->get->field);
         if (!$field_name) throw new WireException("Missing required GET param field");
+        $field_name = strpos($field_name, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field_name) : $field_name;
         $revisions = $this->input->get->revisions ?: null;
         if (!$revisions) throw new WireException("Missing required GET param revisions");
 
