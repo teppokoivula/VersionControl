@@ -9,7 +9,7 @@ use ProcessWire\VersionControl;
 /**
  * Version Control Config
  *
- * @version 1.1.1
+ * @version 1.1.2
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
@@ -69,7 +69,7 @@ class ModuleConfig extends \ProcessWire\Wire {
         $field->label = $this->_("Enable version control for these fields");
         $field->notes = $this->_("Only fields of compatible fieldtypes can be selected. If no fields are selected, all fields of compatible fieldtypes are considered enabled. Removing a field from here will also remove any data stored for it.");
         $field->icon = "file-text-o";
-        $types = implode($data['compatible_fieldtypes'], "|");
+        $types = implode("|", $data['compatible_fieldtypes']);
         $field->addOptions($this->wire('fields')->find("type=$types")->getArray());
         if (isset($data['enabled_fields'])) $field->value = $data['enabled_fields'];
         $fieldset->add($field);
