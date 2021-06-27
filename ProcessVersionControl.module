@@ -8,7 +8,7 @@
  *
  * For more details see the README.md file distributed with this module.
  *
- * @copyright 2013-2020 Teppo Koivula
+ * @copyright 2013-2021 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessVersionControl extends Process implements Module, ConfigurableModule {
@@ -86,7 +86,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if (!$page->editable()) {
             throw new WirePermissionException('Permission denied (Page not editable)');
         }
-        $page_ids = [$pages_id];
+        $page_ids = [':p0' => $pages_id];
 
         // Should date formatting occur?
         $defaults = static::$defaultData;
@@ -97,15 +97,17 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Include Repeater pages.
         // @todo Do we need similar check for RepeaterMatrix and/or PageTable as well?
+        $p_num = 0;
         $repeater_fields = [];
         foreach ($page->fields as $field) {
             if ($field->type == 'FieldtypeRepeater') {
                 $subfields = $this->templates->get($field->template_id)->versionControlFields;
                 if (count($subfields)) {
-                    foreach ($page->$field as $repeater_page) {
-                        $page_ids[] = $repeater_page;
+                    foreach ($page->get($field->name) as $repeater_page) {
+                        ++$p_num;
+                        $page_ids[':p' . $p_num] = $repeater_page->id;
                         foreach ($subfields as $subfield) {
-                            $repeater_fields[] = $subfield . "_repeater" . $repeater_page;
+                            $repeater_fields[] = $subfield . "_repeater" . $repeater_page->id;
                         }
                     }
                 }
@@ -119,11 +121,14 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $stmt = $this->database->prepare("
         SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
         FROM fields f, " . VersionControl::TABLE_REVISIONS . " r, " . VersionControl::TABLE_DATA . " d
-        WHERE r.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND d.revisions_id = r.id AND f.id = d.fields_id
+        WHERE r.pages_id IN (" . implode(',', array_keys($page_ids)) . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
         ORDER BY f.id, d.id DESC
         ");
-        $stmt->execute($page_ids);
+        foreach ($page_ids as $p_num => $p_id) {
+            $stmt->bindValue($p_num, $p_id, \PDO::PARAM_INT);
+        }
+        $stmt->execute();
 
         // Fetch enabled fields.
         $enabled_fields = [];
@@ -351,6 +356,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if (!$field_name) {
             throw new WireException("Missing required GET param field");
         }
+        $field_name = strpos($field_name, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field_name) : $field_name;
 
         // Additional settings.
         $settings = $this->input->get->settings;
@@ -380,24 +386,32 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             $data[$row['property']] = $row['data'];
         }
 
+        // Bail out early if field was not found.
+        if ($field === null) {
+            exit;
+        }
+
         // Choose a render method and exit with output.
-		$default_language = $this->languages ? $this->languages->default : '';
+        $default_language = $this->languages ? $this->languages->default : '';
         if (isset($settings['render']) && $settings['render'] == "Input") {
             $input = $field->getInputfield($page);
-			foreach ($data as $data_key => $data_value) {
-				if ($data_key == 'data' || preg_match('/^data[0-9]*$/', $data_key)) {
-					$data_lang = substr($data_key, 4);
-					if ($data_lang == $default_language) {
-						$data_lang = '';
-					}
-					if ($input instanceof InputfieldTextareas) {
-						$input->setAttribute('value' . $data_lang, $field->type->___wakeupValue($page, $field, $data_value));
-						continue;
-					}
-					$input->setAttribute('value' . $data_lang, $data_value);
-					continue;
-				}
-			}
+            foreach ($data as $data_key => $data_value) {
+                if ($data_key == 'data' || preg_match('/^data[0-9]*$/', $data_key)) {
+                    $data_lang = substr($data_key, 4);
+                    if ($data_lang == $default_language) {
+                        $data_lang = '';
+                    }
+                    if ($input instanceof InputfieldTextareas) {
+                        $input->setAttribute('value' . $data_lang, $field->type->___wakeupValue($page, $field, $data_value));
+                        continue;
+                    }
+                    if ($input instanceof InputfieldRepeater) {
+                        throw new WireException("We don't currently support restoring entire Repeater fields");
+                    }
+                    $input->setAttribute('value' . $data_lang, $data_value);
+                    continue;
+                }
+            }
             $filedata = [];
             $files = null;
             foreach ($data as $key => $value) {
@@ -448,7 +462,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
             exit($input->render());
         }
-		exit($this->renderJSON($data, $page));
+        exit($this->renderJSON($data, $page));
     }
 
     /**
@@ -622,12 +636,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         foreach ($data as $field => $field_data) {
 
             // Check if diff can and should be enabled, and try to read revision from field data.
-			$has_diff = !$this->diff_disabled;
-			if ($has_diff) {
-				$field_name = strpos($field, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field) : $field;
-    	        $field_object = $this->wire('fields')->get($field_name);
-				$has_diff = $field_object !== null && $field_object->type != 'FieldtypeFile';
-			}
+            $has_diff = !$this->diff_disabled;
+            if ($has_diff) {
+                $field_name = strpos($field, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field) : $field;
+                $field_object = $this->wire('fields')->get($field_name);
+                $has_diff = $field_object !== null && $field_object->type != 'FieldtypeFile';
+            }
             $revision = !empty($field_data) ? $field_data[0]['revision'] : '';
 
             // Check if restore button should be displayed.
