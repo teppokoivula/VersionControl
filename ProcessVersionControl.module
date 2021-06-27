@@ -25,7 +25,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
             'summary' => 'Provides the interface required by Version Control.',
             'href' => 'http://modules.processwire.com/modules/version-control/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.0',
+            'version' => '1.3.1',
             'singular' => true,
             'autoload' => false,
             'permission' => 'version-control',
@@ -217,9 +217,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $pages_id = $this->input->get->pages_id ? (int) $this->input->get->pages_id : null;
         if (!$pages_id) throw new WireException("Missing required GET param pages_id");
         $page = $this->pages->get($pages_id);
-        $page_ids = array($pages_id);
+        $page_ids = array(':p0' => $pages_id);
 
         // include repeater pages
+        $p_num = 0;
         $repeater_fields = array();
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
             foreach ($page->fields as $field) {
@@ -227,9 +228,10 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
                     if (count($subfields)) {
                         foreach ($page->$field as $repeater_page) {
-                            $page_ids[] = $repeater_page;
+                            ++$p_num;
+                            $page_ids[':p' . $p_num] = $repeater_page->id;
                             foreach ($subfields as $subfield) {
-                                $repeater_fields[] = $subfield . "_repeater" . $repeater_page;
+                                $repeater_fields[] = $subfield . "_repeater" . $repeater_page->id;
                             }
                         }
                     }
@@ -244,11 +246,14 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt = $this->database->prepare("
         SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
         FROM fields f, " . VersionControl::TABLE_REVISIONS . " r, " . VersionControl::TABLE_DATA . " d
-        WHERE r.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND d.revisions_id = r.id AND f.id = d.fields_id
+        WHERE r.pages_id IN (" . implode(',', array_keys($page_ids)) . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
         ORDER BY f.id, d.id DESC
         ");
-        $stmt->execute($page_ids);
+        foreach ($page_ids as $p_num => $p_id) {
+            $stmt->bindValue($p_num, $p_id, \PDO::PARAM_INT);
+        }
+        $stmt->execute();
 
         // fetch enabled fields
         $enabled_fields = array();
@@ -334,6 +339,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         // get field name and revision ids
         $field_name = $this->sanitizer->fieldName($this->input->get->field);
         if (!$field_name) throw new WireException("Missing required GET param field");
+        $field_name = strpos($field_name, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field_name) : $field_name;
         $revisions = $this->input->get->revisions ?: null;
         if (!$revisions) throw new WireException("Missing required GET param revisions");
 
@@ -448,6 +454,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         if (!$revision_id) throw new WireException("Missing required GET param revision");
         $field_name = $this->sanitizer->fieldName($this->input->get->field);
         if (!$field_name) throw new WireException("Missing required GET param field");
+        $field_name = strpos($field_name, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field_name) : $field_name;
 
         // additional settings
         $settings = $this->input->get->settings;
