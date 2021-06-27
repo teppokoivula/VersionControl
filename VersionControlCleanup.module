@@ -62,12 +62,12 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
 
         // Get main module config data.
-        $mainConfig = array_merge(VersionControl::$defaultData, $this->wire('modules')->getConfig('VersionControl'));
-        if ($mainConfig['enable_all_templates'] || !empty($mainConfig['enabled_templates'])) {
+        $main_config = array_merge(VersionControl::$defaultData, $this->wire('modules')->getConfig('VersionControl'));
+        if ($main_config['enable_all_templates'] || !empty($main_config['enabled_templates'])) {
 
             // Store necessary settings in local properties
-            $this->enable_all_templates = (bool) $mainConfig['enable_all_templates'];
-            $this->enabled_templates = $mainConfig['enabled_templates'] ?? [];
+            $this->enable_all_templates = (bool) $main_config['enable_all_templates'];
+            $this->enabled_templates = $main_config['enabled_templates'] ?? [];
 
             // Add hooks that clear obsolete or orphaned data (cleanup).
             $this->addHookAfter('Pages::deleted', $this, 'cleanupDeletedPage');
@@ -267,14 +267,15 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         $removed_fields_by_template = [];
         $item = $event->arguments[0];
         if ($item instanceof Fieldgroup && $item->id && $item->removedFields) {
+            $main_config = array_merge(VersionControl::$defaultData, $this->wire('modules')->getConfig('VersionControl'));
+            $enabled_templates = $main_config['enable_all_templates'] ? "" : "id=" . implode("|", $main_config['enabled_templates']) . ", ";
             $removed_fields = $item->removedFields->getArray();
-            $enabled_templates = $this->enable_all_templates ? "" : "id=" . implode("|", $this->enabled_templates) . ", ";
             foreach ($this->templates->find("{$enabled_templates}fieldgroups_id={$item->id}") as $template) {
                 foreach ($removed_fields as $id => $field) {
                     if (($field->flags & Field::flagGlobal) && !$template->noGlobal) return;
                     if ($field->flags & Field::flagPermanent) return;
-                    if (!in_array($field->type, $this->compatible_fieldtypes)) unset($removed_fields[$id]);
-                    if (count($this->enabled_fields) && !in_array($id, $this->enabled_fields)) unset($removed_fields[$id]);
+                    if (!in_array($field->type, $main_config['compatible_fieldtypes'])) unset($removed_fields[$id]);
+                    if (!empty($main_config['enabled_fields']) && !in_array($id, $main_config['enabled_fields'])) unset($removed_fields[$id]);
                     if (!isset($removed_fields_by_template[$template->id])) $removed_fields_by_template[$template->id] = [];
                     $removed_fields_by_template[$template->id][] = (int) $field->id;
                 }
