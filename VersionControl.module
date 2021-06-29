@@ -164,6 +164,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
             // Add hooks that inject additional scripts, styles, and markup.
             $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
+            $this->addHookAfter('ProcessProfile::execute', $this, 'inject');
             if (!$this->input->get->field && !$this->input->get->fields) {
 
                 // The history tab shouldn't be added if we're editing a specific field or fieldset.
@@ -592,9 +593,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!$this->user->hasPermission('version-control')) return;
 
         // Make sure that value tracking is enabled for template of the page currently being edited.
-        if ($this->input->get->id) {
-            $page = $this->pages->get((int) $this->input->get->id);
-        }
+        $page = $this->process->getPage();
         if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) return;
 
         // Inject scripts and styles.

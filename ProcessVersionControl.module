@@ -83,7 +83,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             throw new WireException('Missing required GET param pages_id');
         }
         $page = $this->pages->get($pages_id);
-        if (!$page->editable()) {
+        if (!$this->pageEditable($page)) {
             throw new WirePermissionException('Permission denied (Page not editable)');
         }
         $page_ids = [':p0' => $pages_id];
@@ -784,6 +784,23 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $page->_version_control_parent = $revision_id;
 
         return $page;
+    }
+
+    /**
+     * Check if a Page is editable by current user
+     *
+     * @param Page $page
+     * @return bool
+     */
+    protected function pageEditable(Page $page) {
+        if ($page instanceof User) {
+            $process = $this->wire('process');
+            $this->wire('process', $this->user->id === $page->id && $this->user->hasPermission('profile-edit') ? 'ProcessProfile' : 'ProcessUser');
+            $editable = $page->editable();
+            $this->wire('process', $process);
+            return $editable;
+        }
+        return $page->editable();
     }
 
 }
