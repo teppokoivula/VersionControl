@@ -3,13 +3,10 @@
 /**
  * Version Control
  *
- * This module makes it possible to store, view, and restore earlier values of fields and pages.
- * History data is automatically collected for all enabled fields and templates. Stored data can
- * be reviewed and restored via Admin (Page editor GUI) and the API.
- * 
- * Behind the scenes hooks are used to capture changes to individual fields, and to store data and
- * necessary metadata (such as the revision number) into a series of custom database tables.
- * 
+ * This module adds support for storing, viewing, and restoring earlier versions (values) of fields and pages. Data is
+ * automatically harvested for enabled fields and templates and stored in custom database tables. Stored data can be
+ * viewed and restored via the Admin GUI (Page Edit) or the API.
+ *
  * @copyright 2013-2021 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo Regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247).
@@ -155,25 +152,27 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         if ($this->enable_all_templates || !empty($this->enabled_templates)) {
 
-            // Add hooks that gather and store data.
+            // Add hooks that get and store data.
             $this->addHookBefore('Pages::saveReady', $this, 'restoreFiles');
-            $this->addHook('Pages::saveReady', $this, 'gather'); 
-            $this->addHookBefore('Pages::saveField', $this, 'gather');
-            $this->addHookAfter('Pages::save', $this, 'insert');
-            $this->addHookAfter('Pages::saveField', $this, 'insert');
+            $this->addHook('Pages::savePageOrFieldReady', function(HookEvent $event) {
+                $this->readPageData($event->arguments[0]);
+            });
+            $this->addHook('Pages::savedPageOrField', function(HookEvent $event) {
+                $this->savePageData($event->arguments[0]);
+            });
 
-            // Add hooks that inject additional scripts, styles, and markup.
-            $this->addHookAfter('ProcessPageEdit::execute', $this, 'inject');
-            $this->addHookAfter('ProcessProfile::execute', $this, 'inject');
+            // Add hooks that load additional scripts and styles.
+            $this->addHookAfter('ProcessPageEdit::execute', $this, 'loadResources');
+            $this->addHookAfter('ProcessProfile::execute', $this, 'loadResources');
+
+            // If we're editing a full page, add hook that builds the history tab.
             if (!$this->input->get->field && !$this->input->get->fields) {
-
-                // The history tab shouldn't be added if we're editing a specific field or fieldset.
                 $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
             }
 
             // Add hooks that alter the output of image and file inputfields on the fly.
-            $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHash');
-            $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHash');
+            $this->addHookBefore('InputfieldImage::renderItem', $this, 'captureHashes');
+            $this->addHookBefore('InputfieldFile::renderItem', $this, 'captureHashes');
             $this->addHookAfter('InputfieldFile::renderList', $this, 'replaceHashes');
 
             // Add hook that removes hashes within text content of a rendered page.
@@ -207,35 +206,37 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param HookEvent $event
      */
-    protected function captureHash(HookEvent $event) {
+    protected function captureHashes(HookEvent $event) {
+
+        // Get item being rendered.
         $item = $event->arguments[0];
-        if ($item->_version_control_basename) {
-            if (!isset($this->hash_map['>' . $item->basename . '<'])) {
+        if (!$item->_version_control_basename) return;
 
-                // Full filename.
-                $this->hash_map['>' . $item->basename . '<'] = '>' . $item->_version_control_basename . '<';
+        // Bail out early if this particular hash is already stored.
+        if (isset($this->hash_map['>' . $item->basename . '<'])) return;
 
-                // Filename without extension (for InputfieldImage).
-                $basename = mb_substr($item->basename, 0, mb_strrpos($item->basename, '.'));
-                $version_control_basename = mb_substr($item->_version_control_basename, 0, mb_strrpos($item->_version_control_basename, '.'));
-                $this->hash_map['>' . $basename . '<'] = '>' . $version_control_basename . '<';
+        // Full filename.
+        $this->hash_map['>' . $item->basename . '<'] = '>' . $item->_version_control_basename . '<';
 
-                // Shortened filename (for InputfieldFile). Note: this does the same thing as the
-                // InputfieldFile getDisplayBasename() method and might be removed at some point.
-                if (!$event->object->noShortName && mb_strlen($item->basename) > 25) {
-                    $ext = '.' . $item->ext;
-                    $basename = mb_substr(basename($item->basename, $ext), 0, 25-(mb_strlen($ext)+1)) . '&hellip;' . ltrim($ext, '.');
-                    $version_control_basename = $item->_version_control_basename;
-                    if (mb_strlen($version_control_basename) > 25) {
-                        $version_control_basename = mb_substr(
-                            basename($version_control_basename, $ext),
-                            0,
-                            25 - (mb_strlen($ext) + 1)
-                        ) . "&hellip;" . ltrim($ext, '.');
-                    }
-                    $this->hash_map['>' . $basename . '<'] = '>' . $version_control_basename . '<';
-                }
+        // Filename without extension (for InputfieldImage).
+        $basename = mb_substr($item->basename, 0, mb_strrpos($item->basename, '.'));
+        $version_control_basename = mb_substr($item->_version_control_basename, 0, mb_strrpos($item->_version_control_basename, '.'));
+        $this->hash_map['>' . $basename . '<'] = '>' . $version_control_basename . '<';
+
+        // Shortened filename (for InputfieldFile). Note: this does the same thing as the
+        // InputfieldFile getDisplayBasename() method and might be removed at some point.
+        if (!$event->object->noShortName && mb_strlen($item->basename) > 25) {
+            $ext = '.' . $item->ext;
+            $basename = mb_substr(basename($item->basename, $ext), 0, 25-(mb_strlen($ext)+1)) . '&hellip;' . ltrim($ext, '.');
+            $version_control_basename = $item->_version_control_basename;
+            if (mb_strlen($version_control_basename) > 25) {
+                $version_control_basename = mb_substr(
+                    basename($version_control_basename, $ext),
+                    0,
+                    25 - (mb_strlen($ext) + 1)
+                ) . "&hellip;" . ltrim($ext, '.');
             }
+            $this->hash_map['>' . $basename . '<'] = '>' . $version_control_basename . '<';
         }
     }
 
@@ -257,10 +258,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Attempt to replace hashes within text content of rendered page output
      * 
-     * This only applies to preview mode, i.e. when we're checking out the
-     * contents of a page in a specific revision. We're also going to leave
-     * those paths as-is that look like full URLs, because we don't want to
-     * prevent embedding images etc. from the version control file directory.
+     * This only applies to preview mode, i.e. when we're checking out the contents of a page in a specific revision.
+     * We're also going to leave those paths as-is that look like full URLs, because we don't want to prevent
+     * embedding images etc. from the version control file directory.
      *
      * @todo Consider making this feature configurable: on/off, custom rule?
      * @param HookEvent $event
@@ -273,74 +273,74 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Update file fields if Page has variable _version_control_filedata set
-     * or if special POST variable 'version_control_filedata' was received.
+     * Update file fields if Page has _version_control_filedata or if POST param version_control_filedata is set
      * 
-     * Note: Page variable is set by PageSnapshot during API usage, while
-     * POST variable is added by ProcessVersionControl during page edit.
+     * Note: Page property is set by PageSnapshot when used via API while POST data is added by ProcessVersionControl
+     * when editing the Page.
      *
      * @param HookEvent $event
      */
     protected function restoreFiles(HookEvent $event) {
+
+        // Get Page and prepare file data.
         $page = $event->arguments[0];
+        $page->_version_control_filedata = $page->_version_control_filedata ?: $this->input->post->version_control_filedata;
         if (!$page->_version_control_filedata) {
-            $page->_version_control_filedata = $this->input->post->version_control_filedata;
+            return;
         }
-        if ($page->_version_control_filedata) {
-            $page_current = clone($page);
-            $page_current->uncache();
-            // Remove hooks PageSnapshot uses to prevent installing pagefiles.
-            $this->modules->PageSnapshot->removePagefileHooks();
-            foreach ($page->_version_control_filedata as $filedata) {
-                $filedata = json_decode($filedata, true);
-                foreach ($filedata as $field => $items) {
-                    // Remove old files from disk and then from field itself.
-                    foreach ($page_current->$field as $file) $file->unlink();
-                    $page->$field->deleteAll();
-                    // Note: saving the field at this point helps avoid naming conflicts between new
-                    // and old files, and prevents restored files from being accidentally removed.
-                    $this->pages->___saveField($page, $field, [
-                        'quiet' => true,
-                        'noHooks' => true,
-                    ]);
-                    // Add new files to the field. Field copies these files to the correct location
-                    // automatically, but we'll have to rename them to original filename by removing
-                    // the hash prefixes added for storage.
-                    if (is_array($items)) {
-                        foreach ($items as $item) {
-                            $page->$field->add($item['filename']);
-                            $basename = basename($item['filename']);
-                            $clean_basename = substr($basename, strpos($basename, '.')+1);
-                            $page->$field->last()->rename(str_replace($basename, $clean_basename, $item['filename']));
-                            $page->$field->last()->description = $item['description'];
-                            $page->$field->last()->modified = $item['modified'];
-                            $page->$field->last()->created = $item['created'];
-                            if (isset($item['tags'])) {
-                                $page->$field->last()->tags = $item['tags'];
-                            }
+
+        // Get current (uncached) version of the Page.
+        $page_current = clone($page);
+        $page_current->uncache();
+
+        // Remove hooks used by PageSnapshot to prevent installing pagefiles.
+        $this->modules->PageSnapshot->removePagefileHooks();
+
+        foreach ($page->_version_control_filedata as $filedata) {
+            $filedata = json_decode($filedata, true);
+            foreach ($filedata as $field => $items) {
+
+                // Remove old files from disk and then from field itself.
+                foreach ($page_current->$field as $file) $file->unlink();
+                $page->$field->deleteAll();
+
+                // Note: saving the field at this point helps avoid naming conflicts between new
+                // and old files, and prevents restored files from being accidentally removed.
+                $this->pages->___saveField($page, $field, [
+                    'quiet' => true,
+                    'noHooks' => true,
+                ]);
+
+                // Add new files to the field. Field copies these files to the correct location
+                // automatically, but we'll have to rename them to original filename by removing
+                // the hash prefixes added for storage.
+                if (is_array($items)) {
+                    foreach ($items as $item) {
+                        $page->$field->add($item['filename']);
+                        $basename = basename($item['filename']);
+                        $clean_basename = substr($basename, strpos($basename, '.')+1);
+                        $page->$field->last()->rename(str_replace($basename, $clean_basename, $item['filename']));
+                        $page->$field->last()->description = $item['description'];
+                        $page->$field->last()->modified = $item['modified'];
+                        $page->$field->last()->created = $item['created'];
+                        if (isset($item['tags'])) {
+                            $page->$field->last()->tags = $item['tags'];
                         }
                     }
                 }
             }
-            unset($page->_version_control_filedata);
         }
+
+        // File data is no longer needed so we'll discard it.
+        unset($page->_version_control_filedata);
     }
 
     /**
-     * After page has been edited track changed fields and trigger insert method to save their
-     * values to database (or any other applicable storage medium).
+     * Read data from a Page for storage
      *
-     * @param HookEvent|Page $object
+     * @param Page $page
      */
-    protected function gather($object) {
-
-        if ($object instanceof HookEvent) {
-            $page = $object->arguments[0];
-        } else if ($object instanceof Page) {
-            $page = $object;
-        } else {
-            throw new WireException("Wrong param type: expecting HookEvent or Page");
-        }
+    protected function readPageData(Page $page) {
 
         // If Page has no ID, it's currently being added.
         $page_id = $page->id ?: 0;
@@ -410,24 +410,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Store new data in database (and disk, if files or images are involved)
+     * Store data in database (and disk, in case files or images are involved)
      *
-     * @param HookEvent|Page $object
-     * @todo consider adding support for automatically compressing file data
+     * @param Page $object
      */
-    protected function insert($object) {
+    protected function savePageData(Page $page) {
 
         // Bail out early if no page data exists.
         if (!$this->page_data) return;
-
-        // Fetch the Page object.
-        if ($object instanceof HookEvent) {
-            $page = $object->arguments[0];
-        } else if ($object instanceof Page) {
-            $page = $object;
-        } else {
-            throw new WireException('Wrong param type: expecting HookEvent or Page');
-        }
 
         // Bail out early if current page is a repeater parent ("for-page-n" or "for-field-n").
         if ($page->template == 'admin' && strpos($page->name, 'for-') === 0) return;
@@ -577,14 +567,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * This function is executed before page markup has been created
-     *
-     * Used for injecting custom scripts, styles and/or markup to admin page. Purpose of these is
-     * to allow viewing and possibly managing version history.
+     * Load resources (scripts/styles) in admin
      *
      * @param HookEvent $event
      */
-    protected function inject(HookEvent $event) {
+    protected function loadResources(HookEvent $event) {
 
         // This only applies to GET requests.
         if ($_SERVER['REQUEST_METHOD'] !== "GET") return;
@@ -596,15 +583,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $page = $this->process->getPage();
         if (!$page || !$page->id || !$this->isEnabledTemplate($page->template)) return;
 
-        // Inject scripts and styles.
-        $moduleURL = $this->config->urls->get('VersionControl');
+        // Scripts and styles.
+        $module_url = $this->config->urls->get('VersionControl');
         $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
-        $this->config->styles->add($moduleURL . 'resources/css/VersionControl.min.css?v=' . $version);
-        $this->config->scripts->add($moduleURL . 'resources/js/VersionControl.min.js?v=' . $version);
+        $this->config->styles->add($module_url . 'resources/css/VersionControl.min.css?v=' . $version);
+        $this->config->scripts->add($module_url . 'resources/js/VersionControl.min.js?v=' . $version);
 
-        // Inject settings and translations.
+        // Settings and translations.
         $process = $this->modules->getModuleID('ProcessVersionControl');
-        $processPage = $this->pages->get('process=' . $process);
+        $process_page = $this->pages->get('process=' . $process);
         $this->config->js('VersionControl', [
             'i18n' => [
                 'compareWithCurrent' => $this->_('Compare with current'),
@@ -624,7 +611,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             ],
             'pageID' => $page->id,
             'moduleDir' => $this->config->urls->get('VersionControl'),
-            'processPage' => $processPage->url(),
+            'processPage' => $process_page->url(),
         ]);
     }
 
@@ -770,10 +757,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $fieldset->add($field);
         }
 
-        // Inject scripts.
-        $moduleURL = $this->wire('config')->urls->get('VersionControl');
+        // Load scripts.
+        $module_url = $this->wire('config')->urls->get('VersionControl');
         $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
-        $this->wire('config')->scripts->add($moduleURL . 'resources/js/HistoryTab.min.js?v=' . $version);
+        $this->wire('config')->scripts->add($module_url . 'resources/js/HistoryTab.min.js?v=' . $version);
 
         // Insert the tab to the Page Edit form.
         $form->prepend($wrapper);
@@ -816,13 +803,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Get full history of a specific page as an array
      *
-     * This method is similar to $page->versionControlRevisions(), but in this
-     * case the return value includes more information, supports pagination,
-     * and also takes possible filters into account.
+     * This method is similar to Page::versionControlRevisions(), but in this case the return value includes more
+     * details, supports pagination, and takes possible filters into account.
      *
-     * While $start and $limit are optional, omitting limit is not recommended.
-     * Without a sensible limit the result set could be massive, consuming vast
-     * amounts of memory, *and* it could take a very long time to retrieve.
+     * While $start and $limit are optional, including limit is recommended. Without a sensible limit the result set
+     * can be very large, leading to high memory consumption and slow load time.
      *
      * @param Page $page
      * @param int $start
@@ -837,9 +822,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             return null;
         }
 
-        // cache usernames for later use.
+        // Cache usernames for later use.
         if (empty($this->users_cache)) {
-            $this->generateUsersCache($page);
+            $this->cacheUsers($page);
         }
 
         // Gather WHERE rules (page, filters).
@@ -947,7 +932,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      *
      * @param Page $page
      */
-    protected function generateUsersCache(Page $page) {
+    protected function cacheUsers(Page $page) {
         $users = [];
         $stmt = $this->database->prepare("SELECT DISTINCT users_id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id");
         $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
@@ -956,31 +941,36 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $user = $this->wire('users')->get((int) $row['users_id']);
             if ($user->id) {
                 $users[$user->name] = $user->id;
-            } else {
-                $stmt = $this->database->prepare("SELECT username FROM " . self::TABLE_REVISIONS . " WHERE users_id = :users_id LIMIT 1");
-                $stmt->bindValue(':users_id', $row['users_id'], \PDO::PARAM_INT);
-                $stmt->execute();
-                $user = $stmt->fetch(\PDO::FETCH_ASSOC);
-                $users[$user['username']] = $row['users_id'];
+                continue;
             }
+            $stmt = $this->database->prepare("SELECT username FROM " . self::TABLE_REVISIONS . " WHERE users_id = :users_id LIMIT 1");
+            $stmt->bindValue(':users_id', $row['users_id'], \PDO::PARAM_INT);
+            $stmt->execute();
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $users[$user['username']] = $row['users_id'];
         }
         ksort($users);
         $this->users_cache = array_flip($users);
     }
 
     /**
-     * Find out which fields belonging to current template have version
-     * control enabled. Added as a new property "versionControlFields"
-     * to Template object.
+     * Find out which fields belonging to current template have version control enabled
+     *
+     * This method adds new "versionControlFields" property to Template objects.
      *
      * @param HookEvent $event
      */
     protected function versionControlFields(HookEvent $event) {
 
         $template = $event->object;
+        if (!$this->isEnabledTemplate($template)) return;
+
+        // If enabled_fields is empty, all fields are enabled.
         if (empty($this->enabled_fields)) {
-            return $event->return = $template->fields;
+            $event->return = $template->fields;
+            return;
         }
+
         $fields = new Fieldgroup();
         foreach ($this->enabled_fields as $field) {
             if ($template->hasField($field)) {
@@ -992,8 +982,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Find out the revision number of current page. Added as a new property
-     * "versionControlRevision" to Page object.
+     * Find out the revision number of current page
+     *
+     * This method adds new "versionControlRevision" property to Page objects.
      *
      * @param HookEvent $event
      */
@@ -1020,10 +1011,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Find existing revisions of current page
      *
-     * Adds new versionControlRevisions() method to Pages. This method can take
-     * optional $limit param (int), which defines how many revisions should be
-     * returned. Returns an array with revision IDs as keys and datetimes as
-     * values, current revision always being the first array item:
+     * Adds new method Page::versionControlRevisions(). This method accepts optional $limit param (int), which defines
+     * how many revisions should be returned. Returns an array with revision IDs as keys and datetimes as values, with
+     * current revision always as the first array item:
      *
      * [
      *     3 => '2014-01-01 01:15:00', // current revision
@@ -1340,8 +1330,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $count = 0;
                 $template = $this->templates->get((int) $template);
                 foreach ($this->pages->find('template=' . $template . ', include=all') as $page) {
-                    $this->gather($page);
-                    $this->insert($page);
+                    $this->getPageData($page);
+                    $this->savePageData($page);
                     ++$count;
                     ++$cache_items;
                     if ($cache_items > 100) {
@@ -1479,21 +1469,18 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function isEnabledTemplate(Template $template): bool {
         if ($template->name == 'language') {
             return false;
-        } else if ($this->enable_all_templates) {
-            return true;
-        } else if (in_array($template->id, $this->enabled_templates)) {
+        }
+        if ($this->enable_all_templates || in_array($template->id, $this->enabled_templates)) {
             return true;
         }
         return false;
     }
 
     /**
-     * Custom getter for caching runtime variables. If a key is unrecognized,
-     * we pass the request to the parent class.
+     * Custom getter for caching runtime variables
      *
-     * We're using the files directory of our process module as file storage;
-     * main feature of this method is fetching and caching it's path and URL.
-     * If this directory doesn't exist, we create it when first requested.
+     * Note: we use the files directory of the page associated with ProcessVersionControl as file storage. This method
+     * finds and caches the path and URL of this directory, and creates it if it doesn't exist yet.
      *
      * @param string $key
      * @return mixed
@@ -1537,8 +1524,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Method overloading support
      *
-     * This method provides access to companion module methods. For an example if a cleanup* method
-     * is requested, we check if VersionControlCleanup has a matching method, calling that instead.
+     * This method provides access to companion module features. For an example if a cleanup method is requested, we
+     * check if it exists in VersionControlCleanup and then pass the request there.
      *
      * @param string $method Method name.
      * @param array $arguments Array of arguments.
