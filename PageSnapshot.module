@@ -6,7 +6,7 @@
  * Original code for this module was posted by SteveB at the ProcessWire support forum:
  * https://processwire.com/talk/topic/2892-module-version-control-for-text-fields/?p=50438
  *
- * @copyright 2014-2019 Teppo Koivula & SteveB
+ * @copyright 2014-2021 Teppo Koivula & SteveB
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class PageSnapshot extends WireData implements Module {
@@ -46,15 +46,15 @@ class PageSnapshot extends WireData implements Module {
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 foreach ($value as $subkey => $subvalue) {
-                    list($id, $field, $property) = explode(".", $subkey);
-                    $language = str_replace("data", "", $property);
-                    if (!$language) $page->$key->get("id=$id")->$field = $subvalue;
+                    list($id, $field, $property) = explode('.', $subkey);
+                    $language = str_replace('data', '', $property);
+                    if (!$language) $page->get($key)->get('id=' . $id)->$field = $subvalue;
                     else if ($language = $this->languages->get((int) $language)) {
-                        $page->$key->get("id=$id")->$field->setLanguageValue($language, $subvalue);
+                        $page->get($key)->get('id=' . $id)->$field->setLanguageValue($language, $subvalue);
                     }
                 }
             } else {
-                list($field, $count, $property) = array_pad(explode(".", $key), 3, 0);
+                list($field, $count, $property) = array_pad(explode('.', $key), 3, 0);
                 if ($property) {
                     // multipart property (n.data), i.e. file or image field
                     if (is_null($value)) {
@@ -67,7 +67,7 @@ class PageSnapshot extends WireData implements Module {
                 } else {
                     // "regular" property (data, data1001 etc.)
                     $property = $count;
-                    $language = str_replace("data", "", $property);
+                    $language = str_replace('data', '', $property);
                     if (!$language) {
                         // not a language value (data)
                         if ($page->$field != $value) {
@@ -108,7 +108,7 @@ class PageSnapshot extends WireData implements Module {
                 if (is_array($items)) {
                     ksort($items);
                     foreach ($items as $key => $item) {
-                        $filename = substr($item['filename'], 0, 2) . "/" . $item['filename'];
+                        $filename = substr($item['filename'], 0, 2) . '/' . $item['filename'];
                         $page->$field = $this->modules->VersionControl->path . $filename;
                         $page->$field->last()->description = $item['description'];
                         $page->$field->last()->modified = $item['modified'];
@@ -192,27 +192,35 @@ class PageSnapshot extends WireData implements Module {
         // revision info
         $page->_version_control_revision = null;
         if ($revision_id) {
-            if (!is_integer($revision_id)) throw new WireException("Revision ID must be an integer");
+            if (!is_integer($revision_id)) {
+                throw new WireException("Revision ID must be an integer");
+            }
             $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
             $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
             $stmt->execute();
             $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
-            if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+            if (!$revision) {
+                throw new WireException('Revision doesn\'t exist: ' . $revision_id);
+            }
             $page->_version_control_revision = $revision_id;
         }
 
         // default value for time
-        if (empty($time)) $time = $revision_id ? strtotime($revision['timestamp']) : time();
-        
+        if (empty($time)) {
+            $time = $revision_id ? strtotime($revision['timestamp']) : time();
+        }
+
         // include repeater pages
-        $page_ids = [$page->id];
+        $page_ids = [':p0' => $page->id];
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
+            $p_num = 0;
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
-                    if (!empty($subfields)) {
-                        foreach ($page->$field as $repeater_page) {
-                            $page_ids[] = $repeater_page->id;
+                    if (count($subfields)) {
+                        foreach ($page->get($field->name) as $repeater_page) {
+                            ++$p_num;
+                            $page_ids[':p' . $p_num] = $repeater_page->id;
                         }
                     }
                 }
@@ -220,24 +228,28 @@ class PageSnapshot extends WireData implements Module {
         }
 
         // find values
-        $where = $revision_id ? "t1.id <= ? AND " : "";
-        $stmt = $this->database->prepare($sql = "
+        $where = $revision_id ? 't1.id <= :revision_id AND ' : '';
+        $stmt = $this->database->prepare('
         SELECT t1.pages_id, t1.id AS revision, t2.fields_id, t2.property, t2.data
         FROM (
             SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
-            FROM " . VersionControl::TABLE_REVISIONS . " AS t1, " . VersionControl::TABLE_DATA . " AS t2
-            WHERE {$where}t1.pages_id IN (" . rtrim(str_repeat('?, ', count($page_ids)), ', ') . ") AND t1.timestamp <= FROM_UNIXTIME(?) AND t2.revisions_id = t1.id
+            FROM ' . VersionControl::TABLE_REVISIONS . ' AS t1, ' . VersionControl::TABLE_DATA . ' AS t2
+            WHERE ' . $where . 't1.pages_id IN (' . implode(',', array_keys($page_ids)) . ') AND t1.timestamp <= :time AND t2.revisions_id = t1.id
             GROUP BY t1.pages_id, t2.fields_id, t2.property
         ) AS t1
-        INNER JOIN " . VersionControl::TABLE_DATA . " AS t2
+        INNER JOIN ' . VersionControl::TABLE_DATA . ' AS t2
         ON t2.revisions_id = t1.id AND t2.fields_id = t1.fields_id
-        GROUP BY t1.pages_id, t2.fields_id, t2.property
+        GROUP BY revision, t1.pages_id, t2.fields_id, t2.property, t2.data
         ORDER BY revision ASC
-        ");
-        $input_parameters = $where ? [$revision_id] : [];
-        $input_parameters = array_merge($input_parameters, $page_ids);
-        $input_parameters[] = $time;
-        $stmt->execute($input_parameters);
+        ');
+        if ($where) {
+            $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
+        }
+        foreach ($page_ids as $p_num => $p_id) {
+            $stmt->bindValue($p_num, $p_id, \PDO::PARAM_INT);
+        }
+        $stmt->bindValue(':time', date('Y-m-d H:i:s', $time), \PDO::PARAM_STR);
+        $stmt->execute();
 
         // generate data (associative array)
         $data = [];
@@ -247,13 +259,13 @@ class PageSnapshot extends WireData implements Module {
                 $repeater_page = $this->pages->get($row['pages_id']);
                 if ($repeater_page->id) {
                     $grandparent = $repeater_page->parent()->parent()->name;
-                    if (strpos($grandparent, "for-field-") === 0) {
+                    if (strpos($grandparent, 'for-field-') === 0) {
                         $repeater_field = $this->fields->get((int) substr($grandparent, 10))->name;
-                        $data[$repeater_field][$repeater_page.".".$field.".".$row['property']] = $row['data'];
+                        $data[$repeater_field][$repeater_page . '.' . $field . '.' . $row['property']] = $row['data'];
                     }
                 }
             } else {
-                $data[$field.".".$row['property']] = $row['data'];
+                $data[$field . '.' . $row['property']] = $row['data'];
                 if (!$revision_id && $row['revision'] > $page->_version_control_revision) {
                     $page->_version_control_revision = $row['revision'];
                 }
