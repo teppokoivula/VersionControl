@@ -158,7 +158,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $this->readPageData($event->arguments[0]);
             });
             $this->addHook('Pages::saveFieldReady', function(HookEvent $event) {
-                $this->readPageData($event->arguments[0], $event->arguments[0]);
+                $this->readPageData($event->arguments[0], $event->arguments[1]);
             });
             $this->addHook('Pages::saved', function(HookEvent $event) {
                 $this->savePageData($event->arguments[0]);
