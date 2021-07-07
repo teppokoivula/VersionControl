@@ -9,7 +9,7 @@ use ProcessWire\VersionControl;
 /**
  * Version Control Config
  *
- * @version 1.1.2
+ * @version 1.2.0
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
@@ -126,16 +126,23 @@ class ModuleConfig extends \ProcessWire\Wire {
         $field->label = $this->_("Compatible fieldtypes");
         $field->description = $this->_("Fieldtypes considered compatible with this module.");
         $field->icon = 'list-alt';
-        $selectable_fieldtypes = $modules->find('className^=Fieldtype');
-        foreach ($selectable_fieldtypes as $key => $fieldtype) {
-            // remove native fieldtypes known to be incompatible
-            if ($fieldtype == "FieldtypePassword" || strpos($fieldtype->name, "FieldtypeFieldset") === 0) {
-                unset($selectable_fieldtypes[$key]);
+        $incompatible_fieldtype_options = [
+            'FieldtypePassword',
+            'FieldtypeFieldsetOpen',
+            'FieldtypeFieldsetClose',
+            'FieldtypeFieldsetTabOpen',
+            'FieldtypeFieldsetTabClose',
+            'FieldtypeFieldsetPage',
+        ];
+        foreach ($modules->find('className^=Fieldtype') as $fieldtype) {
+            if (in_array($fieldtype->name, $incompatible_fieldtype_options)) {
+                continue;
             }
+            $field->addOption($fieldtype->name);
         }
-        $field->addOptions($selectable_fieldtypes->getArray());
-        $field->notes = $this->_("Please note that selecting any fieldtypes not selected by default may result in various problems.");
         if (isset($data['compatible_fieldtypes'])) $field->value = $data['compatible_fieldtypes'];
+        $field->notes = $this->_("Please note that selecting any fieldtypes not selected by default may result in various problems.");
+        $field->notes .= $this->getCompatibleFieldtypeDiff($field->value);
         $fieldset->add($field);
 
         // enable version control for *all* templates
@@ -148,6 +155,38 @@ class ModuleConfig extends \ProcessWire\Wire {
         $fieldset->add($field);
 
         return $fields;
+    }
+
+    /**
+     * Get a list of changes (additions and removals) made to the compatible fieldtypes setting
+     *
+     * @param array $compatible_fieldtypes Current list of compatible fieldtypes.
+     * @return string String representation of the changes.
+     */
+    protected function getCompatibleFieldtypeDiff(array $compatible_fieldtypes): string {
+
+        // get a diff by comparing module default setting value and current setting value
+        $base = \ProcessWire\VersionControl::$defaultData['compatible_fieldtypes'];
+        $diff = array_filter([
+            'added' => implode(', ', array_diff($compatible_fieldtypes, $base)),
+            'removed' => implode(', ', array_filter(array_diff($base, $compatible_fieldtypes), function($fieldtype) {
+                return $this->wire('modules')->isInstalled($fieldtype);
+            })),
+        ]);
+
+        // construct output string
+        $out = "";
+        if (!empty($diff)) {
+            $out .= "\n";
+            if (!empty($diff['added'])) {
+                $out .= "\n+ " . sprintf($this->_('Added fieldtypes: %s'), $diff['added']);
+            }
+            if (!empty($diff['removed'])) {
+                $out .= "\n- " . sprintf($this->_('Removed fieldtypes: %s'), $diff['removed']);
+            }
+        }
+
+        return $out;
     }
 
 }
