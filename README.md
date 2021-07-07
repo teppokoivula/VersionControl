@@ -118,19 +118,18 @@ interested in submitting a pull request or otherwise participating in the develo
 
 ### Resources
 
-Resources (JS and CSS) required by this module are in the resources directory under the main module
-directory. For each version there's a ".min" version, which contains minified verison of the file.
-Currently there's no build process built-in, but these files can be created from the command-line
-(assuming that cleancss and uglifyjs have been installed) with following commands:
+Resources (JS and CSS) required by this module are in the res directory. For each resource there's
+also a ".min" version, which contains minified version of the file. There's no build process, but
+minified files can be created via command-line using cleancss and uglifyjs:
 
 ```
 # CSS
-find resources/css/ -maxdepth 1 -type f -name "*.css" ! -name "*.min.*" \
+find res/css/ -maxdepth 1 -type f -name "*.css" ! -name "*.min.*" \
     -exec echo {} \; \
     -exec sh -c 'cleancss --source-map -o "${1%.css}.min.css" "$1"' sh {} \;
 
 # JS
-find resources/js/ -maxdepth 1 -type f -name "*.js" ! -name "*.min.*" \
+find res/js/ -maxdepth 1 -type f -name "*.js" ! -name "*.min.*" \
     -exec echo {} \; \
     -exec sh -c 'uglifyjs "$1" --compress --mangle --source-map -o "${1%.js}.min.js"' sh {} \;
 ```

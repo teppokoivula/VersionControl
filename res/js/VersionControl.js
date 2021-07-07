@@ -314,7 +314,7 @@ $(function() {
                 ds = '<em>' + moduleConfig.i18n.noDiff + '</em>';
             } else {
                 if (typeof diff_match_patch != 'function') {
-                    $.getScript(moduleConfig.moduleDir + "resources/js/diff_match_patch/diff_match_patch.js", function() {
+                    $.getScript(moduleConfig.moduleDir + "res/js/diff_match_patch/diff_match_patch.js", function() {
                         enableDiffMatchPatch(r1, r2);
                     });
                     return false;
