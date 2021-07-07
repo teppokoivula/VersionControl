@@ -1,4 +1,8 @@
-<?php namespace ProcessWire;
+<?php
+
+namespace ProcessWire;
+
+use \VersionControl\i18n;
 
 /**
  * Version Control
@@ -76,8 +80,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Name of the revisions database table
      *
-     * Revisions table keeps track of revision numbers, which are system wide, and stores important
-     * metadata, such as dates, user ID's, and page ID's.
+     * Revisions table keeps track of revision numbers, which are system wide, and stores important metadata, such as
+     * dates, user IDs, and page IDs.
      *
      * @var string
      */
@@ -93,9 +97,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Name of the databae table containing metadata for stored files
      *
-     * Having file metadata stored in the database makes tasks such as mime type checking and
-     * fetching file sizes and file hashes fast. Another benefit is easier and more efficient
-     * cleanup for orphaned files.
+     * Having file metadata stored in the database makes tasks such as mime type checking and fetching file sizes and
+     * file hashes fast. Another benefit is easier and more efficient cleanup for orphaned files.
      *
      * @var string
      */
@@ -111,9 +114,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Populate the default config data
      *
-     * ProcessWire will automatically overwrite it with anything the user has specifically configured.
-     * This is done in construct() rather than init() because ProcessWire populates config data after
-     * construct(), but before init().
+     * ProcessWire will automatically overwrite it with anything the user has specifically configured. This is done in
+     * construct() rather than init() because ProcessWire populates config data after construct(), but before init().
      */
     public function __construct() {
         foreach (static::$defaultData as $key => $value) {
@@ -124,9 +126,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     /**
      * Module configuration
      *
-     * Note: some configuration inputfields are pulled from the companion modules Process Version
-     * Control and Version Control Cleanup. This makes configuration options of the module bundle
-     * easier to grasp, and harder to miss by accident.
+     * Note: some configuration inputfields are pulled from the companion modules Process Version Control and Version
+     * Control Cleanup. This makes configuration options easier to grasp and harder to miss by accident.
      *
      * @param array $data
      * @return InputfieldWrapper
@@ -173,7 +174,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
             // If we're editing a full page, add hook that builds the history tab.
             if (!$this->input->get->field && !$this->input->get->fields) {
-                $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'buildFormHistory');
+                $this->addhookAfter('ProcessPageEdit::buildForm', $this, 'addHistoryTab');
             }
 
             // Add hooks that alter the output of image and file inputfields on the fly.
@@ -199,12 +200,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * Add VersionControl namespace to ProcessWire's class autoloader
      */
     public function initClassLoader() {
-        if (!$this->wire('classLoader')->hasNamespace('VersionControl')) {
-            $this->wire('classLoader')->addNamespace(
-                'VersionControl',
-                $this->wire('config')->paths->get('VersionControl') . 'lib/'
-            );
-        }
+        if ($this->wire('classLoader')->hasNamespace('VersionControl')) return;
+        $this->wire('classLoader')->addNamespace(
+            'VersionControl',
+            $this->wire('config')->paths->get('VersionControl') . 'lib/'
+        );
     }
 
     /**
@@ -252,13 +252,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param HookEvent $event
      */
     protected function replaceHashes(HookEvent $event) {
-        if (!empty($this->hash_map)) {
-            $event->return = str_replace(
-                array_keys($this->hash_map), 
-                array_values($this->hash_map), 
-                $event->return
-            );
-        }
+        if (empty($this->hash_map)) return;
+        $event->return = str_replace(
+            array_keys($this->hash_map),
+            array_values($this->hash_map),
+            $event->return
+        );
     }
 
     /**
@@ -272,10 +271,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param HookEvent $event
      */
     protected function replaceTextHashes(HookEvent $event) {
-        if ($this->input->get->revision) {
-            $url = preg_quote($this->modules->VersionControl->url, "#");
-            $event->return = preg_replace("#(?<!{$url}[a-z0-9]{2}/)[a-z0-9]{40}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
-        }
+        if (!$this->input->get->revision) return;
+        $url = preg_quote($this->modules->VersionControl->url, "#");
+        $event->return = preg_replace("#(?<!{$url}[a-z0-9]{2}/)[a-z0-9]{40}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
     }
 
     /**
@@ -380,7 +378,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     if (!isset($this->page_data[$page_id])) {
                         $this->page_data[$page_id] = [];
                     }
-                    $data_array = [];
+                    $data_array = [
+                        'data' => $data,
+                    ];
                     if ($data instanceof Pagefiles) {
                         // Note: originally 'sort' value of each item was used instead of a custom
                         // counter, but that's not always available when working over the API.
@@ -407,10 +407,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             if ($key == 'data') continue;
                             $data_array[$key] = $data->getLanguageValue(str_replace('data', '', $key));
                         }
-                    } else {
-                        $data_array = [
-                            'data' => $data,
-                        ];
                     }
                     $this->page_data[$page_id][$page_field->id] = $data_array;
                 }
@@ -576,7 +572,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected function loadResources(HookEvent $event) {
 
         // This only applies to GET requests.
-        if ($_SERVER['REQUEST_METHOD'] !== "GET") return;
+        if (!isset($_SERVER['REQUEST_METHOD']) || $_SERVER['REQUEST_METHOD'] !== "GET") return;
 
         // Make sure that current user has the version-control permission.
         if (!$this->user->hasPermission('version-control')) return;
@@ -596,15 +592,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $process_page = $this->pages->get('process=' . $process);
         $this->config->js('VersionControl', [
             'i18n' => [
-                'compareWithCurrent' => $this->_('Compare with current'),
-                'editDisabled' => $this->_('Editing this data is currently disabled. Restore it by saving the page or switch to current version first.'),
-                'commentPrompt' => $this->_('Type in comment text for this revision (max 255 characters)'),
-                'closePreview' => $this->_('This is the page as it appeared on %s. Click here to close the preview.'),
-                'confirmRestore' => $this->_('Are you sure that you want to revert this page to an earlier revision?'),
-                'diffSideBySide' => $this->_('Show side by side'),
-                'diffList' => $this->_('Show as a list'),
-                'noDiff' => $this->_('There is no difference between these revisions.'),
-                'toggleRevisions' => $this->_('Toggle a list of revisions'),
+                'compareWithCurrent' => i18n::getText('Compare with current'),
+                'editDisabled' => i18n::getText('Editing this data is currently disabled. Restore it by saving the page or switch to current version first.'),
+                'commentPrompt' => i18n::getText('Type in comment text for this revision (max 255 characters)'),
+                'closePreview' => i18n::getText('This is the page as it appeared on %s. Click here to close the preview.'),
+                'confirmRestore' => i18n::getText('Are you sure that you want to revert this page to an earlier revision?'),
+                'diffSideBySide' => i18n::getText('Show side by side'),
+                'diffList' => i18n::getText('Show as a list'),
+                'noDiff' => i18n::getText('There is no difference between these revisions.'),
+                'toggleRevisions' => i18n::getText('Toggle a list of revisions'),
             ],
             'diff' => [
                 'timeout' => (int) $this->diff_timeout,
@@ -618,11 +614,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Build the 'history' tab on the Page Edit form
+     * Add the 'history' tab to the Page Edit form
      *
      * @param HookEvent $event
      */
-    protected function buildFormHistory(HookEvent $event) {
+    protected function addHistoryTab(HookEvent $event) {
 
         // Make sure that current user has the version-control permission.
         if (!$this->user->hasPermission('version-control')) return;
@@ -642,145 +638,30 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         ]);
         if (!$data) return;
 
-        // Define the position of the history tab.
-        $this->addHookAfter('ProcessPageEdit::getTabs', $this, 'addTabHistory');
+        // Adjust the position of the history tab.
+        $this->addHookAfter('ProcessPageEdit::getTabs', $this, 'adjustTabOrder');
 
-        // Render markup for a pager.
-        $pager = "";
-        if ($data['total'] > $data['limit']) {
-            $pager_links = 20;
-            $pager_page = (int) $data['start']/$data['limit']+1;
-            $pager_pages = ceil($data['total']/$data['limit']);
-            $pager = $this->renderPager($pager_links, $pager_page, $pager_pages);
-        }
-
-        // Wrapper element (the history tab).
-        $wrapper = new InputfieldWrapper;
-        $wrapper->attr('id', $this->className() . 'History');
-        $wrapper->attr('title', $this->_('History')); // Tab Label: History
-        if (isset($this->input->get->users_id) || isset($this->input->get->page)) {
-            $wrapper->attr('data-active', true);
-        }
-
-        // Define the date format.
-        $processModule = $this->modules->get('ProcessVersionControl');
-        $defaults = ProcessVersionControl::$defaultData;
-        $date_format = $processModule->date_format != $defaults['date_format'] ? $processModule->date_format : null;
-
-        // Rendering templates.
-        $templates = [
-            'button' => '<a class="history-tab__button history-tab__button--%s"%s href="%s">'
-                      . '<i class="fa fa-%s" title="%5$s" aria-hidden="true"></i>'
-                      . '<span class="version-control--visually-hidden">%5$s</span>'
-                      . '</a>',
-        ];
-
-        // Setup a datatable and append it to the history tab.
-        $table = $this->modules->get('MarkupAdminDataTable');
-        $table->setEncodeEntities(false);
-        $table->headerRow([
-            $this->_('Revision'),
-            $this->_('Author'),
-            $this->_('Changes'),
-            $this->_('Timestamp'),
-            $this->_('Comment'),
-            '', // Placeholder
-        ]);
-        $process_id = $this->wire('modules')->getModuleID('ProcessVersionControl');
-        $process_page = $this->wire('pages')->get('template=admin, process=' . $process_id)->url;
-        $comment = vsprintf($templates['button'], [
-            'edit-comment',
-            ' data-revision="%d"',
-            '#',
-            'edit',
-            $this->_('Edit comment'),
-        ]);
-        $restore = vsprintf($templates['button'], [
-            'restore',
-            '',
-            $process_page . 'restore/?pages_id=' . $page->id . '&revision=%d',
-            'undo',
-            $this->_('Restore revision'),
-        ]);
-        $preview = vsprintf($templates['button'], [
-            'preview',
-            ' data-date="%s"',
-            $process_page . 'preview/?pages_id=' . $page->id . '&revision=%d',
-            'eye',
-            $this->_('Preview revision'),
-        ]);
-        $counter = 0;
-        foreach ($data['data'] as $row) {
-            unset($row['users_id']);
-            if ($date_format) $row['timestamp'] = date($date_format, strtotime($row['timestamp']));
-            $toggle_preview = $page->viewable() ? sprintf($preview, $row['timestamp'], $row['id']) : '';
-            $toggle_restore = $page->editable() ? sprintf($restore, $row['id']) : '';
-            $row['buttons'] = sprintf($comment, $row['id']) . $toggle_preview . ($data['start'] || $counter ? $toggle_restore : '<span></span>');
-            $table->row(array_values($row));
-            ++$counter;
-        }
-        $field = $this->modules->get('InputfieldMarkup');
-        $table = $table->render() . $pager;
-        if (empty($table)) {
-            $field->value = $this->_('No history of changes found.');
-        } else {
-            $field->value = $table;
-        }
-        $field->label = $this->_('History');
-        $wrapper->append($field);
-
-        // Add filters.
-        if (count($data['data']) > 1) {
-
-            $fieldset = $this->modules->get('InputfieldFieldset');
-            $fieldset->attr('id+name', 'history_filters');
-            $fieldset->label = $this->_('Filters');
-            $fieldset->icon = 'filter';
-            if (!$this->input->get->users_id) {
-                $fieldset->collapsed = Inputfield::collapsedYes;
-            }
-            $wrapper->prepend($fieldset);
-
-            $field = $this->modules->get('InputfieldHidden');
-            $field->name = 'id';
-            $field->value = $page->id;
-            $fieldset->add($field);
-
-            $field = $this->modules->get('InputfieldSelect');
-            $field->attr('id+name', 'users_id');
-            $field->addOption('', $this->_('All'));
-            $field->addOptions($this->users_cache);
-            $field->value = $this->input->get->users_id;
-            $field->label = $this->_('Filter by Author');
-            $field->description = $this->_('When selected, only revisions authored by specific user will be shown.');
-            if (!$this->input->get->users_id) {
-                $field->collapsed = Inputfield::collapsedYes;
-            }
-            $fieldset->add($field);
-        }
+        // Insert the tab to the Page Edit form.
+        $form->prepend($this->wire(new \VersionControl\MarkupHelper())->getHistoryTab($data, $page));
+        $event->return = $form;
 
         // Load scripts.
         $module_url = $this->wire('config')->urls->get('VersionControl');
         $version = $this->modules->getModuleInfoProperty('VersionControl', 'version');
         $this->wire('config')->scripts->add($module_url . 'resources/js/HistoryTab.min.js?v=' . $version);
-
-        // Insert the tab to the Page Edit form.
-        $form->prepend($wrapper);
-        $event->return = $form;
     }
 
     /**
-     * Add History tab to ProcessPageEdit
-     *
-     * This method specifies the position of History tab by hooking into the ProcessPageEdit::getTabs().
+     * Adjust the position of the history tab in Process Page Edit
      *
      * @param HookEvent $event
      */
-    protected function addTabHistory(HookEvent $event) {
+    protected function adjustTabOrder(HookEvent $event) {
 
         // Make sure that current user has the version-control permission.
         if (!$this->user->hasPermission('version-control')) return;
 
+        // Get position for the history tab.
         $pos = false;
         $keys = array_keys($event->return);
         if (($pos = array_search('ProcessPageEditSettings', $keys)) !== false) {
@@ -790,15 +671,14 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 $pos = array_search('ProcessPageEditView', $keys);
             }
         }
-        if ($pos !== false) {
-            $event->return = array_merge(
-                array_slice($event->return, 0, $pos, true),
-                [
-                    $this->className() . 'History' => $this->_('History'), // Tab Label: History
-                ],
-                array_slice($event->return, $pos, null, true)
-            );
-        }
+        if ($pos === false) return;
+
+        // Adjust tab position.
+        $event->return = array_merge(
+            array_slice($event->return, 0, $pos, true), [
+                'VersionControlHistory' => i18n::getText('History'), // Tab Label: History
+            ], array_slice($event->return, $pos, null, true)
+        );
     }
 
     /**
@@ -955,6 +835,21 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
+     * Get users cache
+     *
+     * This method automatically populates the users cache if it doesn't exist yet.
+     *
+     * @param Page $page
+     * @return array
+     */
+    public function getUsersCache(Page $page) {
+        if (empty($this->users_cache)) {
+            $this->users_cache = $this->cacheUsers($page);
+        }
+        return $this->users_cache;
+    }
+
+    /**
      * Find out which fields belonging to current template have version control enabled
      *
      * This method adds new "versionControlFields" property to Template objects.
@@ -963,6 +858,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function versionControlFields(HookEvent $event) {
 
+        // Bail out early if template isn't version controlled.
         $template = $event->object;
         if (!$this->isEnabledTemplate($template)) return;
 
@@ -991,6 +887,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function versionControlRevision(HookEvent $event) {
 
+        // Bail out early if the template of current page is not version controlled.
         $page = $event->object;
         if (!$this->isEnabledTemplate($page->template)) return;
 
@@ -1006,7 +903,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
-        $event->return = $revision ? $revision : null;
+        $event->return = $revision ?: null;
     }
 
     /**
@@ -1027,20 +924,20 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function versionControlRevisions(HookEvent $event) {
 
-        // return null in case of a disabled template
+        // Bail out early if the template of current page is not version controlled.
         $page = $event->object;
         if (!$this->isEnabledTemplate($page->template)) return;
 
-        // limit argument defines how many revisions can be returned
+        // Limit argument defines how many revisions can be returned.
         $limit = null;
         if (isset($event->arguments[0]) && (int) $event->arguments[0] > 0) {
             $limit = (int) $event->arguments[0];
         }
 
-        // placeholder
+        // Placeholder for returned data.
         $revisions = null;
 
-        // attempt to fetch revisions from cache
+        // Attempt to fetch revisions from cache.
         if (is_array($page->_version_control_revisions)) {
             $cache = $page->_version_control_revisions;
             if ($cache['limit'] == $limit) {
@@ -1050,8 +947,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             }
         }
 
+        // If there were no revisions in cache, fetch from the database (with limit applied if one was provided).
         if (!is_array($revisions)) {
-            // fetch revision from database (with limit if one is set)
             $sql = "SELECT id, timestamp FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id ORDER BY id DESC";
             if ($limit) $sql .= " LIMIT :limit";
             $stmt = $this->database->prepare($sql);
@@ -1069,151 +966,32 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * When module is installed, create database tables for storing data
+     * Set up when the module is installed
      *
      * @throws WireException if VersionControlForTextFields module is found
      */
     public function install() {
 
-        // if Version Control For Text Fields is found, cancel installation to avoid conflict
+        // If Version Control For Text Fields is found, cancel installation to avoid a conflict.
         if (is_dir($this->config->paths->siteModules . "VersionControlForTextFields")) {
             throw new WireException("VersionControlForTextFields has to be removed first");
         }
 
-        // revisions table bundles individual data rows into site-wide revisions
-        $this->createTable(self::TABLE_REVISIONS, [
-            'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
-            'parent INT UNSIGNED DEFAULT NULL',
-            'pages_id INT UNSIGNED NOT NULL',
-            'users_id INT UNSIGNED DEFAULT NULL',
-            'username VARCHAR(255) DEFAULT NULL',
-            'timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
-            'comment VARCHAR(255) DEFAULT NULL',
-            'KEY pages_id (pages_id)',
-        ]);
-
-        // data table, contains actual content for edited fields
-        $this->createTable(self::TABLE_DATA, [
-            'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
-            'revisions_id INT UNSIGNED NOT NULL',
-            'fields_id INT UNSIGNED NOT NULL',
-            'property VARCHAR(255) NOT NULL',
-            'data MEDIUMTEXT DEFAULT NULL',
-            'KEY revisions_id (revisions_id)',
-            'KEY fields_id (fields_id)',
-        ]);
-
-        // files table contains one row for each stored file
-        $this->createTable(self::TABLE_FILES, [
-            'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
-            'filename VARCHAR(255) NOT NULL',
-            'mime_type VARCHAR(255)',
-            'size INT UNSIGNED NOT NULL',
-        ]);
-
-        // junction table: connects files to data rows
-        $this->createTable(self::TABLE_DATA_FILES, [
-            'data_id INT UNSIGNED NOT NULL',
-            'files_id INT UNSIGNED NOT NULL',
-            'PRIMARY KEY (data_id, files_id)',
-        ]);
-
-        // attempt to import VersionControlForTextFields data
-        $this->versionControlForTextFieldsImport();
+        // Create database tables and attempt to import Version Control for Text Fields data.
+        $this->initClassLoader();
+        $db = $this->wire(new \VersionControl\DatabaseHelper());
+        $db->createTables();
+        $db->versionControlForTextFieldsImport();
     }
 
     /**
-     * When module is uninstalled, drop database tables created during installation and remove the data directory
+     * Clean up when the module is unintalled
      */
     public function uninstall() {
-        $this->dropTable(self::TABLE_REVISIONS);
-        $this->dropTable(self::TABLE_DATA);
-        $this->dropTable(self::TABLE_FILES);
-        $this->dropTable(self::TABLE_DATA_FILES);
+        $this->initClassLoader();
+        $this->wire(new \VersionControl\DatabaseHelper())->dropTables();
         if (is_dir($this->path)) {
             wireRmdir($this->path, true);
-        }
-    }
-
-    /**
-     * Helper method for dropping tables
-     *
-     * @param string $table Table name
-     */
-    protected function dropTable(string $table) {
-        $table = $this->database->escapeStr($table);
-        $stmt = $this->database->prepare("SHOW TABLES LIKE '$table'");
-        $stmt->execute();
-        if (count($stmt->fetchAll()) == 1) {
-            $this->database->query("DROP TABLE $table");
-            $this->message(sprintf(
-                $this->_('Dropped table: %s'),
-                $table
-            ));
-        }
-    }
-
-    /**
-     * Helper method for creating tables
-     *
-     * @param string $table Table name
-     * @param array $schema Table schema
-     * @throws WireDatabaseException if table already exists
-     */
-    protected function createTable(string $table, array $schema) {
-        $table = $this->database->escapeStr($table);
-        $engine = $this->wire('config')->dbEngine;
-        $charset = $this->wire('config')->dbCharset;
-        $stmt = $this->database->prepare("SHOW TABLES LIKE '$table'");
-        $stmt->execute();
-        if (count($stmt->fetchAll()) == 1) {
-            throw new WireDatabaseException(sprintf(
-                $this->_('Table %s already exists'),
-                $table
-            ));
-        }
-        $sql = "CREATE TABLE $table (";
-        $sql .= implode(', ', $schema);
-        $sql .= ") ENGINE = " . $engine . " DEFAULT CHARSET=" . $charset;
-        $this->database->query($sql);
-        $this->message(sprintf(
-            $this->_('Created table: %s'),
-            $table
-        ));
-    }
-
-    /**
-     * Import data from Version Control For Text Fields
-     */
-    protected function versionControlForTextFieldsImport() {
-        $main_table = count($this->database->query("SHOW TABLES LIKE 'version_control_for_text_fields'")->fetchAll()) == 1;
-        $data_table = count($this->database->query("SHOW TABLES LIKE 'version_control_for_text_fields__data'")->fetchAll()) == 1;
-        if ($main_table && $data_table) {
-            $stmt_select_data_row = $this->database->prepare("SELECT property, data FROM version_control_for_text_fields__data WHERE version_control_for_text_fields_id = :id");
-            $stmt_insert_revision = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username, timestamp) VALUES (:parent, :pages_id, :users_id, :username, :timestamp)");
-            $stmt_insert_data_row = $this->database->prepare("INSERT INTO " . self::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (:revisions_id, :fields_id, :property, :data)");
-            $result = $this->database->query("SELECT * FROM version_control_for_text_fields");
-            $parent = null;
-            while ($row = $result->fetch(\PDO::FETCH_ASSOC)) {
-                $stmt_insert_revision->bindValue(':parent', $parent, \PDO::PARAM_INT);
-                $stmt_insert_revision->bindValue(':pages_id', (int) $row['pages_id'], \PDO::PARAM_INT);
-                $stmt_insert_revision->bindValue(':users_id', (int) $row['users_id'], \PDO::PARAM_INT);
-                $stmt_insert_revision->bindValue(':username', $row['username'], \PDO::PARAM_STR);
-                $stmt_insert_revision->bindValue(':timestamp', $row['timestamp'], \PDO::PARAM_STR);
-                $stmt_insert_revision->execute();
-                $revisions_id = $this->database->lastInsertId();
-                $stmt_select_data_row->bindValue(':id', (int) $row['id'], \PDO::PARAM_INT);
-                $stmt_select_data_row->execute();
-                while ($data_row = $stmt_select_data_row->fetch(\PDO::FETCH_ASSOC)) {
-                    $stmt_insert_data_row->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
-                    $stmt_insert_data_row->bindValue(':fields_id', (int) $row['fields_id'], \PDO::PARAM_INT);
-                    $stmt_insert_data_row->bindValue(':property', $data_row['property'], \PDO::PARAM_STR);
-                    $stmt_insert_data_row->bindValue(':data', $data_row['data'], \PDO::PARAM_STR);
-                    $stmt_insert_data_row->execute();
-                }
-                $parent = $revisions_id;
-            }
-            $this->message($this->_('Imported existing Version Control For Text Fields data'));
         }
     }
 
@@ -1335,7 +1113,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 }
                 if ($count) {
                     $this->message(sprintf(
-                        $this->_n('Populated data for %d page using template %s', 'Populated data for %d pages using template %s', $count),
+                        i18n::getText('Populated data for %d page using template %s', 'Populated data for %d pages using template %s', $count),
                         $count,
                         $template
                     ));
@@ -1357,7 +1135,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     $stmt->execute($page_ids);
                     $this->cleanupFiles();
                     $this->message(sprintf(
-                        $this->_n('Removed stored data for %d page using template %s', 'Removed stored data for %d pages using template %s', $page_count),
+                        i18n::getText('Removed stored data for %d page using template %s', 'Removed stored data for %d pages using template %s', $page_count),
                         $page_count,
                         $template
                     ));
@@ -1384,72 +1162,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     $stmt->execute();
                     $this->cleanupFiles();
                     $this->message(sprintf(
-                        $this->_('Removed stored data for field %s'),
+                        i18n::getText('Removed stored data for field %s'),
                         $field->name
                     ));
                 }
             }
         }
-    }
-
-    /**
-     * Render markup for a pager
-     *
-     * @param int $links Number of pager links visible at once.
-     * @param int $page Identifies currently active pager item.
-     * @param int $pages Number of total pager items available.
-     * @return string Rendered pager, or empty string if pager couldn't be rendered.
-     */
-    protected function renderPager(int $links, int $page, int $pages): string {
-
-        if ($pages < 2) {
-            return '';
-        }
-
-        // Convert GET params to string.
-        $get = "";
-        foreach ($this->input->get as $key => $value) {
-            if ($key != 'page' && $value != '') {
-                $get .= '&amp;' . urlencode($key) . '=' . urlencode($value);
-            }
-        }
-
-        // Calculate start and end points.
-        $start = 1;
-        $end = $pages;
-        if ($end > $links) {
-            $start = (int) $page - $links / 2;
-            if ($start < 1) $start = 1;
-            $end = $start + ($links - 1);
-            if ($end > $pages) $end = $pages;
-            if ($end - $page < (int) $links / 2 - 1) { 
-                $start -= ((int) $links / 2) - ($end - $page);
-                if ($start < 1) $start = 1;
-            }
-        }
-
-        // Generate markup.
-        $out = '<ul class="MarkupPagerNav MarkupPagerNavCustom">';
-        if ($start > 1) {
-            $out .= '<li><a href="./?page=1' . $get . '"><span>1</span></a></li>';
-            if ($start > 2) {
-                $out .= '<li class="MarkupPagerNavSeparator">&hellip;</li>';
-            }
-        }
-        for ($i = $start; $i <= $pages; ++$i) {
-            $here = ($page == $i) ? ' class="MarkupPagerNavOn"' : '';
-            $out .= '<li' . $here . '><a href="./?page=' . $i . $get . '"><span>' . $i . '</span></a></li>';
-            if ($pages > $links && $i == $end && $i < $pages) {
-                if ($pages - $i > 1) {
-                    $out .= '<li class="MarkupPagerNavSeparator">&hellip;</li>';
-                }
-                $i = $pages - 1;
-                if ($i < $end) $i = $end + 1;
-            }
-        }
-        $out .= '</ul>';
-
-        return $out;
     }
 
     /**

@@ -1,12 +1,14 @@
-<?php namespace ProcessWire;
+<?php
+
+namespace ProcessWire;
+
+use \VersionControl\i18n;
 
 /**
  * Process Version Control
  *
- * This module acts as an interface for Version Control module by generating
- * markup based on GET params and making itself available via an Admin page.
- *
- * For more details see the README.md file distributed with this module.
+ * This module acts as an interface for Version Control module by making itself available via an Admin page and
+ * generating markup based on GET params. For more details see the README.md file distributed with this module.
  *
  * @copyright 2013-2021 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
@@ -61,7 +63,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @throws Wire404Exception when accessed.
      */
     public function execute() {
-        throw new Wire404Exception($this->_('Unrecognized path'));
+        throw new Wire404Exception(i18n::getText('Unrecognized path'));
     }
 
     /**
@@ -192,15 +194,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
         }
 
-        // Render method.
-        $render_method = "renderHTML";
-        if (isset($settings['render']) && $settings['render'] != $render_method) {
-            if (method_exists($this, 'render' . $settings['render'])) {
-                $render_method = 'render' . $settings['render'];
-            }
+        // Return JSON or markup depending on provided settings.
+        if (isset($settings['render']) && $settings['render'] === 'json') {
+            header('Content-type: application/json');
+            return json_encode($data);
         }
-
-        return $this->$render_method($data, $page);
+        return $this->wire(new \VersionControl\MarkupHelper())->renderFieldRevisions($data, $page);
     }
 
     /**
@@ -394,7 +393,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Choose a render method and exit with output.
         $default_language = $this->languages ? $this->languages->default : '';
-        if (isset($settings['render']) && $settings['render'] == "Input") {
+        if (isset($settings['render']) && $settings['render'] === "Input") {
             $input = $field->getInputfield($page);
             foreach ($data as $data_key => $data_value) {
                 if ($data_key == 'data' || preg_match('/^data[0-9]*$/', $data_key)) {
@@ -463,7 +462,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
             exit($input->render());
         }
-        exit($this->renderJSON($data, $page));
+
+        // Output JSON
+        header('Content-type: application/json');
+        exit(json_encode($data));
     }
 
     /**
@@ -472,10 +474,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @param HookEvent $event
      */
     protected function hookPagefileInstall(HookEvent $event) {
-        if (strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
-            $event->object->basename = $event->arguments[0];
-            $event->replace = true;
-        }
+        if (strpos($event->arguments[0], $this->modules->VersionControl->path) !== 0) return;
+        $event->object->basename = $event->arguments[0];
+        $event->replace = true;
     }
 
     /**
@@ -484,9 +485,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @param HookEvent $event
      */
     protected function hookPagefileUrl(HookEvent $event) {
-        if ($event->object->_version_control_url) {
-            $event->return = $event->object->_version_control_url;
-        }
+        if (!$event->object->_version_control_url) return;
+        $event->return = $event->object->_version_control_url;
     }
 
     /**
@@ -495,9 +495,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @param HookEvent $event
      */
     protected function hookPagefileFilename(HookEvent $event) {
-        if ($event->object->_version_control_filename) {
-            $event->return = $event->object->_version_control_filename;
-        }
+        if (!$event->object->_version_control_filename) return;
+        $event->return = $event->object->_version_control_filename;
     }
 
     /**
@@ -506,12 +505,11 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @param HookEvent $event
      */
     protected function hookPageimageSize(HookEvent $event) {
-        if ($event->return->_version_control_filename) {
-            $filename = substr($event->return->basename, 0, 2) . '/variations/' . $event->return->basename;
-            $event->return->_version_control_url = $this->modules->VersionControl->url . $filename;
-            $event->return->_version_control_filename = $this->modules->VersionControl->path . $filename;
-            rename($event->return->pagefiles->path() . $event->return->basename, $event->return->filename);
-        }
+        if (!$event->return->_version_control_filename) return;
+        $filename = substr($event->return->basename, 0, 2) . '/variations/' . $event->return->basename;
+        $event->return->_version_control_url = $this->modules->VersionControl->url . $filename;
+        $event->return->_version_control_filename = $this->modules->VersionControl->path . $filename;
+        rename($event->return->pagefiles->path() . $event->return->basename, $event->return->filename);
     }
 
     /**
@@ -530,7 +528,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         // Redirect to page editor.
         $revision_id = (int) $this->input->get->revision;
         $this->session->message(sprintf(
-            __('Page reverted to revision #%d'),
+            i18n::getText('Page reverted to revision #%d'),
             $revision_id
         ));
         $this->session->redirect($this->config->urls->admin . 'page/edit/?id=' . $page->id, false);
@@ -585,147 +583,6 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Render HTML markup for field revisions based on an input array
-     *
-     * @param array $data
-     * @param Page $page
-     * @return string
-     */
-    protected function renderHTML(array $data, Page $page): string {
-
-        // Translatable strings.
-        $strings = [
-            'restore' => $this->_('Restore'),
-            'compare' => $this->_('Compare'),
-            'label_for_current_revision' => $this->_('Current revision'),
-            'label_for_revisions' => $this->_('Stored revisions for field %s'),
-        ];
-
-        // Rendering templates.
-        $templates = [
-            'outer_container' => '<div id="version-control-data">%s</div>',
-            'field_container' => '<div class="field-revisions%s%4$s" id="field-revisions--%2$s" data-field="%2$s" data-revision="%3$s" tabindex=-1 aria-hidden="true" aria-label="%4$s">'
-                               . '<div>%6$s</div>'
-                               . '</div>',
-            'table_container' => '<table>%s</table>',
-            'table_head' => '<thead><tr><th></th><th>%s</th><th>%s</th></tr></thead>',
-            'table_body' => '<tbody>%s</tbody>',
-            'table_item' => '<tr class="field-revision" data-revision="%1$s" data-date="%2$s">'
-                          . '<td class="field-revision__current">'
-                          . '<span class="field-revision__current-icon" aria-hidden="true"></span>'
-                          . '<span class="field-revision__current-label version-control--visually-hidden" aria-hidden="true">' . $strings['label_for_current_revision'] . '</span>'
-                          . '</td>'
-                          . '<td class="field-revision__date">%2$s</td>'
-                          . '<td class="field-revision__user">%3$s</td>'
-                          . '<td>%4$s%5$s</td>'
-                          . '</tr>',
-            'button' => '<button class="field-revision__button field-revision__button--%s" title="%2$s">'
-                      . '<span class="version-control--visually-hidden-if-scrollable">%2$s</span>'
-                      . '</button>',
-        ];
-
-        // Action buttons.
-        $buttons = [
-            'restore' => sprintf($templates['button'], 'restore', $strings['restore']),
-            'compare' => sprintf($templates['button'], 'diff', $strings['compare']),
-        ];
-
-        // Restorable fields.
-        $restore_enabled = [];
-
-        $dataset = [];
-        foreach ($data as $field => $field_data) {
-
-            // Check if diff can and should be enabled, and try to read revision from field data.
-            $has_diff = !$this->diff_disabled;
-            if ($has_diff) {
-                $field_name = strpos($field, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field) : $field;
-                $field_object = $this->wire('fields')->get($field_name);
-                $has_diff = $field_object !== null && $field_object->type != 'FieldtypeFile';
-            }
-            $revision = !empty($field_data) ? $field_data[0]['revision'] : '';
-
-            // Check if restore button should be displayed.
-            if (!isset($restore_enabled[$field])) {
-                $has_restore = true;
-                $field_object = $this->wire('fields')->get($field);
-                if ($field_object && $field_object->id) {
-                    $inputfield = $field_object->getInputfield($page);
-                    if (in_array($inputfield->collapsed, [7, 8])) {
-                        $has_restore = false;
-                    }
-                }
-                $restore_enabled[$field] = $has_restore;
-            }
-            $has_restore = $restore_enabled[$field];
-
-            $table = [];
-            if (!empty($field_data)) {
-
-                // Data table heading row.
-                $table['head'] = sprintf(
-                    $templates['table_head'],
-                    $this->_('Timestamp', $this->config->paths->VersionControl . 'VersionControl.module'),
-                    $this->_('Author', $this->config->paths->VersionControl . 'VersionControl.module')
-                );
-
-                $table['body'] = [];
-                foreach ($field_data as $row) {
-
-                    // Get user name for this row of data.
-                    $user_name = "";
-                    if ($this->user_name_format && $this->user_name_format !== "{name}") {
-                        $user = $this->wire('users')->get((int) $row['users_id']);
-                        if ($user->id) {
-                            $user_name = wirePopulateStringTags($this->user_name_format, $user);
-                        }
-                    }
-                    $user_name = $user_name ?: $row['username'];
-
-                    // Markup for a single data row.
-                    $table['body'][] = sprintf(
-                        $templates['table_item'],
-                        $row['revision'],
-                        $row['date'],
-                        $user_name,
-                        $has_restore ? $buttons['restore'] : '',
-                        $has_diff ? $buttons['compare'] : ''
-                    );
-                }
-                $table['body'] = sprintf($templates['table_body'], implode($table['body']));
-            }
-            $dataset[] = sprintf(
-                $templates['field_container'],
-                $has_diff ? ' field-revisions--diff' : '',
-                $field,
-                $revision,
-                $has_restore ? ' field-revisions--restore' : '',
-                sprintf($strings['label_for_revisions'], $field),
-                sprintf($templates['table_container'], implode($table))
-            );
-        }
-
-        return sprintf(
-            $templates['outer_container'],
-            !empty($dataset) ? implode($dataset) : htmlspecialchars(
-                $this->_('There are no earlier versions of this field available')
-            )
-        );
-    }
-
-    /**
-     * Render JSON based on an input array
-     *
-     * @param array $data Input array.
-     * @param Page $page
-     * @return string|bool JSON string, or false if encoding fails..
-     */
-    protected function renderJSON(array $data, Page $page) {
-        header('Content-type: application/json');
-        return json_encode($data);
-    }
-
-    /**
      * Return page as it was in given revision
      *
      * This method is used internally by the preview and restore methods. It stores the ID of the
@@ -756,15 +613,15 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $page = $this->pages->get($pages_id);
         if (!$page->id) {
             throw new WireException(sprintf(
-                $this->_('Page doesn\'t exist: %d'),
+                i18n::getText('Page doesn\'t exist: %d'),
                 $pages_id
             ));
         }
         if ($permission == 'view' && !$page->viewable()) {
-            throw new WirePermissionException($this->_('Permission denied (Page not viewable)'));
+            throw new WirePermissionException(i18n::getText('Permission denied (Page not viewable)'));
         }
         if ($permission == 'edit' && !$page->editable()) {
-            throw new WirePermissionException($this->_('Permission denied (Page not editable)'));
+            throw new WirePermissionException(i18n::getText('Permission denied (Page not editable)'));
         }
 
         // Get revision from database.
@@ -774,7 +631,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!$revision) {
             throw new WireException(sprintf(
-                $this->_('Revision doesn\'t exist: %d'),
+                i18n::getText('Revision doesn\'t exist: %d'),
                 $revision_id
             ));
         }
