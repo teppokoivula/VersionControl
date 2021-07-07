@@ -98,11 +98,10 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $settings = $this->input->get->settings;
 
         // Include Repeater pages.
-        // @todo Do we need similar check for RepeaterMatrix and/or PageTable as well?
         $p_num = 0;
         $repeater_fields = [];
         foreach ($page->fields as $field) {
-            if ($field->type == 'FieldtypeRepeater') {
+            if ($field->type instanceof FieldtypeRepeater) {
                 $subfields = $this->templates->get($field->template_id)->versionControlFields;
                 if (count($subfields)) {
                     foreach ($page->get($field->name) as $repeater_page) {
