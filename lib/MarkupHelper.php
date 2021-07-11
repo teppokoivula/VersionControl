@@ -12,7 +12,7 @@ use \ProcessWire\ProcessVersionControl;
 /**
  * Version Control Markup Helper
  *
- * @version 0.1.0
+ * @version 0.1.1
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
@@ -159,7 +159,7 @@ class MarkupHelper extends \ProcessWire\Wire {
         }
 
         // Convert GET params to string.
-        $get = "";
+        $get = '';
         foreach ($this->input->get as $key => $value) {
             if ($key != 'page' && $value != '') {
                 $get .= '&amp;' . urlencode($key) . '=' . urlencode($value);
@@ -181,27 +181,37 @@ class MarkupHelper extends \ProcessWire\Wire {
         }
 
         // Generate markup.
-        $out = '<ul class="MarkupPagerNav MarkupPagerNavCustom">';
+        $out = '';
+        $pager_config = $this->config->MarkupPagerNav ?: [
+            'currentItemClass' => 'uk-active MarkupPagerNavOn',
+            'separatorItemLabel' => '<span>&hellip;</span>',
+            'separatorItemClass' => 'uk-disabled MarkupPagerNavSeparator',
+            'listMarkup' => "<ul class='uk-pagination MarkupPagerNav'>{out}</ul>",
+        ];
         if ($start > 1) {
-            $out .= '<li><a href="./?page=1' . $get . '"><span>1</span></a></li>';
+            $out .= "<li><a href='./?page=1{$get}'><span>1</span></a></li>";
             if ($start > 2) {
-                $out .= '<li class="MarkupPagerNavSeparator">&hellip;</li>';
+                $out .= "<li class='{$pager_config['separatorItemClass']}'>{$pager_config['separatorItemLabel']}</li>";
             }
         }
         for ($i = $start; $i <= $pages; ++$i) {
-            $here = ($page == $i) ? ' class="MarkupPagerNavOn"' : '';
-            $out .= '<li' . $here . '><a href="./?page=' . $i . $get . '"><span>' . $i . '</span></a></li>';
+            $here = $page == $i ? " class='{$pager_config['currentItemClass']}'" : "";
+            $out .= "<li{$here}><a href='./?page={$i}{$get}'><span>{$i}</span></a></li>";
             if ($pages > $links && $i == $end && $i < $pages) {
                 if ($pages - $i > 1) {
-                    $out .= '<li class="MarkupPagerNavSeparator">&hellip;</li>';
+                    $out .= "<li class='{$pager_config['separatorItemClass']}'>{$pager_config['separatorItemLabel']}</li>";
                 }
-                $i = $pages - 1;
+                $i = $pages-1;
                 if ($i < $end) $i = $end + 1;
             }
         }
-        $out .= '</ul>';
+        $out = str_replace(
+            '{out}',
+            $out,
+            $pager_config['listMarkup']
+        );
 
-        return $out;
+        return "<div class='MarkupPagerNavCustom'>{$out}</div>";
     }
 
     /**
