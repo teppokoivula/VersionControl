@@ -455,11 +455,12 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
             // If revision isn't assigned yet, get next available revision ID.
             if (!$revisions_id) {
-                $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username) VALUES (:parent, :pages_id, :users_id, :username)");
+                $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username, timestamp) VALUES (:parent, :pages_id, :users_id, :username, :timestamp)");
                 $stmt->bindValue(':parent', $parent ?: null, \PDO::PARAM_INT);
                 $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
                 $stmt->bindValue(':users_id', $users_id, \PDO::PARAM_INT);
                 $stmt->bindValue(':username', $username, \PDO::PARAM_STR);
+                $stmt->bindValue(':timestamp', date('Y-m-d H:i:s'), \PDO::PARAM_STR);
                 $stmt->execute();
                 $revisions_id = $this->database->lastInsertId();
                 $page->_version_control_revision = $revisions_id;
