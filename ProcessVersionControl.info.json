@@ -1,7 +1,7 @@
 {
     "title": "Process Version Control",
     "summary": "Provides the interface required by Version Control.",
-    "version": "2.5.0",
+    "version": "2.5.1",
     "href": "https://modules.processwire.com/modules/version-control/",
     "author": "Teppo Koivula",
     "permission": "version-control",

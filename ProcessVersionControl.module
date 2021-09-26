@@ -119,13 +119,14 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         // - MIN() function calls are required in order to avoid errors when MySQL is using SQL
         //   mode ONLY_FULL_GROUP_BY.
         // - Some MIN() function calls may not be necessary for MySQL 5.7.5+.
-        $stmt = $this->database->prepare("
-        SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
+        $sql = "
+        SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, CONCAT(MIN(f.name), '_repeater', MIN(r.pages_id)) repeater_field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
         FROM fields f, " . VersionControl::TABLE_REVISIONS . " r, " . VersionControl::TABLE_DATA . " d
         WHERE r.pages_id IN (" . implode(',', array_keys($page_ids)) . ") AND d.revisions_id = r.id AND f.id = d.fields_id
         GROUP BY r.id, f.id
         ORDER BY f.id, d.id DESC
-        ");
+        ";
+        $stmt = $this->database->prepare($sql);
         foreach ($page_ids as $p_num => $p_id) {
             $stmt->bindValue($p_num, $p_id, \PDO::PARAM_INT);
         }
@@ -151,7 +152,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         // Parse data.
         $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            if (!in_array($row['field_name'], $enabled_fields)) {
+            $is_enabled_field = $row['pages_id'] == $page->id && in_array($row['field_name'], $enabled_fields);
+            $is_enabled_repeater_field = $row['pages_id'] != $page->id && in_array($row['repeater_field_name'], $repeater_fields);
+            if (!$is_enabled_field && !$is_enabled_repeater_field) {
                 continue;
             }
             $item = [
