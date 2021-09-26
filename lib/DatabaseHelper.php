@@ -2,7 +2,8 @@
 
 namespace VersionControl;
 
-use \VersionControl\i18n;
+use \ProcessWire\VersionControl;
+use \ProcessWire\WireDatabaseException;
 
 /**
  * Version Control Database Helper
@@ -123,8 +124,8 @@ class DatabaseHelper extends \ProcessWire\Wire {
         $data_table = count($this->database->query("SHOW TABLES LIKE 'version_control_for_text_fields__data'")->fetchAll()) == 1;
         if ($main_table && $data_table) {
             $stmt_select_data_row = $this->database->prepare("SELECT property, data FROM version_control_for_text_fields__data WHERE version_control_for_text_fields_id = :id");
-            $stmt_insert_revision = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username, timestamp) VALUES (:parent, :pages_id, :users_id, :username, :timestamp)");
-            $stmt_insert_data_row = $this->database->prepare("INSERT INTO " . self::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (:revisions_id, :fields_id, :property, :data)");
+            $stmt_insert_revision = $this->database->prepare("INSERT INTO " . VersionControl::TABLE_REVISIONS . " (parent, pages_id, users_id, username, timestamp) VALUES (:parent, :pages_id, :users_id, :username, :timestamp)");
+            $stmt_insert_data_row = $this->database->prepare("INSERT INTO " . VersionControl::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (:revisions_id, :fields_id, :property, :data)");
             $result = $this->database->query("SELECT * FROM version_control_for_text_fields");
             $parent = null;
             while ($row = $result->fetch(\PDO::FETCH_ASSOC)) {

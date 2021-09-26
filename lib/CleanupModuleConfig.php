@@ -2,15 +2,14 @@
 
 namespace VersionControl;
 
-use ProcessWire\InputfieldWrapper,
-    ProcessWire\Inputfield,
-    ProcessWire\VersionControl,
-    ProcessWire\VersionControlCleanup;
+use ProcessWire\Inputfield;
+use ProcessWire\InputfieldWrapper;
+use ProcessWire\VersionControlCleanup;
 
 /**
  * Version Control Cleanup Config
  *
- * @version 1.0.0
+ * @version 1.0.1
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */

@@ -2,8 +2,6 @@
 
 namespace VersionControl;
 
-use \VersionControl\i18n;
-
 use \ProcessWire\Inputfield;
 use \ProcessWire\InputfieldWrapper;
 use \ProcessWire\Page;
@@ -12,7 +10,7 @@ use \ProcessWire\ProcessVersionControl;
 /**
  * Version Control Markup Helper
  *
- * @version 0.1.1
+ * @version 0.1.2
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
