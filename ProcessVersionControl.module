@@ -103,7 +103,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         foreach ($page->fields as $field) {
             if ($field->type instanceof FieldtypeRepeater) {
                 $subfields = $this->templates->get($field->template_id)->versionControlFields;
-                if (count($subfields)) {
+                if ($subfields !== null && count($subfields)) {
                     foreach ($page->get($field->name) as $repeater_page) {
                         ++$p_num;
                         $page_ids[':p' . $p_num] = $repeater_page->id;
@@ -134,8 +134,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Fetch enabled fields.
         $enabled_fields = [];
-        if (count($page->template->versionControlFields)) {
-            foreach ($page->template->versionControlFields as $field) {
+	$template_fields = $page->template->versionControlFields;
+        if ($template_fields !== null && count($template_fields)) {
+            foreach ($template_fields as $field) {
                 if (!$this->modules->VersionControl->enable_locked_fields) {
                     $field_object = $this->wire('fields')->get($field);
                     if ($field_object && $field_object->id) {
