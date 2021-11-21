@@ -2,9 +2,8 @@
 
 namespace VersionControl;
 
-use ProcessWire\InputfieldWrapper;
 use ProcessWire\Inputfield;
-use ProcessWire\VersionControl;
+use ProcessWire\InputfieldWrapper;
 use ProcessWire\ProcessVersionControl;
 
 /**

@@ -122,7 +122,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         foreach ($page->fields as $field) {
             if ($field->type instanceof FieldtypeRepeater) {
                 $subfields = $this->templates->get($field->template_id)->versionControlFields;
-                if ($subfields !== null && !empty($subfields)) {
+                if ($subfields !== null && count($subfields)) {
                     foreach ($page->get($field->name) as $repeater_page) {
                         $page_ids[] = $repeater_page->id;
                         foreach ($subfields as $subfield) {

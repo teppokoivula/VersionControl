@@ -228,7 +228,7 @@ class PageSnapshot extends WireData implements Module {
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
-                    if (count($subfields)) {
+                    if ($subfields !== null && count($subfields)) {
                         foreach ($page->get($field->name) as $repeater_page) {
                             $page_ids[] = $repeater_page->id;
                         }
