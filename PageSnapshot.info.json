@@ -1,7 +1,7 @@
 {
     "title": "Page Snapshot",
     "summary": "Return page in the state it was at the given time.",
-    "version": "2.1.1",
+    "version": "2.1.2",
     "href": "https://modules.processwire.com/modules/version-control/",
     "author": "Teppo Koivula, SteveB",
     "requires": [

@@ -2,7 +2,8 @@
 
 namespace ProcessWire;
 
-use \VersionControl\i18n;
+use VersionControl\DataStore;
+use VersionControl\i18n;
 
 /**
  * Process Version Control
@@ -28,6 +29,13 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     ];
 
     /**
+     * Reference to the data store
+     *
+     * @var DataStore
+     */
+    protected $store;
+
+    /**
      * Populate the default config data
      *
      * ProcessWire will automatically overwrite it with anything the user has specifically configured.
@@ -41,6 +49,17 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
+     * Initialization function
+     */
+    public function init() {
+
+        // Get a reference to the data store.
+        $this->store = $this->modules->get('VersionControl')->getDataStore();
+
+        parent::init();
+    }
+
+    /**
      * Module configuration
      *
      * Note: this module isn't meant to be configurable in the usual way. While native features are
@@ -51,7 +70,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @return InputfieldWrapper
      */
     public function getModuleConfigInputfields(array $data): InputfieldWrapper {
-        $this->wire('modules')->get('VersionControl')->initClassLoader();
+        // Note: Version Control is required for class autoloading.
+        $this->wire('modules')->get('VersionControl');
         return $this->wire(new \VersionControl\ProcessModuleConfig($data))->getFields();
     }
 
@@ -67,7 +87,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     }
 
     /**
-     * Return revision data for specific page
+     * Return revision info for specific page
      *
      * Page is defined by GET param 'pages_id' and additional settings with GET param 'settings'.
      * Supported settings are 'empty' (to render placeholders for fields with no stored data) and
@@ -88,7 +108,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if (!$this->pageEditable($page)) {
             throw new WirePermissionException('Permission denied (Page not editable)');
         }
-        $page_ids = [':p0' => $pages_id];
+        $page_ids = [$pages_id];
 
         // Should date formatting occur?
         $defaults = static::$defaultData;
@@ -98,15 +118,13 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $settings = $this->input->get->settings;
 
         // Include Repeater pages.
-        $p_num = 0;
         $repeater_fields = [];
         foreach ($page->fields as $field) {
             if ($field->type instanceof FieldtypeRepeater) {
                 $subfields = $this->templates->get($field->template_id)->versionControlFields;
-                if (count($subfields)) {
+                if ($subfields !== null && !empty($subfields)) {
                     foreach ($page->get($field->name) as $repeater_page) {
-                        ++$p_num;
-                        $page_ids[':p' . $p_num] = $repeater_page->id;
+                        $page_ids[] = $repeater_page->id;
                         foreach ($subfields as $subfield) {
                             $repeater_fields[] = $subfield . "_repeater" . $repeater_page->id;
                         }
@@ -116,25 +134,13 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         }
 
         // Find values.
-        // - MIN() function calls are required in order to avoid errors when MySQL is using SQL
-        //   mode ONLY_FULL_GROUP_BY.
-        // - Some MIN() function calls may not be necessary for MySQL 5.7.5+.
-        $stmt = $this->database->prepare("
-        SELECT MIN(r.pages_id) pages_id, MIN(f.name) field_name, MIN(r.timestamp) timestamp, MIN(r.users_id) users_id, MIN(r.username) username, MIN(d.revisions_id) revisions_id, MIN(d.property) property, MIN(d.data) data
-        FROM fields f, " . VersionControl::TABLE_REVISIONS . " r, " . VersionControl::TABLE_DATA . " d
-        WHERE r.pages_id IN (" . implode(',', array_keys($page_ids)) . ") AND d.revisions_id = r.id AND f.id = d.fields_id
-        GROUP BY r.id, f.id
-        ORDER BY f.id, d.id DESC
-        ");
-        foreach ($page_ids as $p_num => $p_id) {
-            $stmt->bindValue($p_num, $p_id, \PDO::PARAM_INT);
-        }
-        $stmt->execute();
+        $page_data = $this->store->revisions->getForPage($page_ids);
 
         // Fetch enabled fields.
         $enabled_fields = [];
-        if (count($page->template->versionControlFields)) {
-            foreach ($page->template->versionControlFields as $field) {
+        $template_fields = $page->template->versionControlFields;
+        if ($template_fields !== null && count($template_fields)) {
+            foreach ($template_fields as $field) {
                 if (!$this->modules->VersionControl->enable_locked_fields) {
                     $field_object = $this->wire('fields')->get($field);
                     if ($field_object && $field_object->id) {
@@ -150,16 +156,15 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Parse data.
         $data = [];
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+        foreach ($page_data as $row) {
             if (!in_array($row['field_name'], $enabled_fields)) {
                 continue;
             }
             $item = [
                 'users_id' => null,
                 'username' => !empty($row['username']) ? $this->sanitizer->name($row['username']) : null,
-                'revision' => $row['revisions_id'] ?? null,
+                'revision' => $row['revision'] ?? null,
                 'date' => $row['timestamp'] ?? null,
-                'data' => $row['data'] ?? null,
             ];
             if (isset($row['users_id']) && $user = $this->users->get((int) $row['users_id'])) {
                 $item['users_id'] = $user->id;
@@ -196,7 +201,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         // Return JSON or markup depending on provided settings.
         if (isset($settings['render']) && $settings['render'] === 'json') {
             header('Content-type: application/json');
-            return json_encode($data);
+            return json_encode($data, $settings['json_flags'] ?? 0);
         }
         return $this->wire(new \VersionControl\MarkupHelper())->renderFieldRevisions($data, $page);
     }
@@ -258,22 +263,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         }
 
         // Find values.
-        $stmt = $this->database->prepare("
-        SELECT r.id, d.data
-        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
-        WHERE r.id IN(:r1, :r2) AND d.revisions_id = r.id AND f.name = :field_name AND d.fields_id = f.id
-        ORDER BY r.id ASC
-        LIMIT 2
-        ");
-        $stmt->bindValue(':r1', $r1, \PDO::PARAM_INT);
-        $stmt->bindValue(':r2', $r2, \PDO::PARAM_INT);
-        $stmt->bindValue(':field_name', $field_name, \PDO::PARAM_STR);
-        $stmt->execute();
+        $field_data = $this->store->data->getForField($field_name, [$r1, $r2]);
 
         // Render output.
         $data = [];
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            $id = $row['id'] == $r1 ? "r1" : "r2";
+        foreach ($field_data as $row) {
+            $id = $row['revision'] == $r1 ? "r1" : "r2";
             if ($field->type == "FieldtypePage") {
                 $data[$id] = [];
                 if (preg_match("/^(?:[1-9][0-9]*\|?)*(?<!\|)$/", $row['data'])) {
@@ -355,26 +350,18 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if (!$field_name) {
             throw new WireException("Missing required GET param field");
         }
-        $field_name = strpos($field_name, '_repeater') ? preg_replace('/_repeater[0-9]+$/', '', $field_name) : $field_name;
 
         // Additional settings.
         $settings = $this->input->get->settings;
 
         // Find values.
-        $stmt = $this->database->prepare("
-        SELECT r.pages_id, d.fields_id, d.property, d.data
-        FROM fields AS f, " . VersionControl::TABLE_REVISIONS . " AS r, " . VersionControl::TABLE_DATA . " AS d
-        WHERE f.name = :field_name AND r.id = :revision_id AND d.revisions_id = r.id AND d.fields_id = f.id
-        ");
-        $stmt->bindValue(':field_name', $field_name, \PDO::PARAM_STR);
-        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_STR);
-        $stmt->execute();
+        $field_data = $this->store->data->getForField($field_name, $revision_id);
 
         // Generate data (an associative array).
         $page = null;
         $field = null;
         $data = [];
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+        foreach ($field_data as $row) {
             $page = $page ?: $this->pages->get((int) $row['pages_id']);
             $field = $field ?: $this->fields->get((int) $row['fields_id']);
             if ($field->type == "FieldtypeDatetime") {
@@ -434,8 +421,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                         }
                         $value['filename'] = substr($value['filename'], 0, 2) . '/' . $value['filename'];
                         $file->_version_control_basename = substr($value['filename'], strpos($value['filename'], ".")+1);
-                        $file->_version_control_url = $this->modules->VersionControl->url . $value['filename'];
-                        $file->_version_control_filename = $this->modules->VersionControl->path . $value['filename'];
+                        $file->_version_control_url = $this->store->files->getURL() . $value['filename'];
+                        $file->_version_control_filename = $this->store->files->getPath() . $value['filename'];
                         $files->add($file);
                         $value['filename'] = $files->path . $value['filename'];
                         $filedata[$field->name][] = $value;
@@ -473,7 +460,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @param HookEvent $event
      */
     protected function hookPagefileInstall(HookEvent $event) {
-        if (strpos($event->arguments[0], $this->modules->VersionControl->path) !== 0) return;
+        if (strpos($event->arguments[0], $this->store->files->getPath()) !== 0) return;
         $event->object->basename = $event->arguments[0];
         $event->replace = true;
     }
@@ -506,8 +493,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
     protected function hookPageimageSize(HookEvent $event) {
         if (!$event->return->_version_control_filename) return;
         $filename = substr($event->return->basename, 0, 2) . '/variations/' . $event->return->basename;
-        $event->return->_version_control_url = $this->modules->VersionControl->url . $filename;
-        $event->return->_version_control_filename = $this->modules->VersionControl->path . $filename;
+        $event->return->_version_control_url = $this->store->files->getURL() . $filename;
+        $event->return->_version_control_filename = $this->store->files->getPath() . $filename;
         rename($event->return->pagefiles->path() . $event->return->basename, $event->return->filename);
     }
 
@@ -568,25 +555,15 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Validate provided revision ID.
         $revision_id = (int) $this->input->post->revision;
-        $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
-        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
-        $stmt->execute();
-        $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $revision = $this->store->revisions->getData($revision_id, ['timestamp']);
         if (!$revision) {
             throw new WireException("Revision doesn't exist: $revision_id");
         }
 
-        // Sanitize and store the comment text.
-        $comment = $this->input->post->comment;
-        if (mb_strlen($comment) > 255) {
-            $comment = mb_substr($comment, 0, 255);
-        }
-        $stmt = $this->database->prepare("UPDATE " . VersionControl::TABLE_REVISIONS . " SET comment = :comment WHERE id = :revision_id");
-        $stmt->bindValue(':comment', $comment, \PDO::PARAM_STR);
-        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
-        $stmt->execute();
-
-        return $comment;
+        // Update comment text and return updated value or null in case of a failure.
+        return $this->store->revisions->update($revision_id, [
+            'comment' => $this->input->post->comment,
+        ])['comment'] ?? null;
     }
 
     /**
@@ -631,11 +608,8 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             throw new WirePermissionException(i18n::getText('Permission denied (Page not editable)'));
         }
 
-        // Get revision from database.
-        $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
-        $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
-        $stmt->execute();
-        $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
+        // Get revision timestamp from database.
+        $revision = $this->store->revisions->getData($revision_id, ['timestamp']);
         if (!$revision) {
             throw new WireException(sprintf(
                 i18n::getText('Revision doesn\'t exist: %d'),

@@ -239,6 +239,10 @@ $(function() {
                             $if.find('.asmContainer').remove();
                             $select.asmSelect(options);
                         }
+                        if ($if.hasClass('InputfieldImage') || $if.hasClass('InputfieldFile')) {
+                            // Trigger InputfieldImage() manually.
+                            InputfieldImage($);
+                        }
                     } else {
                         update($if, $content, settings, field, cache[field + "." + revision]);
                     }

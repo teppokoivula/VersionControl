@@ -2,17 +2,15 @@
 
 namespace VersionControl;
 
-use \VersionControl\i18n;
-
-use \ProcessWire\Inputfield;
-use \ProcessWire\InputfieldWrapper;
-use \ProcessWire\Page;
-use \ProcessWire\ProcessVersionControl;
+use ProcessWire\Inputfield;
+use ProcessWire\InputfieldWrapper;
+use ProcessWire\Page;
+use ProcessWire\ProcessVersionControl;
 
 /**
  * Version Control Markup Helper
  *
- * @version 0.1.1
+ * @version 0.1.2
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
@@ -131,7 +129,8 @@ class MarkupHelper extends \ProcessWire\Wire {
             $field = $this->modules->get('InputfieldSelect');
             $field->attr('id+name', 'users_id');
             $field->addOption('', i18n::getText('All'));
-            $field->addOptions($this->modules->get('VersionControl')->getUsersCache($page));
+            $store = $this->wire('modules')->get('VersionControl')->getDataStore();
+            $field->addOptions($store->revisions->getPageUsers($page));
             $field->value = $this->input->get->users_id;
             $field->label = i18n::getText('Filter by Author');
             $field->description = i18n::getText('When selected, only revisions authored by specific user will be shown.');

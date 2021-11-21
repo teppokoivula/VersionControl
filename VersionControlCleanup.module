@@ -1,4 +1,11 @@
-<?php namespace ProcessWire;
+<?php
+
+namespace ProcessWire;
+
+use VersionControl\DataStore;
+use VersionControl\Data\Revisions;
+use VersionControl\Data\Data;
+use VersionControl\Data\Files;
 
 /**
  * Version Control Cleanup Helper
@@ -54,9 +61,19 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
     protected $enabled_templates = [];
 
     /**
+     * Reference to the data store
+     *
+     * @var DataStore
+     */
+    protected $store;
+
+    /**
      * Initialization function
      */
     public function init() {
+
+        // Get a reference to the data store.
+        $this->store = $this->modules->get('VersionControl')->getDataStore();
 
         // Remove expired data rows daily.
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
@@ -88,7 +105,6 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
      * @return InputfieldWrapper
      */
     public function getModuleConfigInputfields(array $data) {
-        $this->wire('modules')->get('VersionControl')->initClassLoader();
         return $this->wire(new \VersionControl\CleanupModuleConfig($data))->getFields();
     }
 
@@ -100,16 +116,10 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         // check if this cleanup method is disabled
         if (!$this->data_max_age) return;
 
-        // prepare params
-        $t1 = VersionControl::TABLE_REVISIONS;
-        $t2 = VersionControl::TABLE_DATA;
-        $interval = $this->database->escapeStr($this->data_max_age);
+        // remove data older than specified max age settings
+        $this->store->data->purge($this->data_max_age);
 
-        // prepare and execute statement
-        $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.timestamp < DATE_SUB(NOW(), INTERVAL $interval) AND $t2.revisions_id = $t1.id");
-        $stmt->execute();
-
-        // request cleanup for files
+        // cleanup files
         $this->cleanupFiles();
     }
 
@@ -119,17 +129,28 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
     public function cleanupFiles() {
 
         // get base path for files
-        $files_path = $this->modules->get('VersionControl')->path;
+        $files_path = $this->store->files->getPath();
         if (empty($files_path)) {
             // bail out early if files path can't be found
             return;
         }
 
         // first clean up data files junction table
-        $this->database->query("DELETE FROM " . VersionControl::TABLE_DATA_FILES . " WHERE data_id NOT IN (SELECT DISTINCT id FROM " . VersionControl::TABLE_DATA . ")");
+        $this->database->query("
+        DELETE FROM " . Files::TABLE_DATA_FILES . "
+        WHERE data_id NOT IN (
+            SELECT DISTINCT id FROM " . Data::TABLE . "
+        )
+        ");
 
         // find files without connections to stored data rows
-        $stmt = $this->database->prepare("SELECT * FROM " . VersionControl::TABLE_FILES . " WHERE id NOT IN (SELECT DISTINCT files_id from " . VersionControl::TABLE_DATA_FILES . ")");
+        $stmt = $this->database->prepare("
+        SELECT *
+        FROM " . Files::TABLE . "
+        WHERE id NOT IN (
+            SELECT DISTINCT files_id from " . Files::TABLE_DATA_FILES . "
+        )
+        ");
         $stmt->execute();
         $stmt_del = null;
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
@@ -148,7 +169,7 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
             // if containing directory is now empty, remove that too
             if (count(scandir($dir)) == 1) wireRmdir($dir, true);
             // delete related row from files database table
-            if (!$stmt_del) $stmt_del = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_FILES . " WHERE id = :id");
+            if (!$stmt_del) $stmt_del = $this->database->prepare("DELETE FROM " . Files::TABLE . " WHERE id = :id");
             $stmt_del->bindValue(':id', (int) $row['id'], \PDO::PARAM_INT);
             $stmt_del->execute();
         }
@@ -168,9 +189,17 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         if (!$this->data_row_limit) return;
 
         $ids = [];
-        $t1 = VersionControl::TABLE_REVISIONS;
-        $t2 = VersionControl::TABLE_DATA;
-        $stmt = $this->database->prepare("SELECT $t1.id FROM $t1, $t2 WHERE $t1.pages_id = :pages_id AND $t2.fields_id = :fields_id AND $t2.revisions_id = $t1.id ORDER BY timestamp DESC LIMIT :offset, 18446744073709551615");
+        $t1 = Revisions::TABLE;
+        $t2 = Data::TABLE;
+        $stmt = $this->database->prepare("
+        SELECT $t1.id
+        FROM $t1, $t2
+        WHERE $t1.pages_id = :pages_id
+        AND $t2.fields_id = :fields_id
+        AND $t2.revisions_id = $t1.id
+        ORDER BY timestamp DESC
+        LIMIT :offset, 18446744073709551615
+        ");
         $stmt->bindValue(':pages_id', (int) $pages_id, \PDO::PARAM_INT);
         $stmt->bindValue(':fields_id', (int) $fields_id, \PDO::PARAM_INT);
         $stmt->bindValue(':offset', (int) $this->data_row_limit, \PDO::PARAM_INT);
@@ -201,12 +230,18 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         if (!in_array('deleted_pages', $this->cleanup_methods)) return;
 
         $page = $event->arguments[0];
+
+        // if deleted data is for a Repeater item and parent still exists, we don't want to delete it yet
+        // @todo Make sure that data for Repeater pages gets deleted later; currently it's left orphaned
+        if ($page instanceof RepeaterPage) {
+            $for_page = $page->getForPage();
+            if ($for_page->id) {
+                return;
+            }
+        }
+
         if ($page instanceof Page) {
-            $t1 = VersionControl::TABLE_REVISIONS;
-            $t2 = VersionControl::TABLE_DATA;
-            $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1 LEFT OUTER JOIN $t2 ON $t2.revisions_id = $t1.id WHERE $t1.pages_id = :pages_id");
-            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
-            $stmt->execute();
+            $this->store->data->deleteForPage($page);
             $this->cleanupFiles();
         }
     }
@@ -223,9 +258,7 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
 
         $field = $event->arguments[0];
         if ($field instanceof Field) {
-            $stmt = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_DATA . " WHERE fields_id = :fields_id");
-            $stmt->bindValue(':fields_id', (int) $field->id, \PDO::PARAM_INT);
-            $stmt->execute();
+            $this->store->data->deleteForField($field);
             $this->cleanupFiles();
         }
     }
@@ -243,7 +276,14 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         $page = $event->arguments[0];
         if ($page instanceof Page) {
             $fields = implode(",", array_keys($page->template->fields->getArray()));
-            $stmt = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_DATA . " WHERE revisions_id IN (SELECT id FROM " . VersionControl::TABLE_REVISIONS . " WHERE pages_id = :pages_id) AND fields_id NOT IN ($fields)");
+            $stmt = $this->database->prepare("
+            DELETE FROM " . Data::TABLE . "
+            WHERE revisions_id IN (
+                SELECT id FROM " . Revisions::TABLE . "
+                WHERE pages_id = :pages_id
+            )
+            AND fields_id NOT IN ($fields)
+            ");
             $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
             $stmt->execute();
             $this->cleanupFiles();
@@ -288,15 +328,7 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
         // if we got this far and removed fields were found, delete data rows
         if (!empty($removed_fields)) {
             foreach ($removed_fields_by_template as $template_id => $field_ids) {
-                $field_count = count($field_ids);
-                if ($field_count) {
-                    $page_ids = array_values($this->pages->find("template={$template_id}, include=all")->getArray());
-                    $page_count = count($page_ids);
-                    if ($page_count) {
-                        $stmt = $this->database->prepare("DELETE FROM " . VersionControl::TABLE_DATA . " WHERE fields_id IN (" . rtrim(str_repeat('?, ', $field_count), ', ') . ") AND revisions_id IN (SELECT id FROM " . VersionControl::TABLE_REVISIONS . " WHERE pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . "))");
-                        $stmt->execute(array_merge($field_ids, $page_ids));
-                    }
-                }
+                $this->store->data->deleteForTemplate($template_id, $field_ids);
             }
             $this->cleanupFiles();
         }
