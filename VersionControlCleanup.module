@@ -231,14 +231,14 @@ class VersionControlCleanup extends WireData implements Module, ConfigurableModu
 
         $page = $event->arguments[0];
 
+        // @todo enable after figuring out a way to clean up once the parent page has been removed
         // if deleted data is for a Repeater item and parent still exists, we don't want to delete it yet
-        // @todo Make sure that data for Repeater pages gets deleted later; currently it's left orphaned
-        if ($page instanceof RepeaterPage) {
-            $for_page = $page->getForPage();
-            if ($for_page->id) {
-                return;
-            }
-        }
+        // if ($page instanceof RepeaterPage) {
+        //     $for_page = $page->getForPage();
+        //     if ($for_page->id) {
+        //         return;
+        //     }
+        // }
 
         if ($page instanceof Page) {
             $this->store->data->deleteForPage($page);
