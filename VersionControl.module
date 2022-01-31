@@ -526,7 +526,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'diff' => [
                 'timeout' => (int) $this->diff_timeout,
                 'editCost' => (int) $this->diff_efficiency_cleanup_edit_cost,
-                'cleanup' => ucfirst($this->diff_cleanup),
+                'cleanup' => $this->diff_cleanup ? ucfirst($this->diff_cleanup) : '',
             ],
             'pageID' => $page->id,
             'moduleDir' => $this->config->urls->get('VersionControl'),
