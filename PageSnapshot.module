@@ -1,4 +1,8 @@
-<?php namespace ProcessWire;
+<?php
+
+namespace ProcessWire;
+
+use VersionControl\DataStore;
 
 /**
  * Return page in the state it was at the given time
@@ -15,11 +19,21 @@ class PageSnapshot extends WireData implements Module {
      * Array for storing IDs of hooks altering Pagefile behaviour
      */
     protected $pagefile_hooks = [];
+
+    /**
+     * Reference to the data store
+     *
+     * @var DataStore
+     */
+    protected $store;
     
     /**
      * Initialization function
      */
     public function init() {
+
+        // Get a reference to the data store.
+        $this->store = $this->modules->get('VersionControl')->getDataStore();
 
         // Add new method snapshot to Page objects.
         $this->addHook('Page::snapshot', $this, 'hookPageSnapshot');
@@ -109,14 +123,14 @@ class PageSnapshot extends WireData implements Module {
                     ksort($items);
                     foreach ($items as $key => $item) {
                         $filename = substr($item['filename'], 0, 2) . '/' . $item['filename'];
-                        $page->$field = $this->modules->VersionControl->path . $filename;
+                        $page->$field = $this->store->files->getPath() . $filename;
                         $page->$field->last()->description = $item['description'];
                         $page->$field->last()->modified = $item['modified'];
                         $page->$field->last()->created = $item['created'];
                         if (isset($item['tags'])) $page->$field->last()->tags = $item['tags'];
-                        $page->$field->last()->_version_control_url = $this->modules->VersionControl->url . $filename;
-                        $page->$field->last()->_version_control_filename = $this->modules->VersionControl->path . $filename;
-                        $item['filename'] = $this->modules->VersionControl->path . $filename;
+                        $page->$field->last()->_version_control_url = $this->store->files->getURL() . $filename;
+                        $page->$field->last()->_version_control_filename = $this->store->files->getPath() . $filename;
+                        $item['filename'] = $this->store->files->getPath() . $filename;
                         $filedata[$field][$key] = $item;
                     }
                 }
@@ -135,7 +149,7 @@ class PageSnapshot extends WireData implements Module {
      */
     protected function hookPagefileInstall(HookEvent $event) {
         if ($this->install_pagefiles) return;
-        if (strpos($event->arguments[0], $this->modules->VersionControl->path) === 0) {
+        if (strpos($event->arguments[0], $this->store->files->getPath()) === 0) {
             $event->object->basename = $event->arguments[0];
             $event->replace = true;
         }
@@ -190,15 +204,13 @@ class PageSnapshot extends WireData implements Module {
         }
 
         // revision info
+        $revision = null;
         $page->_version_control_revision = null;
         if ($revision_id) {
             if (!is_integer($revision_id)) {
                 throw new WireException("Revision ID must be an integer");
             }
-            $stmt = $this->database->prepare("SELECT timestamp FROM " . VersionControl::TABLE_REVISIONS . " WHERE id = :revision_id");
-            $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
-            $stmt->execute();
-            $revision = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $revision = $this->store->revisions->getData($revision_id, ['timestamp']);
             if (!$revision) {
                 throw new WireException('Revision doesn\'t exist: ' . $revision_id);
             }
@@ -210,64 +222,41 @@ class PageSnapshot extends WireData implements Module {
             $time = $revision_id ? strtotime($revision['timestamp']) : time();
         }
 
-        // include repeater pages
-        $page_ids = [':p0' => $page->id];
+        // prepare a list of page IDs, including nested repeater pages
+        $page_ids = [$page->id];
         if ($this->modules->isInstalled('FieldtypeRepeater')) {
-            $p_num = 0;
             foreach ($page->fields as $field) {
                 if ($field->type instanceof FieldtypeRepeater) {
                     $subfields = $this->templates->get($field->template_id)->versionControlFields;
                     if ($subfields !== null && count($subfields)) {
                         foreach ($page->get($field->name) as $repeater_page) {
-                            ++$p_num;
-                            $page_ids[':p' . $p_num] = $repeater_page->id;
+                            $page_ids[] = $repeater_page->id;
                         }
                     }
                 }
             }
         }
 
-        // find values
-        $where = $revision_id ? 't1.id <= :revision_id AND ' : '';
-        $stmt = $this->database->prepare('
-        SELECT t1.pages_id, t1.id AS revision, t2.fields_id, t2.property, t2.data
-        FROM (
-            SELECT MAX(t1.id) id, t1.pages_id, t2.fields_id
-            FROM ' . VersionControl::TABLE_REVISIONS . ' AS t1, ' . VersionControl::TABLE_DATA . ' AS t2
-            WHERE ' . $where . 't1.pages_id IN (' . implode(',', array_keys($page_ids)) . ') AND t1.timestamp <= :time AND t2.revisions_id = t1.id
-            GROUP BY t1.pages_id, t2.fields_id, t2.property
-        ) AS t1
-        INNER JOIN ' . VersionControl::TABLE_DATA . ' AS t2
-        ON t2.revisions_id = t1.id AND t2.fields_id = t1.fields_id
-        GROUP BY revision, t1.pages_id, t2.fields_id, t2.property, t2.data
-        ORDER BY revision ASC
-        ');
-        if ($where) {
-            $stmt->bindValue(':revision_id', $revision_id, \PDO::PARAM_INT);
-        }
-        foreach ($page_ids as $p_num => $p_id) {
-            $stmt->bindValue($p_num, $p_id, \PDO::PARAM_INT);
-        }
-        $stmt->bindValue(':time', date('Y-m-d H:i:s', $time), \PDO::PARAM_STR);
-        $stmt->execute();
+        // fetch page data from the database
+        $page_data = $this->store->data->getForPage($page_ids, $time, $revision_id);
 
-        // generate data (associative array)
+        // format data
         $data = [];
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            $field = $this->fields->get($row['fields_id']);
-            if ($row['pages_id'] != $page->id) {
-                $repeater_page = $this->pages->get($row['pages_id']);
+        foreach ($page_data as $data_row) {
+            $field = $this->fields->get($data_row['fields_id']);
+            if ($data_row['pages_id'] != $page->id) {
+                $repeater_page = $this->pages->get($data_row['pages_id']);
                 if ($repeater_page->id) {
                     $grandparent = $repeater_page->parent()->parent()->name;
                     if (strpos($grandparent, 'for-field-') === 0) {
                         $repeater_field = $this->fields->get((int) substr($grandparent, 10))->name;
-                        $data[$repeater_field][$repeater_page . '.' . $field . '.' . $row['property']] = $row['data'];
+                        $data[$repeater_field][$repeater_page . '.' . $field . '.' . $data_row['property']] = $data_row['data'];
                     }
                 }
             } else {
-                $data[$field . '.' . $row['property']] = $row['data'];
-                if (!$revision_id && $row['revision'] > $page->_version_control_revision) {
-                    $page->_version_control_revision = $row['revision'];
+                $data[$field . '.' . $data_row['property']] = $data_row['data'];
+                if (!$revision_id && $data_row['revision'] > $page->_version_control_revision) {
+                    $page->_version_control_revision = $data_row['revision'];
                 }
             }
         }

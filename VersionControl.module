@@ -2,7 +2,8 @@
 
 namespace ProcessWire;
 
-use \VersionControl\i18n;
+use VersionControl\DataStore;
+use VersionControl\i18n;
 
 /**
  * Version Control
@@ -43,6 +44,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'FieldtypeImage',
             'FieldtypeSelector',
             'FieldtypeOptions',
+            // 'FieldtypeRepeater',
+            // 'FieldtypeRepeaterMatrix',
         ],
         'enabled_templates' => [],
         'enable_all_templates' => false,
@@ -50,7 +53,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     ];
 
     /**
-     * Container for field data
+     * Container for page data
      *
      * @var array
      */
@@ -78,38 +81,18 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     protected $users_cache = [];
 
     /**
-     * Name of the revisions database table
+     * IDs of pages for which users have been cached
      *
-     * Revisions table keeps track of revision numbers, which are system wide, and stores important metadata, such as
-     * dates, user IDs, and page IDs.
-     *
-     * @var string
+     * @var array
      */
-    const TABLE_REVISIONS = 'version_control__revisions';
+    protected $users_cache_pages = [];
 
     /**
-     * Name of the database table containing actual field values
+     * Data store instance
      *
-     * @var string
+     * @var DataStore
      */
-    const TABLE_DATA = 'version_control__data';
-
-    /**
-     * Name of the databae table containing metadata for stored files
-     *
-     * Having file metadata stored in the database makes tasks such as mime type checking and fetching file sizes and
-     * file hashes fast. Another benefit is easier and more efficient cleanup for orphaned files.
-     *
-     * @var string
-     */
-    const TABLE_FILES = 'version_control__files';
-
-    /**
-     * Name of the database table connecting file metadata with field values
-     *
-     * @var string
-     */
-    const TABLE_DATA_FILES = 'version_control__data_files';
+    protected $store;
 
     /**
      * Populate the default config data
@@ -138,12 +121,29 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
+     * Get the data store instance
+     *
+     * @internal
+     *
+     * @return DataStore
+     */
+    public function getDataStore(): DataStore {
+        if (!$this->store) {
+            $this->store = $this->wire(new DataStore);
+        }
+        return $this->store;
+    }
+
+    /**
      * Initialization function
      */
     public function init() {
 
         // Init class autoloader.
         $this->initClassLoader();
+
+        // Instantiate data store.
+        $this->store = $this->getDataStore();
 
         // Handle saving config data for the companion modules.
         $this->addHookBefore('Modules::saveModuleConfigData(VersionControl)', $this, 'saveConfigData');
@@ -197,13 +197,19 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Add VersionControl namespace to ProcessWire's class autoloader
+     * Add VersionControl namespaces to ProcessWire's class autoloader
      */
     public function initClassLoader() {
-        if ($this->wire('classLoader')->hasNamespace('VersionControl')) return;
+        if ($this->wire('classLoader')->hasNamespace('VersionControl')) {
+            return;
+        }
         $this->wire('classLoader')->addNamespace(
             'VersionControl',
             $this->wire('config')->paths->get('VersionControl') . 'lib/'
+        );
+        $this->wire('classLoader')->addNamespace(
+            'VersionControl\Data',
+            $this->wire('config')->paths->get('VersionControl') . 'lib/data/'
         );
     }
 
@@ -272,7 +278,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      */
     protected function replaceTextHashes(HookEvent $event) {
         if (!$this->input->get->revision) return;
-        $url = preg_quote($this->modules->VersionControl->url, "#");
+        $url = preg_quote($this->store->files->getURL(), "#");
         $event->return = preg_replace("#(?<!{$url}[a-z0-9]{2}/)[a-z0-9]{40}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
     }
 
@@ -387,7 +393,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $count = 0;
                         foreach ($data as $item) {
                             $data_item = [
-                                'original_filename' => $item->filename, 
+                                '_original_filename' => $item->filename,
                                 'filename' => hash_file('sha1', $item->filename) . "." . $item->basename,
                                 'description' => $item->description,
                                 'modified' => $item->modified,
@@ -443,41 +449,15 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
         if (!$page_data) return;
 
-        // Fetch current revision (parent) and user details.
-        $parent = $page->_version_control_parent;
-        $users_id = $this->user->id;
-        $username = $this->user->name;
-
         // Revision ID placeholder.
-        $revisions_id = 0;
+        $revisions_id = null;
 
         foreach ($page_data as $fields_id => $field_data) {
 
             // If revision isn't assigned yet, get next available revision ID.
             if (!$revisions_id) {
-                $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_REVISIONS . " (parent, pages_id, users_id, username, timestamp) VALUES (:parent, :pages_id, :users_id, :username, :timestamp)");
-                $stmt->bindValue(':parent', $parent ?: null, \PDO::PARAM_INT);
-                $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
-                $stmt->bindValue(':users_id', $users_id, \PDO::PARAM_INT);
-                $stmt->bindValue(':username', $username, \PDO::PARAM_STR);
-                $stmt->bindValue(':timestamp', date('Y-m-d H:i:s'), \PDO::PARAM_STR);
-                $stmt->execute();
-                $revisions_id = $this->database->lastInsertId();
+                $revisions_id = $this->store->revisions->add($page, $this->user);
                 $page->_version_control_revision = $revisions_id;
-                // If parent isn't assigned yet, use ID of previous revision.
-                if (!$parent) {
-                    $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id AND id < :revisions_id ORDER BY id DESC LIMIT 1");
-                    $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
-                    $stmt->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
-                    $stmt->execute();
-                    $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-                    if ($result) {
-                        $stmt = $this->database->prepare("UPDATE " . self::TABLE_REVISIONS . " SET parent = :parent WHERE id = :revisions_id");
-                        $stmt->bindValue(':parent', (int) $result['id'], \PDO::PARAM_INT);
-                        $stmt->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
-                        $stmt->execute();
-                    }
-                }
             }
 
             // Insert field data to another table.
@@ -489,68 +469,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     $data = $field->type->___sleepValue($page, $field, $data);
                 }
 
-                $file_id = null;
-
-                // Dot means that this is multipart property (n.data), which can (at least for the time being) used to
-                // identify file/image fields.
-                if (strpos($property, ".") && !is_null($data)) {
-
-                    // Decode JSON data to get proper file information; copy the original file to storage (unless it's
-                    // already there).
-                    $data = json_decode($data, true);
-                    $dir = $this->path . substr($data['filename'], 0, 2) . "/";
-                    $file = $dir . $data['filename'];
-
-                    // If this is an existing file, fetch ID from files table; otherwise store as a new file and add
-                    // a row to said table.
-                    if (is_file($file)) {
-                        $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_FILES . " WHERE filename = :filename");
-                        $stmt->bindValue(':filename', $data['filename'], \PDO::PARAM_STR);
-                        $stmt->execute();
-                        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-                        $file_id = $result['id'];
-                    } else {
-                        if (!is_dir($dir)) wireMkdir($dir . "variations", true);
-                        copy($data['original_filename'], $file);
-                        $mime_type = '';
-                        if ($this->use_fileinfo) {
-                            // PECL fileinfo extension is not enabled by default in Windows, so check for that first.
-                            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                            $mime_type = finfo_file($finfo, $file);
-                            finfo_close($finfo);
-                        } else if ($this->use_mime_content_type) {
-                            $mime_type = mime_content_type($file);
-                        }
-                        $size = filesize($file);
-                        if (empty($size)) {
-                            $size = 0;
-                        }
-                        $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_FILES . " (filename, mime_type, size) VALUES (:filename, :mime_type, :size)");
-                        $stmt->bindValue(':filename', $data['filename'], \PDO::PARAM_STR);
-                        $stmt->bindValue(':mime_type', $mime_type, \PDO::PARAM_STR);
-                        $stmt->bindValue(':size', $size, \PDO::PARAM_INT);
-                        $stmt->execute();
-                        $file_id = $this->database->lastInsertId();
-                    }
-                    unset($data['original_filename']);
-
-                    // Re-encode the JSON data.
-                    $data = json_encode($data);
-                }
-                $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_DATA . " (revisions_id, fields_id, property, data) VALUES (:revisions_id, :fields_id, :property, :data)");
-                $stmt->bindValue(':revisions_id', $revisions_id, \PDO::PARAM_INT);
-                $stmt->bindValue(':fields_id', $fields_id, \PDO::PARAM_INT);
-                $stmt->bindValue(':property', $property, \PDO::PARAM_STR);
-                $stmt->bindValue(':data', $data, \PDO::PARAM_STR);
-                $stmt->execute();
-                if ($file_id) {
-                    // If data row is related to a file, add a new row to the junction table.
-                    $data_id = $this->database->lastInsertId();
-                    $stmt = $this->database->prepare("INSERT INTO " . self::TABLE_DATA_FILES . " (data_id, files_id) VALUES (:data_id, :file_id)");
-                    $stmt->bindValue(':data_id', $data_id, \PDO::PARAM_INT);
-                    $stmt->bindValue(':file_id', $file_id, \PDO::PARAM_INT);
-                    $stmt->execute();
-                }
+                // Store data in database.
+                $this->store->data->saveForField($fields_id, [$property => $data], $revisions_id);
             }
 
             // Remove processed items from the page data.
@@ -606,7 +526,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'diff' => [
                 'timeout' => (int) $this->diff_timeout,
                 'editCost' => (int) $this->diff_efficiency_cleanup_edit_cost,
-                'cleanup' => ucfirst($this->diff_cleanup),
+                'cleanup' => $this->diff_cleanup ? ucfirst($this->diff_cleanup) : '',
             ],
             'pageID' => $page->id,
             'moduleDir' => $this->config->urls->get('VersionControl'),
@@ -705,60 +625,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         }
 
         // Cache usernames for later use.
-        if (empty($this->users_cache)) {
-            $this->cacheUsers($page);
-        }
-
-        // Gather WHERE rules (page, filters).
-        $where = [];
-        $where['r.pages_id = :pages_id'] = [':pages_id', $page->id, \PDO::PARAM_INT];
-        if (isset($filters['users_id']) && $filters['users_id'] == (int) $filters['users_id']) {
-            $where['r.users_id = :users_id'] = [':users_id', $filters['users_id'], \PDO::PARAM_INT];
-        }
-        $where_str = "WHERE " . implode(" AND ", array_keys($where));
-
-        // Total count of rows in database table.
-        $stmt = $this->database->prepare("SELECT COUNT(*) AS total FROM " . self::TABLE_REVISIONS . " r $where_str");
-        foreach ($where as $value) $stmt->bindValue($value[0], $value[1], $value[2]);
-        $stmt->execute();
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-        $total = (int) $result['total'];
-
-        // Put together a LIMIT clause.
-        if ($limit) {
-            $limit = (int) $limit;
-            $start = (int) $start;
-            if ($start > $total) {
-                $start = $total-$limit;
-                if ($start < 0) $start = 0;
-            }
-        }
+        $this->cacheUsers($page);
 
         // Fetch and parse history rows.
-        $sql = "
-        SELECT r.id, r.users_id, r.username, GROUP_CONCAT(CONCAT_WS(':', d.fields_id, d.property)) changes, r.timestamp, r.comment
-        FROM " . self::TABLE_REVISIONS . " r
-        LEFT OUTER JOIN " . self::TABLE_DATA . " d
-        ON d.revisions_id = r.id
-        $where_str
-        GROUP BY r.id
-        ORDER BY r.timestamp DESC, r.id DESC
-        ";
-        if ($limit) {
-            $sql .= " LIMIT :start, :limit";
-        }
-        $stmt = $this->database->prepare($sql);
-        foreach ($where as $value) {
-            $stmt->bindValue($value[0], $value[1], $value[2]);
-        }
-        if ($limit) {
-            $stmt->bindValue(':start', $start, \PDO::PARAM_INT);
-            $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
-        }
-        $stmt->execute();
         $data = [];
         $properties = [];
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+        $history = $this->store->revisions->getPageHistory($page, $start, $limit, $filters);
+        foreach ($history['rows'] as $row) {
             if ($row['changes']) {
                 $changes = [];
                 $changes_fields = explode(",", $row['changes']);
@@ -803,7 +676,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         return [
             'data' => $data,
-            'total' => $total,
+            'total' => $history['total'],
             'start' => $start,
             'limit' => $limit,
         ];
@@ -815,39 +688,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param Page $page
      */
     protected function cacheUsers(Page $page) {
-        $users = [];
-        $stmt = $this->database->prepare("SELECT DISTINCT users_id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id");
-        $stmt->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
-        $stmt->execute();
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            $user = $this->wire('users')->get((int) $row['users_id']);
-            if ($user->id) {
-                $users[$user->name] = $user->id;
-                continue;
-            }
-            $stmt = $this->database->prepare("SELECT username FROM " . self::TABLE_REVISIONS . " WHERE users_id = :users_id LIMIT 1");
-            $stmt->bindValue(':users_id', $row['users_id'], \PDO::PARAM_INT);
-            $stmt->execute();
-            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
-            $users[$user['username']] = $row['users_id'];
+        if (!empty($this->users_cache_pages[$page->id])) {
+            return;
         }
-        ksort($users);
-        $this->users_cache = array_flip($users);
-    }
-
-    /**
-     * Get users cache
-     *
-     * This method automatically populates the users cache if it doesn't exist yet.
-     *
-     * @param Page $page
-     * @return array
-     */
-    public function getUsersCache(Page $page) {
-        if (empty($this->users_cache)) {
-            $this->users_cache = $this->cacheUsers($page);
-        }
-        return $this->users_cache;
+        $this->users_cache = array_merge($this->users_cache, $this->store->revisions->getPageUsers($page));
+        $this->users_cache_pages[$page->id] = true;
     }
 
     /**
@@ -892,19 +737,13 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $page = $event->object;
         if (!$this->isEnabledTemplate($page->template)) return;
 
-        $revision = (int) $page->_version_control_revision;
-        if (!$revision) {
-            $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id ORDER BY id DESC LIMIT 1");
-            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
-            $stmt->execute();
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-            if ($result) {
-                $revision = (int) $result['id'];
-                $page->_version_control_revision = $revision;
-            }
+        if ($page->_version_control_revision && (int) $page->_version_control_revision == $page->_version_control_revision) {
+            $event->return = $page->_version_control_revision;
+            return;
         }
 
-        $event->return = $revision ?: null;
+        $page->_version_control_revision = $this->store->revisions->getPageRevision($page);
+        $event->return = $page->_version_control_revision;
     }
 
     /**
@@ -950,16 +789,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
         // If there were no revisions in cache, fetch from the database (with limit applied if one was provided).
         if (!is_array($revisions)) {
-            $sql = "SELECT id, timestamp FROM " . self::TABLE_REVISIONS . " WHERE pages_id = :pages_id ORDER BY id DESC";
-            if ($limit) $sql .= " LIMIT :limit";
-            $stmt = $this->database->prepare($sql);
-            $stmt->bindValue(':pages_id', (int) $page->id, \PDO::PARAM_INT);
-            if ($limit) $stmt->bindValue(':limit', (int) $limit, \PDO::PARAM_INT);
-            $stmt->execute();
-            $revisions = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
             $page->_version_control_revisions = [
                 'limit' => $limit,
-                'revisions' => $revisions,
+                'revisions' => $this->store->revisions->getPageRevisions($page, $limit),
             ];
         }
 
@@ -974,26 +806,22 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
     public function install() {
 
         // If Version Control For Text Fields is found, cancel installation to avoid a conflict.
-        if (is_dir($this->config->paths->siteModules . "VersionControlForTextFields")) {
-            throw new WireException("VersionControlForTextFields has to be removed first");
+        if (is_dir($this->config->paths->siteModules . 'VersionControlForTextFields') || $this->modules->isInstalled('VersionControlForTextFields')) {
+            throw new WireException('VersionControlForTextFields has to be removed first');
         }
 
         // Create database tables and attempt to import Version Control for Text Fields data.
+        // Note: during installation init is not triggered, so we'll need to init class autoloader manually.
         $this->initClassLoader();
-        $db = $this->wire(new \VersionControl\DatabaseHelper());
-        $db->createTables();
-        $db->versionControlForTextFieldsImport();
+        $store = $this->wire(new DataStore);
+        $store->install();
     }
 
     /**
-     * Clean up when the module is unintalled
+     * Clean up when the module is uninstalled
      */
     public function uninstall() {
-        $this->initClassLoader();
-        $this->wire(new \VersionControl\DatabaseHelper())->dropTables();
-        if (is_dir($this->path)) {
-            wireRmdir($this->path, true);
-        }
+        $this->store->uninstall();
     }
 
     /**
@@ -1125,20 +953,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // Find out which (if any) templates were removed and cleanup data.
         $removed_templates = array_diff($old_templates, $new_templates);
         if (!empty($removed_templates)) {
-            $t1 = self::TABLE_REVISIONS;
-            $t2 = self::TABLE_DATA;
             foreach ($removed_templates as $template) {
                 $template = $this->templates->get((int) $template);
-                $page_ids = array_values($this->pages->find("template={$template}, include=all")->getArray());
-                $page_count = count($page_ids);
+                $page_count = $this->pages->count("template=" . $template->name . ", include=all");
                 if (!empty($page_count)) {
-                    $stmt = $this->database->prepare("DELETE $t1, $t2 FROM $t1, $t2 WHERE $t1.pages_id IN (" . rtrim(str_repeat('?, ', $page_count), ', ') . ") AND $t2.revisions_id = $t1.id");
-                    $stmt->execute($page_ids);
+                    $this->store->data->deleteForTemplate($template->id);
                     $this->cleanupFiles();
                     $this->message(sprintf(
                         i18n::getText('Removed stored data for %d page using template %s', 'Removed stored data for %d pages using template %s', $page_count),
                         $page_count,
-                        $template
+                        $template->name
                     ));
                 }
             }
@@ -1158,9 +982,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
                     // If field doesn't exist, this point should never be reached; data belonging to removed fields is
                     // cleaned up elsewhere.
-                    $stmt = $this->database->prepare('DELETE FROM ' . self::TABLE_DATA . ' WHERE fields_id = :fields_id');
-                    $stmt->bindValue(':fields_id', $fields_id, \PDO::PARAM_INT);
-                    $stmt->execute();
+                    $this->store->data->deleteForField($fields_id);
                     $this->cleanupFiles();
                     $this->message(sprintf(
                         i18n::getText('Removed stored data for field %s'),
@@ -1185,51 +1007,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             return true;
         }
         return false;
-    }
-
-    /**
-     * Custom getter for caching runtime variables
-     *
-     * Note: we use the files directory of the page associated with ProcessVersionControl as file storage. This method
-     * finds and caches the path and URL of this directory, and creates it if it doesn't exist yet.
-     *
-     * @param string $key
-     * @return mixed
-     */
-    public function __get($key) {
-        switch ($key) {
-            case "path":
-            case "url":
-                if (!array_key_exists($key, $this->data)) {
-                    $processModuleID = $this->wire('modules')->getModuleID('ProcessVersionControl');
-                    if ($processModuleID) {
-                        $processPage = $this->wire('pages')->get('template=admin, process=' . $processModuleID . ', name=version-control');
-                        if ($processPage->id) {
-                            $pagefilesManager = $this->wire(new PagefilesManager($processPage));
-                            $this->data['path'] = $pagefilesManager->path();
-                            $this->data['url'] = $pagefilesManager->url();
-                            if (!is_dir($this->data['path'])) {
-                                wireMkdir($this->data['path']);
-                            }
-                        }
-                    }
-                }
-                return $this->data[$key] ?? null;
-                break;
-            case "use_fileinfo":
-                if (!array_key_exists($key, $this->data)) {
-                    $this->data[$key] = extension_loaded('fileinfo') && function_exists('finfo_open');
-                }
-                return $this->data[$key];
-                break;
-            case "use_mime_content_type":
-                if (!array_key_exists($key, $this->data)) {
-                    $this->data[$key] = function_exists('mime_content_type');
-                }
-                return $this->data[$key];
-                break;
-        }
-        return parent::get($key);
     }
 
     /**

@@ -31,8 +31,9 @@ $(function() {
             var after = $content.children('p.notes:first');
             $content.html(data).prepend(before).append(after);
             if ($if.hasClass('InputfieldImage') || $if.hasClass('InputfieldFile')) {
-                // Trigger InputfieldImage() manually.
+                // Trigger InputfieldImage() and the "reloaded" event manually.
                 InputfieldImage($);
+                $if.trigger('reloaded');
                 // Image and file data isn't editable until it has been restored; here we're
                 // applying an overlay layer to prevent editing attempts and avoid confusion.
                 $content.prepend('<div class="version-control-overlay"></div>');
@@ -152,7 +153,22 @@ $(function() {
                 $(this).find('tr:eq(1)').addClass('ui-state-active');
                 if ($if.hasClass('InputfieldTinyMCE') || $if.hasClass('InputfieldCKEditor')) return;
                 var $cacheobj = $if.find('.InputfieldContent:first') || $if.find('div.ui-widget-content:first');
-                cache[$(this).data('field') + "." + $(this).data('revision')] = $cacheobj.clone(true, true);
+                var sortableOptions = [];
+                if ($if.hasClass('InputfieldImage')) {
+                    // Destroy sortables before cloning to avoid an issue where sorting was no longer
+                    // working for inputfield content after being restored from cache.
+                    $if.find('.ui-sortable').each(function() {
+                        sortableOptions.push($(this).sortable('option'));
+                        $(this).sortable('destroy');
+                        $(this).addClass('version-control--ui-sortable');
+                    });
+                }
+                var $cacheobjclone = $cacheobj.clone(true, true);
+                cache[$(this).data('field') + "." + $(this).data('revision')] = $cacheobjclone;
+                $if.find('.version-control--ui-sortable').each(function() {
+                    // Restore sortables after cloning.
+                    $(this).sortable(sortableOptions.pop());
+                });
             }
             $(this).addClass('version-control--prepared');
         });
@@ -238,6 +254,14 @@ $(function() {
                             $select.appendTo($if.find('.InputfieldAsmSelect')).show();
                             $if.find('.asmContainer').remove();
                             $select.asmSelect(options);
+                        }
+                        if ($if.hasClass('InputfieldImage') || $if.hasClass('InputfieldFile')) {
+                            // Trigger InputfieldImage() and the "reloaded" event manually. Also remove
+                            // init classes (otherwise upload, sorting, etc. are not enabled).
+                            $if.find('.InputfieldImageInitUpload').removeClass('InputfieldImageInitUpload');
+                            $if.removeClass('InputfieldImageInit');
+                            $if.trigger('reloaded');
+                            InputfieldImage($);
                         }
                     } else {
                         update($if, $content, settings, field, cache[field + "." + revision]);

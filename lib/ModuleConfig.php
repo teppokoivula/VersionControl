@@ -9,7 +9,7 @@ use ProcessWire\VersionControl;
 /**
  * Version Control Config
  *
- * @version 1.2.0
+ * @version 1.2.1
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
@@ -166,7 +166,7 @@ class ModuleConfig extends \ProcessWire\Wire {
     protected function getCompatibleFieldtypeDiff(array $compatible_fieldtypes): string {
 
         // get a diff by comparing module default setting value and current setting value
-        $base = \ProcessWire\VersionControl::$defaultData['compatible_fieldtypes'];
+        $base = VersionControl::$defaultData['compatible_fieldtypes'];
         $diff = array_filter([
             'added' => implode(', ', array_diff($compatible_fieldtypes, $base)),
             'removed' => implode(', ', array_filter(array_diff($base, $compatible_fieldtypes), function($fieldtype) {
