@@ -47,6 +47,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         'enabled_templates' => [],
         'enable_all_templates' => false,
         'enable_locked_fields' => false,
+        'only_track_published' => false,
     ];
 
     /**
@@ -358,6 +359,21 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             $template = $page->getForPage()->template;
         }
         if (!$force && !$this->isEnabledTemplate($template)) return;
+
+        if ($this->only_track_published) {
+            $prevStatus = $page->statusPrevious ?: $page->status;
+            if ($page->isUnpublished() && ($prevStatus & Page::statusUnpublished)) {
+                //Page is unpublished and remains unpublished. Don’t track changes.
+                return;
+            } else if ($page->isUnpublished() && !($prevStatus & Page::statusUnpublished)) {
+                //Page is being unpublished. Don’t track changes.
+                return;
+            }
+            else if (!$page->isUnpublished() && ($prevStatus & Page::statusUnpublished)) {
+                //Page is being published. Track the current state of all enabled fields.
+                $force = true;
+            }
+        }
 
         if ($force || $page->isChanged()) {
             foreach ($page->template->fields as $page_field) {

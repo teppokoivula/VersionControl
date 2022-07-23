@@ -83,6 +83,14 @@ class ModuleConfig extends \ProcessWire\Wire {
         $fieldset->add($field);
         $field->attr('checked', isset($data['enable_locked_fields']) && $data['enable_locked_fields']);
 
+        // enable version control only for published pages?
+        $field = $modules->get("InputfieldCheckbox");
+        $field->name = "only_track_published";
+        $field->label = $this->_("Enable version control only for published pages");
+        $field->notes = $this->_("If checked, changes will only be tracked for published pages. When a page is first published, all enabled fields will be tracked to store their original state, even if they were not changed.");
+        $fieldset->add($field);
+        $field->attr('checked', isset($data['only_track_published']) && $data['only_track_published']);
+
         // display config options from companion modules
         $ext_data = [
             'p' => ['ProcessVersionControl', 'VersionControl\ProcessModuleConfig'],
