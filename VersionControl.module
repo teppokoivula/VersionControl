@@ -11,7 +11,7 @@ use \VersionControl\i18n;
  * automatically harvested for enabled fields and templates and stored in custom database tables. Stored data can be
  * viewed and restored via the Admin GUI (Page Edit) or the API.
  *
- * @copyright 2013-2021 Teppo Koivula
+ * @copyright 2013-2022 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo Regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247).
  */
@@ -606,7 +606,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'diff' => [
                 'timeout' => (int) $this->diff_timeout,
                 'editCost' => (int) $this->diff_efficiency_cleanup_edit_cost,
-                'cleanup' => ucfirst($this->diff_cleanup),
+                'cleanup' => ucfirst((string) $this->diff_cleanup),
             ],
             'pageID' => $page->id,
             'moduleDir' => $this->config->urls->get('VersionControl'),
