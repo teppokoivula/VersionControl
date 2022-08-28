@@ -122,6 +122,7 @@ class MarkupHelper extends \ProcessWire\Wire {
             $tab->prepend($fieldset);
 
             $field = $this->modules->get('InputfieldHidden');
+            $field->id = 'history_filters__id';
             $field->name = 'id';
             $field->value = $page->id;
             $fieldset->add($field);

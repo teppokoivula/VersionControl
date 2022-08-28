@@ -667,10 +667,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $keys = array_keys($event->return);
         if (($pos = array_search('ProcessPageEditSettings', $keys)) !== false) {
             $pos += 1;
-        } else {
-            if (($pos = array_search('ProcessPageEditDelete', $keys)) === false) {;
-                $pos = array_search('ProcessPageEditView', $keys);
-            }
+        } else if (($pos = array_search('ProcessPageEditDelete', $keys)) === false) {
+            $pos = array_search('ProcessPageEditView', $keys);
         }
         if ($pos === false) return;
 
