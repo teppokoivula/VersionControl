@@ -5,8 +5,6 @@ namespace VersionControl\Data;
 use VersionControl\DataObject;
 use VersionControl\i18n;
 
-use ProcessWire\Page;
-use ProcessWire\User;
 use ProcessWire\PagefilesManager;
 
 use function ProcessWire\wireMkdir;

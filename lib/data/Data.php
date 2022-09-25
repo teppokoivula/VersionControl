@@ -5,7 +5,6 @@ namespace VersionControl\Data;
 use VersionControl\DataObject;
 
 use ProcessWire\Page;
-use ProcessWire\User;
 
 /**
  * Version Control Data
