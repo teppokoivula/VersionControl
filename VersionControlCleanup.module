@@ -14,7 +14,7 @@ use VersionControl\Data\Files;
  * want to store unnecessary data, so with this module we're making sure that expired rows and
  * orphaned files etc. don't just stick around.
  *
- * @copyright 2019-2021 Teppo Koivula
+ * @copyright 2019-2022 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class VersionControlCleanup extends WireData implements Module, ConfigurableModule {

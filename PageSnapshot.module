@@ -10,7 +10,7 @@ use VersionControl\DataStore;
  * Original code for this module was posted by SteveB at the ProcessWire support forum:
  * https://processwire.com/talk/topic/2892-module-version-control-for-text-fields/?p=50438
  *
- * @copyright 2014-2021 Teppo Koivula & SteveB
+ * @copyright 2014-2022 Teppo Koivula & SteveB
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class PageSnapshot extends WireData implements Module {

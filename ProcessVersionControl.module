@@ -11,7 +11,7 @@ use VersionControl\i18n;
  * This module acts as an interface for Version Control module by making itself available via an Admin page and
  * generating markup based on GET params. For more details see the README.md file distributed with this module.
  *
- * @copyright 2013-2021 Teppo Koivula
+ * @copyright 2013-2022 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessVersionControl extends Process implements Module, ConfigurableModule {
