@@ -12,7 +12,7 @@ use VersionControl\i18n;
  * automatically harvested for enabled fields and templates and stored in custom database tables. Stored data can be
  * viewed and restored via the Admin GUI (Page Edit) or the API.
  *
- * @copyright 2013-2021 Teppo Koivula
+ * @copyright 2013-2022 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  * @todo Regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247).
  */
@@ -50,6 +50,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         'enabled_templates' => [],
         'enable_all_templates' => false,
         'enable_locked_fields' => false,
+        'secure_file_access' => true,
     ];
 
     /**
@@ -185,6 +186,11 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // Add hook that removes hashes within text content of a rendered page.
             $this->addHookAfter('Page::render', $this, 'replaceTextHashes');
 
+            if ($this->secure_file_access && $this->config->pagefileSecure) {
+                // Add hook that serves stored files for authorized users when secure pagefiles are enabled.
+                $this->addHookAfter('ProcessPageView::pageNotFound', $this, 'serveSecureFile');
+            }
+
             // Add new property versionControlFields to Template object.
             $this->addHookProperty('Template::versionControlFields', $this, 'versionControlFields');
 
@@ -280,6 +286,54 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (!$this->input->get->revision) return;
         $url = preg_quote($this->store->files->getURL(), "#");
         $event->return = preg_replace("#(?<!{$url}[a-z0-9]{2}/)[a-z0-9]{40}\.(?![a-z0-9\._-]*(\"|'))#i", "", $event->return);
+    }
+
+    /**
+     * Attempt to serve pagefile when secure pagefiles are enabled and user makes request to stored file
+     *
+     * Note: this method validates permissions, file name format, existence of the file, etc. to avoid accidentally
+     * serving files that should remain inaccessible. Even then it's not possible to be 100% certain that the user
+     * should be allowed access to the file, which is why this hook is only enabled if the 'secure_file_access'
+     * configuration setting is enabled as well.
+     *
+     * @param HookEvent $event
+     */
+    protected function serveSecureFile(HookEvent $event) {
+
+        // check if this is a potential secure file request
+        $url = $event->arguments[1] ?? '';
+        if ($url == '' || strpos($url, $this->config->urls->files) !== 0) return;
+
+        // make sure that current user is logged in and has the page-edit permission
+        if (!$this->user->isLoggedin() || !$this->user->hasPermission('page-edit')) return;
+
+        // get page ID for requested file
+        $file_page_id = explode('/', substr($url, strlen($this->config->urls->files)))[0] ?? 0;
+        if (!$file_page_id || (int) $file_page_id != $file_page_id) return;
+
+        // get page and make sure it's editable by current user
+        $file_page = $this->pages->get((int) $file_page_id);
+        if (!$file_page->id || !$file_page->editable()) return;
+
+        // make sure that requested file actually exists
+        $file_path = substr($url, strlen($this->config->urls->files) + strlen((string) $file_page->id) + 1);
+        $file = $this->config->paths->files . $this->config->pagefileSecurePathPrefix . $file_page->id . \DIRECTORY_SEPARATOR . $file_path;
+        if (strpos($file, '?')) $file = strtok($file, '?');
+        if (!is_file($file)) return;
+
+        // as a precaution validate file path; we only want to serve files managed by Version Control
+        $num_slashes = substr_count($file_path, '/');
+        if ($num_slashes < 1 || $num_slashes > 2) return;
+        $filename = array_pop(explode('/', $file_path));
+        if (!$filename || substr_count($filename, '.') < 2) return;
+
+        // serve file and stop processing current request
+        http_response_code(200);
+        header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+        header("Cache-Control: post-check=0, pre-check=0", false);
+        header("Pragma: no-cache");
+        wireSendFile($file);
+        exit;
     }
 
     /**
@@ -467,6 +521,23 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                 if ($data instanceof TextareasData || $data instanceof \ProcessWire\TextareasData) {
                     $field = $data->getField();
                     $data = $field->type->___sleepValue($page, $field, $data);
+                }
+
+                // Temporary files should be omitted, as they will be stored at a later time
+                if ($data instanceof Pagefiles) {
+                    $num_files = $data->count();
+                    if ($num_files) {
+                        $num_temps = 0;
+                        foreach ($data as $file) {
+                            if (!$file->isTemp()) continue;
+                            ++$num_temps;
+                        }
+                        if ($num_temps == $num_files) {
+                            continue 2;
+                        }
+                    }
+                } else if ($data instanceof Pagefile && $data->isTemp()) {
+                    continue 2;
                 }
 
                 // Store data in database.
