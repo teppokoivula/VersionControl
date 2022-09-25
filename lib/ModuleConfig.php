@@ -154,15 +154,6 @@ class ModuleConfig extends \ProcessWire\Wire {
         $field->attr('checked', isset($data['enable_all_templates']) && $data['enable_all_templates']);
         $fieldset->add($field);
 
-        // enable access to Version Control managed files in secure pagefile directories
-        $field = $modules->get("InputfieldCheckbox");
-        $field->name = "secure_file_access";
-        $field->label = $this->_("Allow access to secure files");
-        $field->description = $this->_("If secure page files are enabled and user attempts to view an earlier version of a file without restoring it first, ProcessWire will block access to said file. By default we attempt to circumvent this if requested file appears to be one managed by Version Control and current user has edit access to related page, but in case file directories are used to store other non-core content there's always the possiblity of something being unintentionally made viewable.");
-        $field->notes = $this->_("This option is enabled by default. If you disable it, users will not be able to preview files for non-public pages if core secure page file option is enabled.");
-        $fieldset->add($field);
-        $field->attr('checked', isset($data['secure_file_access']) && $data['secure_file_access']);
-
         return $fields;
     }
 

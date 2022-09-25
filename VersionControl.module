@@ -50,7 +50,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         'enabled_templates' => [],
         'enable_all_templates' => false,
         'enable_locked_fields' => false,
-        'secure_file_access' => true,
     ];
 
     /**
@@ -186,7 +185,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             // Add hook that removes hashes within text content of a rendered page.
             $this->addHookAfter('Page::render', $this, 'replaceTextHashes');
 
-            if ($this->secure_file_access && $this->config->pagefileSecure) {
+            if ($this->config->pagefileSecure) {
                 // Add hook that serves stored files for authorized users when secure pagefiles are enabled.
                 $this->addHookAfter('ProcessPageView::pageNotFound', $this, 'serveSecureFile');
             }
@@ -304,16 +303,16 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $url = $event->arguments[1] ?? '';
         if ($url == '' || strpos($url, $this->config->urls->files) !== 0) return;
 
-        // make sure that current user is logged in and has the page-edit permission
-        if (!$this->user->isLoggedin() || !$this->user->hasPermission('page-edit')) return;
+        // make sure that current user is logged in and has the version-control permission
+        if (!$this->user->isLoggedin() || !$this->user->hasPermission('version-control')) return;
 
         // get page ID for requested file
         $file_page_id = explode('/', substr($url, strlen($this->config->urls->files)))[0] ?? 0;
         if (!$file_page_id || (int) $file_page_id != $file_page_id) return;
 
-        // get page and make sure it's editable by current user
+        // get page and make sure it's the Version Control process page
         $file_page = $this->pages->get((int) $file_page_id);
-        if (!$file_page->id || !$file_page->editable()) return;
+        if (!$file_page->id || $file_page->process != 'ProcessVersionControl') return;
 
         // make sure that requested file actually exists
         $file_path = substr($url, strlen($this->config->urls->files) + strlen((string) $file_page->id) + 1);
@@ -321,17 +320,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         if (strpos($file, '?')) $file = strtok($file, '?');
         if (!is_file($file)) return;
 
-        // as a precaution validate file path; we only want to serve files managed by Version Control
-        $num_slashes = substr_count($file_path, '/');
-        if ($num_slashes < 1 || $num_slashes > 2) return;
-        $filename = array_pop(explode('/', $file_path));
-        if (!$filename || substr_count($filename, '.') < 2) return;
-
         // serve file and stop processing current request
         http_response_code(200);
-        header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-        header("Cache-Control: post-check=0, pre-check=0", false);
-        header("Pragma: no-cache");
         wireSendFile($file);
         exit;
     }
