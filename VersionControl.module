@@ -9,11 +9,12 @@ use VersionControl\i18n;
  * Version Control
  *
  * This module adds support for storing, viewing, and restoring earlier versions (values) of fields and pages. Data is
- * automatically harvested for enabled fields and templates and stored in custom database tables. Stored data can be
- * viewed and restored via the Admin GUI (Page Edit) or the API.
+ * automatically harvested for enabled fields and templates, and stored in custom database tables. Stored data can be
+ * viewed and restored via the Admin GUI (in Page Edit) or via the API.
  *
  * @copyright 2013-2022 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ *
  * @todo Regenerate data when fields are added to a tracked Template/Fieldgroup (see ProcessWire issue #1247).
  */
 class VersionControl extends WireData implements Module, ConfigurableModule {
@@ -942,8 +943,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         $all_new_fields = [];
         $all_old_fields = [];
         if (!$new_fields && $old_fields || $new_fields && !$old_fields) {
-            // A minor optimization: if both are undefined we never come this far since there have
-            // obviously been no changes to enabled fields.
+            // If statement above is a minor optimization: if both old and new fields are undefined
+            // there have been no changes to enabled fields, so there's no need to come this far.
             foreach ($this->templates->find('id=' . implode('|', array_unique(array_merge($old_templates, $new_templates)))) as $template) {
                 foreach ($template->fields as $field) {
                     if (in_array($field->type, $this->compatible_fieldtypes)) {

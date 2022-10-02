@@ -320,7 +320,7 @@ class Data extends DataObject {
     }
 
     /**
-     * Get field ID based on mixed value input
+     * Get field ID based on mixed input
      *
      * @param int|string|Field $field
      * @return int|null
