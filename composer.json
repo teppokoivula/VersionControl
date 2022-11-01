@@ -1,0 +1,23 @@
+{
+    "name": "teppokoivula/version-control",
+    "type": "pw-module",
+    "description": "Version Control is a ProcessWire CMS/CMF module for versioning page content.",
+    "keywords": [
+        "module",
+        "processwire"
+    ],
+    "homepage": "https://github.com/teppokoivula/VersionControl",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Teppo Koivula",
+            "homepage": "https://github.com/teppokoivula",
+            "email": "teppo.koivula@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.1",
+        "processwire/processwire": "^3.0",
+        "wireframe-framework/processwire-composer-installer": "^1.0.0"
+    }
+}
