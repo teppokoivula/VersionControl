@@ -22,7 +22,7 @@ en,fi,description,file,hash
 "Efficiency Cleanup Edit Cost","Tehokkaan siistimisen kustannus",,site/modules/VersionControl/lib/ProcessModuleConfig.php,c8efeaf01ada1621547cf6541521a98b
 "The larger the edit cost, the more agressive the cleanup.","Mitä suurempi kustannus, sen argressiivisemmin tulosta siistitään.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,f397623ad5cddce695447314173b6100
 "General Settings","Yleiset asetukset",,site/modules/VersionControl/lib/ModuleConfig.php,52f4393e1b52ba63e27310ca92ba098c
-"Enable version control for these templates","Ota versionhallinta käyttöön näille kentille",,site/modules/VersionControl/lib/ModuleConfig.php,a97330dffd1d694a229fbf933a01c021
+"Enable version control for these templates","Ota versionhallinta käyttöön näille sivupohjille",,site/modules/VersionControl/lib/ModuleConfig.php,a97330dffd1d694a229fbf933a01c021
 "This setting has no effect because version control is currently enabled for all templates via Advanced Settings.","Tällä valinnalla ei ole tällä hetkellä merkitystä, koska versionhallinta on otettu käyttöön kaikille sivupohjille edistyneiden asetusten kautta.",,site/modules/VersionControl/lib/ModuleConfig.php,b696a9b16e7f378f992d49ba02555df7
 "Removing a template from here will also remove any data stored for it.","Sivupohjan poistaminen tältä listalta poistaa myös siihen liittyen tallennetut tiedot.",,site/modules/VersionControl/lib/ModuleConfig.php,499c7d7575db417553a10bcacce77255
 "Enable version control for these fields","Ota versionhallinta käyttöön näille kentille",,site/modules/VersionControl/lib/ModuleConfig.php,269f6a19a5b90e2852df2e70a0136f0c
