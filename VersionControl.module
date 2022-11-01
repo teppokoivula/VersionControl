@@ -351,67 +351,97 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
         // If Page has no ID, it's currently being added.
         $page_id = $page->id ?: 0;
 
+        // Check if we should read this page.
+        if (!$this->shouldReadPageData($page, $field, $force)) return;
+
+        foreach ($page->template->fields as $page_field) {
+
+            // Check if we should read this field.
+            if (!$this->shouldReadFieldData($page, $field, $page_field, $force)) continue;
+
+            // Get data from the Page object.
+            $data = $page->get($page_field->name);
+
+            // Continue only if either the page in question exists (i.e. old field was cleared)
+            // or page is new and field has value.
+            if ($page->id || !is_null($data) && $data != "") {
+                if (!isset($this->page_data[$page_id])) {
+                    $this->page_data[$page_id] = [];
+                }
+                $data_array = [
+                    'data' => $data,
+                ];
+                if ($data instanceof Pagefiles) {
+                    // Note: originally 'sort' value of each item was used instead of a custom
+                    // counter, but that's not always available when working over the API.
+                    $count = 0;
+                    foreach ($data as $item) {
+                        $data_item = [
+                            'original_filename' => $item->filename,
+                            'filename' => hash_file('sha1', $item->filename) . "." . $item->basename,
+                            'description' => $item->description,
+                            'modified' => $item->modified,
+                            'created' => $item->created,
+                        ];
+                        if ($page_field->useTags) {
+                            $data_item['tags'] = $item->tags;
+                        }
+                        $data_array[$count.'.data'] = json_encode($data_item);
+                        ++$count;
+                    }
+                    if (empty($data_array)) {
+                        $data_array['0.data'] = null;
+                    }
+                } else if ($data instanceof LanguagesPageFieldValue) {
+                    foreach ($data->getChanges() as $key) {
+                        if ($key == 'data') continue;
+                        $data_array[$key] = $data->getLanguageValue(str_replace('data', '', $key));
+                    }
+                }
+                $this->page_data[$page_id][$page_field->id] = $data_array;
+            }
+        }
+    }
+
+    /**
+     * Check if page data should be read
+     *
+     * @param Page $page
+     * @param Field|null $field
+     * @param bool $force
+     * @return bool
+     */
+    protected function ___shouldReadPageData(Page $page, ?Field $field, bool $force) {
+
+        if ($force) return true;
+
         // Check if tracking values has been enabled for the template of current page, or (in the
         // case of Repeater pages) template of the containing page.
         $template = $page->template;
         if ($page instanceof RepeaterPage) {
             $template = $page->getForPage()->template;
         }
-        if (!$force && !$this->isEnabledTemplate($template)) return;
+        if (!$this->isEnabledTemplate($template)) return false;
 
-        if ($force || $page->isChanged()) {
-            foreach ($page->template->fields as $page_field) {
+        return $page->isChanged();
+    }
 
-                // Check if we should skip this field.
-                if ($field && $page_field->id != $field->id) continue;
-                if (!$force && !$page->isChanged($page_field->name)) continue;
-                if (!$page->id && $page_field->type instanceof FieldtypeFile) continue;
-                if (!in_array($page_field->type, $this->compatible_fieldtypes)) continue;
-                if (!empty($this->enabled_fields) && !in_array($page_field->id, $this->enabled_fields)) continue;
-
-                // Get data from the Page object.
-                $data = $page->get($page_field->name);
-
-                // Continue only if either the page in question exists (i.e. old field was cleared)
-                // or page is new and field has value.
-                if ($page->id || !is_null($data) && $data != "") {
-                    if (!isset($this->page_data[$page_id])) {
-                        $this->page_data[$page_id] = [];
-                    }
-                    $data_array = [
-                        'data' => $data,
-                    ];
-                    if ($data instanceof Pagefiles) {
-                        // Note: originally 'sort' value of each item was used instead of a custom
-                        // counter, but that's not always available when working over the API.
-                        $count = 0;
-                        foreach ($data as $item) {
-                            $data_item = [
-                                'original_filename' => $item->filename, 
-                                'filename' => hash_file('sha1', $item->filename) . "." . $item->basename,
-                                'description' => $item->description,
-                                'modified' => $item->modified,
-                                'created' => $item->created,
-                            ];
-                            if ($page_field->useTags) {
-                                $data_item['tags'] = $item->tags;
-                            }
-                            $data_array[$count.'.data'] = json_encode($data_item);
-                            ++$count;
-                        }
-                        if (empty($data_array)) {
-                            $data_array['0.data'] = null;
-                        }
-                    } else if ($data instanceof LanguagesPageFieldValue) {
-                        foreach ($data->getChanges() as $key) {
-                            if ($key == 'data') continue;
-                            $data_array[$key] = $data->getLanguageValue(str_replace('data', '', $key));
-                        }
-                    }
-                    $this->page_data[$page_id][$page_field->id] = $data_array;
-                }
-            }
-        }
+    /**
+     * Check if field data should be read
+     *
+     * @param Page $page
+     * @param Field $page_field
+     * @param Field|null $field
+     * @param bool $force
+     * @return bool
+     */
+    protected function ___shouldReadFieldData(Page $page, ?Field $field, Field $page_field, bool $force) {
+        if ($field && $page_field->id != $field->id) return false;
+        if (!$force && !$page->isChanged($page_field->name)) return false;
+        if (!$page->id && $page_field->type instanceof FieldtypeFile) return false;
+        if (!in_array($page_field->type, $this->compatible_fieldtypes)) return false;
+        if (!empty($this->enabled_fields) && !in_array($page_field->id, $this->enabled_fields)) return false;
+        return true;
     }
 
     /**
