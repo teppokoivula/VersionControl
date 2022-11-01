@@ -1,0 +1,104 @@
+en,fi,description,file,hash
+"Configuring the Version Control module bundle","Version Control -moduuliryhmän konfigurointi",,site/modules/VersionControl/lib/ProcessModuleConfig.php,2ca4ef1f394f8db64aa52f7bb177e79b
+"All configuration settings for the Version Control module bundle can be found from the %s module.","Kaikki asetukset Version Control -moduuliin liittyen löytyvät %s -moduulista.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,40af9696444b1871975876b49f8f07c0
+"Output Settings",Tulostusasetukset,,site/modules/VersionControl/lib/ProcessModuleConfig.php,dd906a6f86cf14458b96f65560d0cb99
+"Date Format","Päivämäärän muotoilu",,site/modules/VersionControl/lib/ProcessModuleConfig.php,8b6f6d305407f0b686f1974206ad415c
+"Used when displaying version history data in page edit.","Käytetään kun versiohistoriaa esitetään sivunmuokkausnäkymässä.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,a47feadcfd0a5717663fd7a673d06ed6
+"See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.","Lisää tietoa päivämäärän muotoiluasetuksiin liittyen löytyy [PHP:n date-funktion](http://www.php.net/manual/en/function.date.php) ohjeista.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,eda5cc2428c46f14966a92580ce8df1c
+"User Name Format","Käyttäjätunnuksen muotoilu",,site/modules/VersionControl/lib/ProcessModuleConfig.php,a1ed5a914b47eaaf640034386816bd5d
+"This defines the format and field(s) used to represent user names.","Tämä määrittää muodon ja kentän (tai kentät) joita käytetään kun esitetään käyttäjätunnuksia.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,51a60a5845a88e2ec62743fda4ea35fb
+"This string is passed to wirePopulateStringTags() function. Example: {name} ({email}).","Valinnan arvo välitetään wirePopulateStringTags() -funktiolle. Esimerkki: {name} ({email}).",,site/modules/VersionControl/lib/ProcessModuleConfig.php,1864d121561bb6c06178c2baeffa7748
+"Diff Settings",Vertailuasetukset,,site/modules/VersionControl/lib/ProcessModuleConfig.php,a8a3da7c5eba7fac7bd358f5012b83e0
+"Disable diff","Poista vertailu käytöstä",,site/modules/VersionControl/lib/ProcessModuleConfig.php,b61508996bb43a31d40ee2ebd467da3e
+"Diff Timeout","Vertailun aikaviive",,site/modules/VersionControl/lib/ProcessModuleConfig.php,0cb6c62734ea7546b27622e0eca80d53
+"If diff computation takes longer than this, best solution to date is returned. While correct, it may not be optimal.","Jos vertailun muodostaminen kestää tätä pidempään, käytetään sen hetken parasta tulosta. Tämä tulos ei välttämättä ole paras mahdollinen.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,044b1598df30d1825abcb1dee4026de9
+"A timeout of '0' allows for unlimited computation.","Aikaviiveen arvo '0' ei rajoita laskennan kestoa.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,5580337bdb2c199f407c1bff5c2fa6ac
+"Post-diff Cleanup","Vertailun jälkeinen siistiminen",,site/modules/VersionControl/lib/ProcessModuleConfig.php,3f39347e882a3e1d132f409814ad1b7c
+"Post-diff cleanup algorithms attempt to filter out irrelevant small commonalities, thus enhancing final output.","Vertailun jälkeisen siistimisen algoritmi pyrkii poistamaan vertailusta epäolennaiset yhteiset tekijät, siten parantaen lopputulosta.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,f555c9674334bcaf29d817a38ed2937a
+"See [Diff Demo](https://neil.fraser.name/software/diff_match_patch/svn/trunk/demos/demo_diff.html) for examples and detailed descriptions.","[Vertailun demosta](https://neil.fraser.name/software/diff_match_patch/svn/trunk/demos/demo_diff.html) löydät esimerkkjä ja tarkemmat kuvaukset.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,a8f2b2da4be593c886047131b1524710
+"No Cleanup","Ei siistimistä",,site/modules/VersionControl/lib/ProcessModuleConfig.php,f8c32e5d5b9a0fe237b1aa27b32a55d0
+"Semantic Cleanup","Semanttinen siistiminen",,site/modules/VersionControl/lib/ProcessModuleConfig.php,19f23dd0e5bdf38ecfa3c681287cc16a
+"Efficiency Cleanup","Tehokas siistiminen",,site/modules/VersionControl/lib/ProcessModuleConfig.php,02fed2850aea7fa7d41ea87bef40aa67
+"Efficiency Cleanup Edit Cost","Tehokkaan siistimisen kustannus",,site/modules/VersionControl/lib/ProcessModuleConfig.php,c8efeaf01ada1621547cf6541521a98b
+"The larger the edit cost, the more agressive the cleanup.","Mitä suurempi kustannus, sen argressiivisemmin tulosta siistitään.",,site/modules/VersionControl/lib/ProcessModuleConfig.php,f397623ad5cddce695447314173b6100
+"General Settings","Yleiset asetukset",,site/modules/VersionControl/lib/ModuleConfig.php,52f4393e1b52ba63e27310ca92ba098c
+"Enable version control for these templates","Ota versionhallinta käyttöön näille kentille",,site/modules/VersionControl/lib/ModuleConfig.php,a97330dffd1d694a229fbf933a01c021
+"This setting has no effect because version control is currently enabled for all templates via Advanced Settings.","Tällä valinnalla ei ole tällä hetkellä merkitystä, koska versionhallinta on otettu käyttöön kaikille sivupohjille edistyneiden asetusten kautta.",,site/modules/VersionControl/lib/ModuleConfig.php,b696a9b16e7f378f992d49ba02555df7
+"Removing a template from here will also remove any data stored for it.","Sivupohjan poistaminen tältä listalta poistaa myös siihen liittyen tallennetut tiedot.",,site/modules/VersionControl/lib/ModuleConfig.php,499c7d7575db417553a10bcacce77255
+"Enable version control for these fields","Ota versionhallinta käyttöön näille kentille",,site/modules/VersionControl/lib/ModuleConfig.php,269f6a19a5b90e2852df2e70a0136f0c
+"Only fields of compatible fieldtypes can be selected. If no fields are selected, all fields of compatible fieldtypes are considered enabled. Removing a field from here will also remove any data stored for it.","Voit valita vain yhteensopivia kenttiä. Jos ainuttakaan kenttää ei ole valittu, versionhallinta on käytössä kaikille yhteensopiville kentille. Kentän poistaminen tältä listalta poistaa myös siihen liittyen tallennetut tiedot.",,site/modules/VersionControl/lib/ModuleConfig.php,b43a2280c8b2605c8bf9219914ab5435
+"Enable version control for locked fields","Ota versionhallinta käyttöön lukituille kentille",,site/modules/VersionControl/lib/ModuleConfig.php,7e91c433a640bd1f2d9a344b1886d21b
+"By default version control features are not displayed for locked (uneditable) fields. If this option is enabled, users will be able to view version history, but still won't be able to restore earlier revisions.","Oletuksena versionhallinnan toimintoja ei näytetä lukituille (ei-muokattaville) kentille. Jos tämä valinta on päällä, käyttäjät voivat tarkastella näihin liittyvää versiohistoriaa, mutta eivät voi palauttaa aiempia versioita.",,site/modules/VersionControl/lib/ModuleConfig.php,bcfd8e77dfd5509b3a925b0373068939
+"Advanced Settings","Edistyneet asetukset",,site/modules/VersionControl/lib/ModuleConfig.php,9ffc3ccc968a96d902af963c6d7b4e97
+"Compatible fieldtypes","Yhteensopivat kenttätyypit",,site/modules/VersionControl/lib/ModuleConfig.php,95986dc7ced60b0c34d297e5bc57362a
+"Fieldtypes considered compatible with this module.","Kenttätyypit, jotka ovat yhteensopivia tämän moduulin kanssa.",,site/modules/VersionControl/lib/ModuleConfig.php,1ad66bae8e85e16d6cf2e09864ddc03a
+"Please note that selecting any fieldtypes not selected by default may result in various problems.","Huomaathan, että sellaisten kenttien valitseminen jotka eivät ole oletuksena valittuja voi aiheuttaa ongelmia.",,site/modules/VersionControl/lib/ModuleConfig.php,dd940b9edae894d8e3a5eca78a7953d4
+"Enable version control for all templates","Ota versionhallinta käyttöön kaikille sivupohjille",,site/modules/VersionControl/lib/ModuleConfig.php,6ecc2774d58329572acaaad363839cf4
+"If this option is selected, Version Control will track changes to all templates.","Jos tämä valinta on päällä, versiohistoriaa tallennetaan kaikkien sivupohjien osalta.",,site/modules/VersionControl/lib/ModuleConfig.php,7e0d50273d74f2f0ebd6ba8307b596db
+"This could result in very large amounts of collected data, and cause other unexpected side effects!","Tämä valinta voi johtaa siihen, että tietoa kerätään merkittäviä määrä, sekä aiheuttaa muita yllättäviä sivuseurauksia!",,site/modules/VersionControl/lib/ModuleConfig.php,381c6f7a283486bf587a570ce84106af
+"Added fieldtypes: %s","Lisätyt kenttätyypit: %s",,site/modules/VersionControl/lib/ModuleConfig.php,6585b4d2bf569677ce08bcdc65514f95
+"Removed fieldtypes: %s","Poistetut kenttätyypit: %s",,site/modules/VersionControl/lib/ModuleConfig.php,18016d4552dc872860b05026e77cacfa
+"Removed directory: %s","Poistettiin kansio: %s",,site/modules/VersionControl/lib/i18n.php,0ba71cc56d2aa413cd0bd3157b68a40d
+History,Historia,"Tab Label: History",site/modules/VersionControl/lib/i18n.php,16d2b386b2034b9488996466aaae0b57
+Revision,Versio,,site/modules/VersionControl/lib/i18n.php,32c676ac5296556c0573a301ef5ab07b
+Author,Käyttäjä,,site/modules/VersionControl/lib/i18n.php,a517747c3d12f99244ae598910d979c5
+Changes,Muutokset,,site/modules/VersionControl/lib/i18n.php,c112bb3542e98308d12d5ecb10a67abc
+Timestamp,Aikaleima,,site/modules/VersionControl/lib/i18n.php,a3d5de3eac8bb00ae86fd1a1005f1500
+Comment,Kommentti,,site/modules/VersionControl/lib/i18n.php,0be8406951cdfda82f00f79328cf4efc
+"Edit comment","Muokkaa kommenttia",,site/modules/VersionControl/lib/i18n.php,3216c36604b3d4125718d86bb9b89593
+"Restore revision","Palauta versio",,site/modules/VersionControl/lib/i18n.php,d54a35e2bdbe6ad9692efdc2b661fae3
+"Preview revision","Esikatsele versiota",,site/modules/VersionControl/lib/i18n.php,69fb565d295edfe9ef5a034edeaacd96
+"No history of changes found.","Historiatietoja ei löytynyt.",,site/modules/VersionControl/lib/i18n.php,6fb6435cd651c82119fb763bd9d9eb8b
+Filters,Suodattimet,,site/modules/VersionControl/lib/i18n.php,f3f43e30c8c7d78c6ac0173515e57a00
+All,Kaikki,,site/modules/VersionControl/lib/i18n.php,b1c94ca2fbc3e78fc30069c8d0f01680
+"Filter by Author","Suodata käyttäjän mukaan",,site/modules/VersionControl/lib/i18n.php,4eb0785ece85fe48f83326d53a7cc93b
+"When selected, only revisions authored by specific user will be shown.","Kun tämä on valittu, näytetään vain versiot jotka valittu käyttäjä on luonut.",,site/modules/VersionControl/lib/i18n.php,912cc439d3b3073997709b48283e2eb2
+Restore,Palauta,,site/modules/VersionControl/lib/i18n.php,2bd339d85ee3b33e513359ce781b60cc
+Compare,Vertaa,,site/modules/VersionControl/lib/i18n.php,7eece51cf3938103677db7a5051ef8f5
+"Current revision","Nykyinen versio",,site/modules/VersionControl/lib/i18n.php,da2d486f24a8ab0acaae24cc7fc2e1a8
+"Stored revisions for field %s","Tallennetut versiot kentälle %s",,site/modules/VersionControl/lib/i18n.php,4ff542ace09012c289447260879002ea
+"There are no earlier versions of this field available","Tälle kentälle ei ole saatavilla aiempia versioita",,site/modules/VersionControl/lib/i18n.php,3206076428d0fe1d85c3d2ba14d6f20d
+"Table %s already exists","Taulu %s on jo olemassa",,site/modules/VersionControl/lib/i18n.php,fe97e509818446fa01c7b3c8573df78c
+"Created table: %s","Luotiin taulu: %s",,site/modules/VersionControl/lib/i18n.php,39042b30c158883f432492e8325c7c95
+"Dropped table: %s","Tuhottiin taulu: %s",,site/modules/VersionControl/lib/i18n.php,e711f6ac2f755bec9b4f0e4cb418bc31
+"Imported existing Version Control For Text Fields data","Tiedot tuotiin Version Control For Text Fields -moduulilta",,site/modules/VersionControl/lib/i18n.php,081035c498fb1bec650696f1ead09323
+"Unrecognized path","Tunnistamaton polku",,site/modules/VersionControl/lib/i18n.php,3742382258205b5fde2cbb85b01cefe6
+"Page reverted to revision #%d","Sivu palautettu versioon #%d",,site/modules/VersionControl/lib/i18n.php,6ac8c871150bd705dfc14387b59866be
+"Page doesn't exist: %d","Sivua ei ole olemassa: %d",,site/modules/VersionControl/lib/i18n.php,ad0d9fbb2d01181512c7eb2aa5fef5ff
+"Permission denied (Page not viewable)","Ei oikeutta (sivu ei ole katseltavissa)",,site/modules/VersionControl/lib/i18n.php,dc767772f46e86658e64f23473ed2216
+"Permission denied (Page not editable)","Ei oikeutta (sivu ei ole muokattavissa)",,site/modules/VersionControl/lib/i18n.php,960d2b1f7df48f66a43017d642b9732e
+"Revision doesn't exist: %d","Versiota ei ole olemassa: %d",,site/modules/VersionControl/lib/i18n.php,3a15d9aa53ab78a5841592dba48034cf
+"Compare with current","Vertaa nykyiseen",,site/modules/VersionControl/lib/i18n.php,e4eff3e10828ac6fdd7052b40da7ff6b
+"Editing this data is currently disabled. Restore it by saving the page or switch to current version first.","Tämän arvon muokkaaminen ei ole juuri nyt sallittu. Palauta arvo tallentamalla sivu tai vaihda ensin nykyiseen versioon.",,site/modules/VersionControl/lib/i18n.php,7990e195793caf681d24e5f4af990015
+"Type in comment text for this revision (max 255 characters)","Lisää kommentti tähän versioon (korkeintaan 255 merkkiä)",,site/modules/VersionControl/lib/i18n.php,545e1ee2896ebcef3b64540041ab3a96
+"This is the page as it appeared on %s. Click here to close the preview.","Sivu näytti tältä %s. Klikkaa tästä sulkeaksesi esikatselun.",,site/modules/VersionControl/lib/i18n.php,987acaaa32b1db07e88f9a19842ec181
+"Are you sure that you want to revert this page to an earlier revision?","Haluatko varmasti palauttaa sivun aiempaan versioon?",,site/modules/VersionControl/lib/i18n.php,9dbc97d60acf88417376db408a0030ed
+"Show side by side","Näytä vierekkäin",,site/modules/VersionControl/lib/i18n.php,2cb17f0e67476d5f8e2a9af86713e52c
+"Show as a list","Näytä listana",,site/modules/VersionControl/lib/i18n.php,f6fe40ccb62530bb659775a2b6bc0c14
+"There is no difference between these revisions.","Näiden versioiden välillä ei ole eroja.",,site/modules/VersionControl/lib/i18n.php,eba28d6caca6a4724111a5c6d27676de
+"Toggle a list of revisions","Näytä tai piilota versioiden listaus",,site/modules/VersionControl/lib/i18n.php,858901d042014a3e0766b1729db69d28
+"Removed stored data for field %s","Poistettiin tallennetut tiedot kentälle %s",,site/modules/VersionControl/lib/i18n.php,95f76904d9652e36b767992ee566ee92
+"Populated data for %d page using template %s","Lisättiin tiedot %d sivupohjaa %s käyttävän sivun osalta","Singular Version",site/modules/VersionControl/lib/i18n.php,bb85c534be0ee55f5a92386b3a92fb31
+"Populated data for %d pages using template %s","Lisättiin tiedot %d sivupohjaa %s käyttävän sivun osalta","Plural Version",site/modules/VersionControl/lib/i18n.php,1d6f3cc256f9da6d04df92fde113efef
+"Removed stored data for %d page using template %s","Poistettiin tiedot %d sivupohjaa %s käyttävän sivun osalta","Singular Version",site/modules/VersionControl/lib/i18n.php,d7301b4418f8458b6d4d93563df8ef5f
+"Removed stored data for %d pages using template %s","Poistettiin tiedot %d sivupohjaa %s käyttävän sivun osalta","Plural Version",site/modules/VersionControl/lib/i18n.php,c3e885b12858224da7568f7f734924b1
+"Configuring the Version Control module bundle","Version Control -moduuliryhmän konfigurointi",,site/modules/VersionControl/lib/CleanupModuleConfig.php,2ca4ef1f394f8db64aa52f7bb177e79b
+"All configuration settings for the Version Control module bundle can be found from the %s module.","Kaikki asetukset Version Control -moduuliin liittyen löytyvät %s -moduulista.",,site/modules/VersionControl/lib/CleanupModuleConfig.php,40af9696444b1871975876b49f8f07c0
+"Cleanup Settings",Siivousasetukset,,site/modules/VersionControl/lib/CleanupModuleConfig.php,caa3ac6397bd83436426cc64115abbe6
+"1 week","1 viikko",,site/modules/VersionControl/lib/CleanupModuleConfig.php,705fbbd6e1667845569c00fd7523d343
+"2 weeks","2 viikkoa",,site/modules/VersionControl/lib/CleanupModuleConfig.php,a9adf02fea7b0107b5a712a45e51076a
+"1 month","1 kuukausi",,site/modules/VersionControl/lib/CleanupModuleConfig.php,1634e66b522edaa910370cc5581a47f1
+"2 months","2 kuukautta",,site/modules/VersionControl/lib/CleanupModuleConfig.php,e6d19733e42320b3240bb706c16c832b
+"3 months","3 kuukautta",,site/modules/VersionControl/lib/CleanupModuleConfig.php,de0353cab16c9faa68162dffe7b3ec08
+"6 months","6 kuukautta",,site/modules/VersionControl/lib/CleanupModuleConfig.php,9f7aa8ce719604f269027cacec634cf1
+"1 year","1 vuosi",,site/modules/VersionControl/lib/CleanupModuleConfig.php,ca4c73c1f333c437a47c58afd0623530
+"Leave empty to disable automatic time-based cleanup.","Jätä tyhjäksi jos et halua siivota tietoja automaattisesti aikaan perustuen.",,site/modules/VersionControl/lib/CleanupModuleConfig.php,719f87659763b80e4c73d5854f36ef5b
+"Automatic cleanup requires Lazy Cron module.","Automaattinen siivous vaatii Lazy Cron -moduulin.",,site/modules/VersionControl/lib/CleanupModuleConfig.php,fef36c3c742678daad1e4e4076fe206c
+"For how long should we retain collected data?","Kuinka pitkään tietoja tulisi säilyttää?",,site/modules/VersionControl/lib/CleanupModuleConfig.php,336f9c65317f2f65b1e8fac040528252
+"Revisions retained for each field + page combination","Säilytettävien versioiden määrä kutakin kenttä ja sivu -yhdistelmää kohti",,site/modules/VersionControl/lib/CleanupModuleConfig.php,c5166cdbb9fc07aa73a1bab827e90c7e
+"Leave empty to not impose limits for stored revisions.","Jätä tyhjäksi jos et halua rajoittaa säilytettävien versioiden määrää.",,site/modules/VersionControl/lib/CleanupModuleConfig.php,edf0566ec3045f830eb0550e5249a24f
+"Additional cleanup methods","Lisää siivousvalintoja",,site/modules/VersionControl/lib/CleanupModuleConfig.php,ca072f08e58c7a9b702c6d4099d22226
+"Delete all stored data for deleted pages","Tuhoa poistettuihin sivuihin liittyvät tiedot",,site/modules/VersionControl/lib/CleanupModuleConfig.php,8a0d72383387ad4f274bcffeef251aff
+"Delete all stored data for deleted fields","Tuhoa poistettuihin kenttiin liittyvät tiedot",,site/modules/VersionControl/lib/CleanupModuleConfig.php,703cff7892d93652c3b055dceb754fcc
+"Delete data stored for non-existing fields after template is changed","Sivupohjan vaihdon jälkeen tuhoa tiedot, joihin liittyvää kenttää ei löydy uudesta sivupohjasta",,site/modules/VersionControl/lib/CleanupModuleConfig.php,d54cd57a1cdc9b12d5fc934aca054019
+"Delete data stored for fields that are removed from page's fieldgroup","Tuhoa sivun kenttäryhmästä poistettaviin kenttiin liittyvät tiedot",,site/modules/VersionControl/lib/CleanupModuleConfig.php,a98afe2de1bdfec8158b67b31d5fc00e
