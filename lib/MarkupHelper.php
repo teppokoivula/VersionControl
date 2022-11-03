@@ -107,6 +107,7 @@ class MarkupHelper extends \ProcessWire\Wire {
             $field->value = $table;
         }
         $field->label = i18n::getText('History');
+        $field->icon = 'clock-o';
         $tab->append($field);
 
         // Add filters.
