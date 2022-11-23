@@ -2,7 +2,7 @@ Version Control module for ProcessWire
 ======================================
 
 Version Control module For ProcessWire CMS/CMF.
-Copyright (c) 2013-2020 Teppo Koivula
+Copyright (c) 2013-2022 Teppo Koivula
 
 This module uses hooks provided by ProcessWire to catch page edits and store revision data in a
 series of custom database tables, so that it can be later retrieved, reviewed, and restored.
@@ -119,8 +119,9 @@ interested in submitting a pull request or otherwise participating in the develo
 ### Resources
 
 Resources (JS and CSS) required by this module are in the res directory. For each resource there's
-also a ".min" version, which contains minified version of the file. There's no build process, but
-minified files can be created via command-line using cleancss and uglifyjs:
+a ".min" version, containing a minified version. There's no real build process, but minified files
+can be created via command-line by using cleancss (https://github.com/clean-css/clean-css-cli) and
+uglifyjs (https://github.com/mishoo/UglifyJS):
 
 ```
 # CSS

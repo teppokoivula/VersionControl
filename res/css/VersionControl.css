@@ -5,9 +5,11 @@ textarea.version_control_filedata {
     display: none;
 }
 
+/* note: disabled due to causing an extraneous outline when tabs are followed by less than full width inputfield(s)
 .InputfieldColumnWidth {
     position: relative;
 }
+*/
 
 .version-control--visually-hidden,
 .field-revisions--scrollable .version-control--visually-hidden-if-scrollable {
