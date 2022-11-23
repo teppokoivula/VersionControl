@@ -76,8 +76,8 @@ textarea.version_control_filedata {
     display: none;
 }
 
+/* Hide visually, but keep in the flow for the scrollable calculation */
 .field-revisions:not(.field-revisions--animatable) {
-    /* Hide visually, but keep in the flow for the scrollable calculation */
     height: 1px;
     opacity: 0;
     overflow: hidden !important;
