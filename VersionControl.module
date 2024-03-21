@@ -58,21 +58,21 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * Container for local variables
-     * 
+     *
      * @var array
      */
     protected $data = [];
 
     /**
      * Container for hash format filenames within image inputfields
-     * 
+     *
      * @var array
      */
     protected $hash_map = [];
 
     /**
      * Container for runtime user information cache
-     * 
+     *
      * @var array
      */
     protected $users_cache = [];
@@ -262,7 +262,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * Attempt to replace hashes within text content of rendered page output
-     * 
+     *
      * This only applies to preview mode, i.e. when we're checking out the contents of a page in a specific revision.
      * We're also going to leave those paths as-is that look like full URLs, because we don't want to prevent
      * embedding images etc. from the version control file directory.
@@ -278,7 +278,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
 
     /**
      * Update file fields if Page has _version_control_filedata or if POST param version_control_filedata is set
-     * 
+     *
      * Note: Page property is set by PageSnapshot when used via API while POST data is added by ProcessVersionControl
      * when editing the Page.
      *
@@ -810,10 +810,10 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                                 }
                             }
                             $label = 'label' . ($this->user->language->isDefault() ? '' : $this->user->language->id);
-                            $changes[$changes_field] = $field->get($label . "|name") . (isset($properties[$property]) ? " (" . $properties[$property] . ")" : "");
+                            $changes[$changes_field] = $field->getContext($page)->get($label . "|name") . (isset($properties[$property]) ? " (" . $properties[$property] . ")" : "");
                         } else {
                             if (strpos($property, "data") === 0 && $property != 'data') continue;
-                            $changes[$changes_field] = $field->get("label|name");
+                            $changes[$changes_field] = $field->getContext($page)->get("label|name");
                         }
                     }
                 }
