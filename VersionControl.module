@@ -853,7 +853,6 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                             // default in Windows, so we check first
                             $finfo = finfo_open(FILEINFO_MIME_TYPE);
                             $mime_type = finfo_file($finfo, $file);
-                            finfo_close($finfo);
                         } else if ($this->use_mime_content_type) {
                             $mime_type = mime_content_type($file);
                         }
