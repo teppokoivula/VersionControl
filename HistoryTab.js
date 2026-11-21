@@ -9,7 +9,7 @@ $(function() {
         var revision = $(this).data('revision');
         var comment = prompt(moduleConfig.i18n.commentPrompt, $container.text());
         if (comment !== null) {
-            $.post(moduleConfig.processPage+'comment', { revision: revision, comment: comment }, function(data) {
+            $.post(moduleConfig.processPage+'comment', $.extend({ revision: revision, comment: comment }, moduleConfig.csrf), function(data) {
                 $container.text(data).effect("highlight", {}, 500);
             });
         }
@@ -82,7 +82,13 @@ $(function() {
 
     // Confirm before restoring page
     $tab.on('click', 'a.restore', function() {
-        return confirm(moduleConfig.i18n.confirmRestore);
+        if (!confirm(moduleConfig.i18n.confirmRestore)) return false;
+        var $form = $('<form method="post"></form>').attr('action', $(this).attr('href'));
+        $.each(moduleConfig.csrf, function(name, value) {
+            $('<input type="hidden">').attr({ name: name, value: value }).appendTo($form);
+        });
+        $form.appendTo('body').submit();
+        return false;
     });
 
 });

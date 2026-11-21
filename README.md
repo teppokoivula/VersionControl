@@ -82,6 +82,14 @@ this module is switched on for) can be found from Admin > Modules > Version
 Control (module config.) Minor settings can be found from related Process
 modules config: Admin > Modules > Process Version Control.
 
+## Permissions and security
+
+Users need the `version-control` permission in order to use this module, but
+that alone is not enough to see revision data: access to revisions of a page
+also requires that the user is able to view or edit that page. Restoring a
+revision or editing a revision comment requires edit access to the page, and
+both actions are POST requests protected by ProcessWire's CSRF token.
+
 ## Diff Match and Patch
 
 The Diff Match and Patch libraries offer robust algorithms to perform the
