@@ -376,6 +376,9 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                     // counter, but that's not always available when working over the API.
                     $count = 0;
                     foreach ($data as $item) {
+                        // A file that's no longer on disk (removed after the page was loaded) can't be
+                        // hashed or copied: leave it out rather than store an entry without a hash.
+                        if (!is_file($item->filename)) continue;
                         $data_item = [
                             'original_filename' => $item->filename,
                             'filename' => hash_file('sha1', $item->filename) . "." . $item->basename,
@@ -540,6 +543,8 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
                         $result = $stmt->fetch(\PDO::FETCH_ASSOC);
                         $file_id = $result['id'];
                     } else {
+                        // The original may have been removed since the page data was read.
+                        if (!is_file($data['original_filename'])) continue;
                         if (!is_dir($dir)) wireMkdir($dir . "variations", true);
                         copy($data['original_filename'], $file);
                         $mime_type = '';
