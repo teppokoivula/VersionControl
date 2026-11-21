@@ -16,6 +16,13 @@ use ProcessWire\VersionControl;
 class ModuleConfig extends \ProcessWire\Wire {
 
     /**
+     * Config data array
+     *
+     * @var array
+     */
+    protected $data = [];
+
+    /**
      * Constructor method
      *
      * @param array $data Config data array.

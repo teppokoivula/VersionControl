@@ -708,7 +708,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
      * @param array $filters array of filters, currently only possible key being "users_id"
      * @return array|null null on failure, array consisting of keys "data", "total", "start", and "limit" on success
      */
-    public function getHistory(Page $page, int $start = null, int $limit = null, array $filters = []): ?array {
+    public function getHistory(Page $page, ?int $start = null, ?int $limit = null, array $filters = []): ?array {
 
         // Return null in case of a disabled template.
         if (!$this->isEnabledTemplate($page->template)) {
