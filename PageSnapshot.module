@@ -199,7 +199,7 @@ class PageSnapshot extends WireData implements Module {
      */
     protected function snapshot(Page $page, $time = null, $revision_id = null) {   
 
-        if ($time && !is_integer($time)) {
+        if ($time && !is_int($time)) {
             $time = strtotime($time);
         }
 
@@ -207,7 +207,7 @@ class PageSnapshot extends WireData implements Module {
         $revision = null;
         $page->_version_control_revision = null;
         if ($revision_id) {
-            if (!is_integer($revision_id)) {
+            if (!is_int($revision_id)) {
                 throw new WireException("Revision ID must be an integer");
             }
             $revision = $this->store->revisions->getData($revision_id, ['timestamp']);
