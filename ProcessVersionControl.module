@@ -535,6 +535,12 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      */
     public function executeRestore() {
 
+        // Restoring requires a POST request with a valid CSRF token.
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            throw new WireException('Restoring a revision requires a POST request');
+        }
+        $this->session->CSRF->validate();
+
         // Replace current page content with that from given revision.
         $page = $this->getPageRevision('edit');
         $page->of(false);
@@ -581,6 +587,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if ($_SERVER['REQUEST_METHOD'] !== "POST") {
             return null;
         }
+        $this->session->CSRF->validate();
 
         // Validate provided revision ID.
         $revision_id = (int) $this->input->post->revision;

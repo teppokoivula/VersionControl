@@ -645,6 +645,7 @@ class VersionControl extends WireData implements Module, ConfigurableModule {
             'pageID' => $page->id,
             'moduleDir' => $this->config->urls->get('VersionControl'),
             'processPage' => $process_page->url(),
+            'csrf' => [$this->session->CSRF->getTokenName() => $this->session->CSRF->getTokenValue()],
         ]);
     }
 
