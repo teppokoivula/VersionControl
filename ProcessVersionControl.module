@@ -283,7 +283,13 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                             if ($item && $item->id) {
                                 $of = $item->of();
                                 $item->of(true);
-                                $data_row = $labelFieldFormat && $use_get_markup ? $item->getMarkup($labelFieldFormat) : $item->get($labelFieldName);
+                                if ($labelFieldFormat && $use_get_markup) {
+                                    // Custom markup format: output is intentional HTML.
+                                    $data_row = $item->getMarkup($labelFieldFormat);
+                                } else {
+                                    // The entities1() method doesn't double encode already encoded values.
+                                    $data_row = $this->sanitizer->entities1((string) $item->get($labelFieldName));
+                                }
                                 if (!mb_strlen($data_row)) {
                                     $data_row = $item->name;
                                 }
@@ -297,7 +303,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
                     }
                 }
             } else {
-                echo "<textarea id='{$id}' class='revision' data-revision='{$row['id']}'>{$row['data']}</textarea>";
+                echo "<textarea id='{$id}' class='revision' data-revision='{$row['revision']}'>" . htmlspecialchars((string) $row['data'], ENT_QUOTES, 'UTF-8') . "</textarea>";
             }
         }
         if ($field->type == 'FieldtypePage') {
@@ -434,7 +440,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             }
             if ($filedata) {
                 $filedata = json_encode($filedata);
-                echo '<textarea class="version_control_filedata" name="version_control_filedata[]">' . $filedata . '</textarea>';
+                echo '<textarea class="version_control_filedata" name="version_control_filedata[]">' . htmlspecialchars($filedata, ENT_QUOTES, 'UTF-8') . '</textarea>';
             }
             if ($page->template->name == 'role' && $input->name == 'permissions') {
                 $input_permissions = $input;
