@@ -82,6 +82,21 @@ this module is switched on for) can be found from Admin > Modules > Version
 Control (module config.) Minor settings can be found from related Process
 modules config: Admin > Modules > Process Version Control.
 
+## Version Control vs. ProcessWire's Pages Versions
+
+Recent ProcessWire 3.x versions include a core module called Pages Versions,
+which provides an API for creating and managing explicit versions (drafts) of a
+page and restoring one of them as the live page. It doesn't record anything when
+a regular page is saved.
+
+Version Control solves a different problem: it automatically records a revision
+of each tracked field every time a page is saved, and lets you review, compare,
+preview and restore earlier values from the page editor. It also keeps copies of
+files and images, supports revision comments, and can clean up old revisions
+automatically. In short, Pages Versions is for preparing alternate versions of a
+page, while Version Control is for keeping a history of what has happened to it.
+The two can be used side by side.
+
 ## Permissions and security
 
 Users need the `version-control` permission in order to use this module, but
