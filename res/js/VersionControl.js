@@ -205,7 +205,7 @@ $(function() {
                 $if.find('.field-revision__current-label').attr('aria-hidden', true);
                 $revision.addClass('ui-state-active');
                 $current.find('.field-revision__current-label').attr('aria-hidden', false);
-                $('.compare-revisions').remove();
+                $('.compare-revisions-row').remove();
                 $('.field-revision__button--diff').removeClass('active');
                 var $content = $if.find('.InputfieldContent:first') || $if.find('div.ui-widget-content:first');
                 var $loading = $('<span class="field-revision__loading"></span>').hide().css({
@@ -316,7 +316,7 @@ $(function() {
         $('.field-revisions')
             .off('click.revisions-diff')
             .on('click.revisions-diff', '.field-revision__button--diff', function() {
-                $('.compare-revisions').remove();
+                $('.compare-revisions-row').remove();
                 $('.field-revision__button--diff').not(this).removeClass('field-revisions__button--active');
                 $(this).toggleClass('field-revisions__button--active');
                 if ($(this).hasClass('field-revisions__button--active')) {
@@ -329,14 +329,18 @@ $(function() {
                     var r1 = $revisions.find('.ui-state-active:first').data('revision');
                     var r2 = $revision.data('revision');
                     var href = moduleConfig.processPage + 'diff/?revisions=' + r1 + ':' + r2 + '&field=' + field;
+                    var $button = $(this);
+                    var $row = $button.parents('tr:first');
                     var $compare_revisions = $('<div></div>')
                         .attr('tabindex', -1)
-                        .addClass('compare-revisions')
-                        .insertAfter($(this))
-                        .focus();
-                    var $parent = $(this).parents('tr:first');
+                        .addClass('compare-revisions');
+                    $('<tr></tr>')
+                        .addClass('compare-revisions-row')
+                        .append($('<td></td>').attr('colspan', $row.children().length).append($compare_revisions))
+                        .insertAfter($row);
+                    $compare_revisions.focus();
                     $compare_revisions.prepend($spinner).load(href, function() {
-                        if ($parent.find('ul.page-diff').length) {
+                        if ($compare_revisions.find('ul.page-diff').length) {
                             if (typeof enableDiffSwitch != 'function') {
                                 $.getScript(moduleConfig.moduleDir + "diff_switch.min.js", function() {
                                     enableDiffSwitch(moduleConfig);
@@ -352,7 +356,7 @@ $(function() {
                             .attr('tabindex', 0)
                             .on('click', function(event) {
                                 event.preventDefault();
-                                $(this).parent().prev().focus().trigger('click');
+                                $button.focus().trigger('click');
                             })
                             .prependTo($compare_revisions);
                     });
