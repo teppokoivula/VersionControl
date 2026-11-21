@@ -113,7 +113,6 @@ textarea.version_control_filedata {
 }
 
 .field-revisions tbody tr {
-    position: relative;
     border-top: 1px solid rgba(255,255,255,.25) !important;
 }
 
@@ -265,13 +264,18 @@ body.template-admin .field-revisions .ui-state-active {
     padding: 1em;
     background: #fff;
     border-radius: 2px;
-    position: absolute;
-    left: 1.25%;
-    width: 97.5%;
-    margin-top: 1em;
     white-space: normal;
     border: 1px solid #ccc;
     box-shadow: 1px 2px 2px rgba(0,0,0,.1);
+}
+
+.field-revisions tbody tr.compare-revisions-row {
+    border-top: 0 !important;
+}
+
+.field-revisions .compare-revisions-row td {
+    padding: 1em 0 !important;
+    white-space: normal;
 }
 
 .compare-revisions-close {
