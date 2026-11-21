@@ -262,6 +262,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
             throw new WireException('You need to provide separate source and target revisions');
         }
 
+        // Make sure that both revisions belong to the same page and that user has access to it.
+        $this->checkRevisionsAccess([$r1, $r2]);
+
         // Find values.
         $field_data = $this->store->data->getForField($field_name, [$r1, $r2]);
 
@@ -359,6 +362,9 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
 
         // Additional settings.
         $settings = $this->input->get->settings;
+
+        // Make sure that user has access to the page this revision belongs to.
+        $this->checkRevisionsAccess([$revision_id]);
 
         // Find values.
         $field_data = $this->store->data->getForField($field_name, $revision_id);
@@ -565,6 +571,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         if (!$revision) {
             throw new WireException("Revision doesn't exist: $revision_id");
         }
+        $this->checkRevisionsAccess([$revision_id], 'edit');
 
         // Update comment text and return updated value or null in case of a failure.
         return $this->store->revisions->update($revision_id, [
@@ -628,6 +635,55 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
         $page->_version_control_parent = $revision_id;
 
         return $page;
+    }
+
+    /**
+     * Throw an exception unless current user has access to given page
+     *
+     * Repeater pages are checked via the page they belong to.
+     *
+     * @param Page $page
+     * @param string $permission Permission required: "view" (viewable or editable) or "edit" (editable).
+     * @throws WireException if page doesn't exist.
+     * @throws WirePermissionException if current user doesn't have the required access.
+     */
+    protected function checkPageAccess(Page $page, string $permission = 'view') {
+        while ($page->id && method_exists($page, 'getForPage') && $page->getForPage() && $page->getForPage()->id) {
+            $page = $page->getForPage();
+        }
+        if (!$page->id) {
+            throw new WireException("Page doesn't exist");
+        }
+        if ($this->pageEditable($page)) {
+            return;
+        }
+        if ($permission == 'view' && $page->viewable()) {
+            return;
+        }
+        throw new WirePermissionException(i18n::getText($permission == 'view' ? 'Permission denied (Page not viewable)' : 'Permission denied (Page not editable)'));
+    }
+
+    /**
+     * Throw an exception unless given revisions exist, belong to the same page, and user has access to it
+     *
+     * @param array $revision_ids
+     * @param string $permission Permission required, see checkPageAccess().
+     * @throws WireException if revisions don't exist or belong to different pages.
+     * @throws WirePermissionException if current user doesn't have the required access.
+     */
+    protected function checkRevisionsAccess(array $revision_ids, string $permission = 'view') {
+        $pages_ids = [];
+        foreach (array_unique(array_map('intval', $revision_ids)) as $revision_id) {
+            $revision = $this->store->revisions->getData($revision_id, ['pages_id']);
+            if (!$revision) {
+                throw new WireException("Revision doesn't exist: $revision_id");
+            }
+            $pages_ids[(int) $revision['pages_id']] = true;
+        }
+        if (count($pages_ids) !== 1) {
+            throw new WireException("Revisions belong to different pages");
+        }
+        $this->checkPageAccess($this->pages->get((int) key($pages_ids)), $permission);
     }
 
     /**
