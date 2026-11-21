@@ -287,7 +287,6 @@ class Files extends DataObject {
             self::$use_fileinfo = true;
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $mime_type = finfo_file($finfo, $filename);
-            finfo_close($finfo);
             return $mime_type ?: '';
         }
         self::$use_fileinfo = false;
