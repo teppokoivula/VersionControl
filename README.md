@@ -137,6 +137,13 @@ find res/js/ -maxdepth 1 -type f -name "*.js" ! -name "*.min.*" \
 
 *Note: aforementioned commands should be run in the module directory.*
 
+## Permissions and security
+
+Users need the `version-control` permission in order to use this module, but that alone is not enough to see revision
+data: access to revisions of a page also requires that the user is able to view or edit that page. Restoring a revision
+or editing a revision comment requires edit access to the page, and both actions are POST requests protected by
+ProcessWire's CSRF token.
+
 ## Diff Match and Patch
 
 The Diff Match and Patch libraries offer robust algorithms to perform the operations required for
