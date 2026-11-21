@@ -608,7 +608,7 @@ class ProcessVersionControl extends Process implements Module, ConfigurableModul
      * @throws WireException if revision defined by GET param revision doesn't exist.
      * @return Page Page as it was in given revision.
      */
-    protected function getPageRevision(string $permission = null): Page {
+    protected function getPageRevision(?string $permission = null): Page {
 
         // Get Page ID and revision ID.
         $pages_id = (int) $this->input->get->pages_id;
