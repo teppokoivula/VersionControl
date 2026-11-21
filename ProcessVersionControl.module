@@ -217,6 +217,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $pages_id = $this->input->get->pages_id ? (int) $this->input->get->pages_id : null;
         if (!$pages_id) throw new WireException("Missing required GET param pages_id");
         $page = $this->pages->get($pages_id);
+        $this->checkPageAccess($page);
         $page_ids = array(':p0' => $pages_id);
 
         // include repeater pages
@@ -365,6 +366,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $r2 = (int) $r2;
         if (!$r1 || !$r2) throw new WireException("Revisions need to be provided in following format: 123:124");
 
+        // make sure that both revisions belong to the same page and that user has access to it
+        $this->checkRevisionsAccess(array($r1, $r2));
+
         // find values
         $stmt = $this->database->prepare("
         SELECT r.id, d.data
@@ -465,6 +469,9 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
 
         // additional settings
         $settings = $this->input->get->settings;
+
+        // make sure that user has access to the page this revision belongs to
+        $this->checkRevisionsAccess(array($revision_id));
 
         // find values
         $stmt = $this->database->prepare("
@@ -645,6 +652,7 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
         $stmt->execute();
         $revision = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$revision) throw new WireException("Revision doesn't exist: $revision_id");
+        $this->checkRevisionsAccess(array($revision_id), 'edit');
 
         // sanitize and store comment text
         $comment = $this->input->post->comment;
@@ -712,6 +720,44 @@ class ProcessVersionControl extends Process implements ConfigurableModule {
     protected function renderJSON(array $data) {
         header('Content-type: application/json');
         return json_encode($data);
+    }
+
+    /**
+     * Throw an exception unless current user has access to given page
+     *
+     * Repeater pages are checked via the page they belong to.
+     *
+     * @param Page $page
+     * @param string $permission "view" (viewable or editable) or "edit" (editable)
+     * @throws WireException if page doesn't exist or access is denied
+     */
+    protected function checkPageAccess(Page $page, $permission = "view") {
+        while ($page->id && method_exists($page, "getForPage") && $page->getForPage() && $page->getForPage()->id) {
+            $page = $page->getForPage();
+        }
+        if (!$page->id) throw new WireException("Page doesn't exist");
+        $allowed = $page->editable() || ($permission == "view" && $page->viewable());
+        if (!$allowed) throw new WireException("Permission denied");
+    }
+
+    /**
+     * Throw an exception unless given revisions exist, belong to the same page, and user has access to it
+     *
+     * @param array $revision_ids
+     * @param string $permission "view" or "edit", see checkPageAccess()
+     * @throws WireException if revisions are invalid or access is denied
+     */
+    protected function checkRevisionsAccess(array $revision_ids, $permission = "view") {
+        $revision_ids = array_values(array_unique(array_map('intval', $revision_ids)));
+        $placeholders = implode(',', array_fill(0, count($revision_ids), '?'));
+        $stmt = $this->database->prepare("SELECT DISTINCT pages_id FROM " . VersionControl::TABLE_REVISIONS . " WHERE id IN ($placeholders)");
+        foreach ($revision_ids as $key => $revision_id) {
+            $stmt->bindValue($key + 1, $revision_id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        $pages_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if (count($pages_ids) !== 1) throw new WireException("Revisions don't exist or belong to different pages");
+        $this->checkPageAccess($this->pages->get((int) $pages_ids[0]), $permission);
     }
 
     /**
